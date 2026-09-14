@@ -1,0 +1,2906 @@
+【潮汐表 - 專業海象預報 App 完整原始碼】
+專案特性：Riverpod 狀態管理、混合 API (代理實時+官方預報/回測)、自動定位、Pro 訂閱制。
+
+
+=== [CONFIG] pubspec.yaml ===
+
+name: tide_forecast_app
+description: "專業級台灣海象與潮汐預報儀表板。支援 86 個測站實時監控、30 天歷史回測、未來一個月預報及 Apple/Google 訂閱功能。"
+
+# 防止意外發布到 pub.dev
+publish_to: 'none'
+
+# 版本號：1.0.0 代表顯示版本，+1 代表 Build Number (上架時每次需遞增)
+version: 1.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 🌟 解決繁體中文日曆、對話框與 main.dart 紅字必備
+  flutter_localizations:
+    sdk: flutter
+
+  # --- UI 與 視覺表現 ---
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0          # 提供現代感字體
+  
+  # --- 狀態管理 (核心) ---
+  flutter_riverpod: ^2.4.9      # 管理 API 數據、GPS 定位、日期與付費狀態
+
+  # --- 網路與數據處理 ---
+  http: ^1.1.0                  # 請求代理 API 與氣象署官方 API
+  # 🌟 重要：版本提升至 ^0.20.2 以對齊最新 Flutter SDK 在地化需求
+  intl: ^0.20.2                 
+  
+  # --- 資料視覺化 ---
+  fl_chart: ^0.65.0             # 繪製專業潮汐曲線與歷史統計圖表
+
+  # --- 地理位置服務 ---
+  geolocator: ^10.1.0           # 獲取座標並計算與測站的公里距離
+
+  # --- 本地儲存與跳轉 ---
+  shared_preferences: ^2.2.2    # 儲存 Pro 會員狀態與常用設定
+  url_launcher: ^6.2.5          # 🌟 核心：用於開啟 Gist 法律條款與服務協議
+
+  # --- 內購功能 (IAP) ---
+  in_app_purchase: ^3.1.11      # 通用內購介面
+  # 🌟 修正 SKPaymentQueueWrapper 紅字關鍵：iOS 專用 StoreKit 橋接
+  in_app_purchase_storekit: ^0.3.16
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0         # 保持程式碼規範
+
+flutter:
+  # 確保啟用 Material Design 3
+  uses-material-design: true
+
+  # 💡 如果你有準備 App Icon 或 Splash Screen，在此取消註解設定
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
+
+  # 💡 如果你下載了 Noto Sans TC 字體放到 assets/fonts，在此設定
+  # fonts:
+  #   - family: NotoSansTC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSansTC-Regular.ttf
+  #       - asset: assets/fonts/NotoSansTC-Bold.ttf
+  #         weight: 700
+
+=== [IOS CONFIG] ios/Runner/Info.plist ===
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Tide Forecast App</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>tide_forecast_app</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
+
+
+=== [FILE] lib/core/network/tide_api_service.dart ===
+
+import 'dart:convert';
+import 'dart:developer';
+import 'package:http/http.dart' as http;
+import '../utils/constants.dart';
+import '../../features/tide/data/tide_model.dart';
+
+class TideApiService {
+  // -------------------------------------------------------------------------
+  // 1. 實時抓取 (使用 SuperiorAPIs 代理)
+  // 用於獲取當下最豐富的觀測因子 (風浪、溫壓、流速)
+  // -------------------------------------------------------------------------
+  Future<TideStationData> fetchRealTimeProxy(String stationId) async {
+    try {
+      log("📡 [實時-代理] 請求站點: $stationId");
+      final response = await http.post(
+        Uri.parse(AppConstants.proxyUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'token': AppConstants.proxyToken,
+        },
+        body: jsonEncode({
+          "stationID": [stationId],
+          "WeatherElement": [
+            "TideHeight", "TideLevel", "WaveHeight", "WavePeriod", 
+            "SeaTemperature", "WindSpeed", "AirTemperature", 
+            "AirPressure", "CurrentSpeed", "WindDirection"
+          ],
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data.containsKey(stationId)) {
+          log("✅ 代理實時數據獲取成功");
+          return TideStationData.fromProxy(stationId, data[stationId]);
+        }
+      }
+      throw Exception("代理 API 暫無實時數據");
+    } catch (e) {
+      log("🚨 fetchRealTimeProxy 異常: $e");
+      rethrow;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. 🌟 30 天歷史回測 (中央氣象署官方 O-B0075-002)
+  // 解決「觀測只能看3天」的限制
+  // -------------------------------------------------------------------------
+  Future<TideStationData> fetchHistoryOfficial(
+    String stationId, 
+    String startTime, 
+    String endTime
+  ) async {
+    try {
+      // 根據 O-B0075-002 規格：
+      // 1. StationID 必須全大寫 ID
+      // 2. 使用 timeFrom / timeTo 進行時間篩選
+      final Uri url = Uri.parse("https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-002")
+          .replace(queryParameters: {
+        'Authorization': AppConstants.officialApiKey,
+        'StationID': stationId, 
+        'timeFrom': startTime,
+        'timeTo': endTime,
+      });
+
+      log("📜 [回測-官方] 請求 30 天資料庫 URL: $url");
+
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // 🌟 關鍵路徑修正：此 API 回傳的是大寫 "Records" 與 "SeaSurfaceObs"
+        final List? locations = data['Records']?['SeaSurfaceObs']?['Location'];
+        
+        if (locations != null && locations.isNotEmpty) {
+          log("✅ 成功解析到 O-B0075-002 歷史數據點");
+          // 使用 Model 中專門對付 30 天格式的工廠方法
+          return TideStationData.fromOfficial30Day(locations.first);
+        } else {
+          log("⚠️ 官方 30 天 API 請求成功但內容為空 (可能超出 30 天限制)");
+        }
+      } else {
+        log("❌ 官方 API 錯誤: ${response.statusCode}");
+      }
+
+      // 若無資料則回傳空觀測清單的模型
+      return TideStationData(
+        info: StationInfo(
+          stationName: "查無觀測紀錄", 
+          countyName: "", townName: "", 
+          lat: "0", lng: "0", attr: "", 
+          addressDescription: ""
+        ),
+        observations: [],
+      );
+    } catch (e) {
+      log("🚨 fetchHistoryOfficial 嚴重錯誤: $e");
+      rethrow;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. 未來預報 (中央氣象署 F-A0021-001)
+  // 獲取未來 24 小時至 3 天的滿乾潮時刻
+  // -------------------------------------------------------------------------
+  Future<List<TideForecast>> fetchForecastOfficial(String stationId) async {
+    try {
+      final Uri url = Uri.parse("https://opendata.cwa.gov.tw/api/v1/rest/datastore/${AppConstants.dsForecast}")
+          .replace(queryParameters: {
+        'Authorization': AppConstants.officialApiKey,
+        'StationId': stationId,
+      });
+
+      log("🔮 [預報-官方] 請求 URL: $url");
+
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // 官方預報 JSON 路徑解析：records -> TideForecasts (List) -> [0] -> Location -> TimePeriods -> Daily
+        final List? tideForecastsList = data['records']?['TideForecasts'];
+        
+        if (tideForecastsList != null && tideForecastsList.isNotEmpty) {
+          final locationData = tideForecastsList[0]['Location'];
+          final List? dailyPeriods = locationData?['TimePeriods']?['Daily'];
+          
+          if (dailyPeriods != null) {
+            List<TideForecast> allForecasts = [];
+            for (var day in dailyPeriods) {
+              final List? times = day['Time'];
+              if (times != null) {
+                for (var t in times) {
+                  allForecasts.add(TideForecast.fromOfficial(t));
+                }
+              }
+            }
+            log("✅ 預報解析成功: 共 ${allForecasts.length} 筆資料");
+            return allForecasts;
+          }
+        }
+      }
+      return [];
+    } catch (e) {
+      log("🚨 fetchForecastOfficial 異常: $e");
+      return [];
+    }
+  }
+}
+
+=== [FILE] lib/core/utils/constants.dart ===
+
+import 'package:flutter/material.dart';
+
+/// 測站模型定義
+class StationModel {
+  final String id;
+  final String name;
+  final String region; // 北部, 西部, 南部, 東部, 離島
+  final bool isBuoy;   // 是否為全功能浮標站
+  final double lat;    // 緯度
+  final double lng;    // 經度
+
+  const StationModel({
+    required this.id,
+    required this.name,
+    required this.region,
+    this.isBuoy = false,
+    required this.lat,
+    required this.lng,
+  });
+}
+
+class AppConstants {
+  // --- 1. 代理 API 配置 (用於實時海象) ---
+  static const String proxyUrl = "https://superiorapis-creator.cteam.com.tw/manager/feature/proxy/9ba80bfcd6ad/pub_9c67411cf4c9";
+  static const String proxyToken = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjZXJ0IjoiZTE2MjE2NWY0Y2MzYzhlZGRjYzBmYzNjZjQ1ODk1ZDc3YTIyYTA0ZCJ9.bC4-Cb19wNHQ65hshrg6lT8NaROigjdmW2UW69a7laE";
+
+  // --- 2. 中央氣象署 (CWA) 官方配置 (用於歷史回測與預報) ---
+  static const String officialBaseUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+  static const String officialApiKey = "CWA-7B44D117-3255-4D71-9974-B3A93B937D51";
+  
+  static const String dsObservation = "O-B0075-002"; // 30天歷史觀測
+  static const String dsForecast = "F-A0021-001";    // 1個月潮汐預報
+
+  // --- 3. Apple In-App Purchase (IAP) 產品 ID ---
+  // 🌟 必須與 App Store Connect 後台設定的 ID 完全一致
+  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
+  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
+  
+  static const Set<String> iapProductIds = {iapProMonthly, iapProYearly};
+
+  // --- 4. 地區定義 ---
+  static const List<String> regions = ["北部", "西部", "南部", "東部", "離島"];
+
+  // --- 5. 全台 86 個測站詳細清單 (含座標) ---
+  static const List<StationModel> allStations = [
+    // --- 北部地區 ---
+    StationModel(id: "46694A", name: "龍洞資料浮標", region: "北部", isBuoy: true, lat: 25.037, lng: 121.926),
+    StationModel(id: "C6AH2", name: "富貴角資料浮標", region: "北部", isBuoy: true, lat: 25.305, lng: 121.521),
+    StationModel(id: "C6B01", name: "彭佳嶼資料浮標", region: "北部", isBuoy: true, lat: 25.607, lng: 122.052),
+    StationModel(id: "TPBU01", name: "臺北港浮標", region: "北部", isBuoy: true, lat: 25.176, lng: 121.365),
+    StationModel(id: "OAC003", name: "鼻頭角浮標", region: "北部", isBuoy: true, lat: 25.129, lng: 121.922),
+    StationModel(id: "OAC004", name: "潮境浮標", region: "北部", isBuoy: true, lat: 25.143, lng: 121.803),
+    StationModel(id: "C4A01", name: "淡水潮位站", region: "北部", lat: 25.175, lng: 121.424),
+    StationModel(id: "C4A06", name: "淡海潮位站", region: "北部", lat: 25.193, lng: 121.411),
+    StationModel(id: "C4B01", name: "基隆潮位站", region: "北部", lat: 25.155, lng: 121.751),
+    StationModel(id: "C4B03", name: "長潭里潮位站", region: "北部", lat: 25.141, lng: 121.801),
+    StationModel(id: "C4A02", name: "龍洞潮位站", region: "北部", lat: 25.038, lng: 121.921),
+    StationModel(id: "C4A03", name: "麟山鼻潮位站", region: "北部", lat: 25.285, lng: 121.501),
+    StationModel(id: "C4A05", name: "福隆潮位站", region: "北部", lat: 25.021, lng: 121.944),
+
+    // --- 西部地區 ---
+    StationModel(id: "46757B", name: "新竹資料浮標", region: "西部", isBuoy: true, lat: 24.767, lng: 120.817),
+    StationModel(id: "C6F01", name: "臺中資料浮標", region: "西部", isBuoy: true, lat: 24.233, lng: 120.417),
+    StationModel(id: "WRA005", name: "外傘頂資料浮標", region: "西部", isBuoy: true, lat: 23.516, lng: 120.017),
+    StationModel(id: "C6G01", name: "彰化水位浮標", region: "西部", isBuoy: true, lat: 24.033, lng: 120.250),
+    StationModel(id: "C6D01", name: "新竹水位浮標", region: "西部", isBuoy: true, lat: 24.850, lng: 120.900),
+    StationModel(id: "C4D01", name: "新竹潮位站", region: "西部", lat: 24.848, lng: 120.916),
+    StationModel(id: "C4F01", name: "臺中港潮位站", region: "西部", lat: 24.256, lng: 120.518),
+    StationModel(id: "C4G01", name: "鹿港潮位站", region: "西部", lat: 24.058, lng: 120.403),
+    StationModel(id: "1456", name: "麥寮潮位站", region: "西部", lat: 23.791, lng: 120.141),
+    StationModel(id: "4J21", name: "麥寮氣象站", region: "西部", lat: 23.785, lng: 120.150),
+    StationModel(id: "C4J01", name: "萡子寮潮位站", region: "西部", lat: 23.614, lng: 120.133),
+    StationModel(id: "C4L01", name: "塭港潮位站", region: "西部", lat: 23.456, lng: 120.137),
+    StationModel(id: "C4L02", name: "東石潮位站", region: "西部", lat: 23.450, lng: 120.140),
+    StationModel(id: "C4C01", name: "竹圍潮位站", region: "西部", lat: 25.116, lng: 121.244),
+    StationModel(id: "C4E01", name: "外埔潮位站", region: "西部", lat: 24.646, lng: 120.767),
+
+    // --- 南部地區 ---
+    StationModel(id: "46759A", name: "鵝鑾鼻資料浮標", region: "南部", isBuoy: true, lat: 21.901, lng: 120.844),
+    StationModel(id: "46714D", name: "小琉球資料浮標", region: "南部", isBuoy: true, lat: 22.316, lng: 120.350),
+    StationModel(id: "46778A", name: "七股資料浮標", region: "南部", isBuoy: true, lat: 23.083, lng: 120.033),
+    StationModel(id: "COMC08", name: "彌陀資料浮標", region: "南部", isBuoy: true, lat: 22.766, lng: 120.183),
+    StationModel(id: "OAC007", name: "南灣浮標", region: "南部", isBuoy: true, lat: 21.942, lng: 120.762),
+    StationModel(id: "C6N01", name: "臺南水位浮標", region: "南部", isBuoy: true, lat: 23.016, lng: 120.066),
+    StationModel(id: "C4P01", name: "高雄潮位站", region: "南部", lat: 22.618, lng: 120.266),
+    StationModel(id: "C4Q01", name: "小琉球潮位站", region: "南部", lat: 22.355, lng: 120.379),
+    StationModel(id: "C4Q02", name: "東港潮位站", region: "南部", lat: 22.464, lng: 120.443),
+    StationModel(id: "C4Q03", name: "後壁湖潮位站", region: "南部", lat: 21.946, lng: 120.745),
+    StationModel(id: "4A", name: "安平潮位站", region: "南部", lat: 23.001, lng: 120.154),
+    StationModel(id: "4F", name: "枋寮潮位站", region: "南部", lat: 22.364, lng: 120.590),
+    StationModel(id: "4I", name: "小港潮位站", region: "南部", lat: 22.553, lng: 120.334),
+    StationModel(id: "11781", name: "四草潮位站", region: "南部", lat: 23.033, lng: 120.125),
+    StationModel(id: "1786", name: "永安潮位站", region: "南部", lat: 22.821, lng: 120.198),
+    StationModel(id: "4Q11", name: "大鵬灣氣象站", region: "南部", lat: 22.449, lng: 120.477),
+
+    // --- 東部地區 ---
+    StationModel(id: "46699A", name: "花蓮資料浮標", region: "東部", isBuoy: true, lat: 24.033, lng: 121.683),
+    StationModel(id: "46706A", name: "蘇澳資料浮標", region: "東部", isBuoy: true, lat: 24.616, lng: 121.883),
+    StationModel(id: "46708A", name: "龜山島資料浮標", region: "東部", isBuoy: true, lat: 24.850, lng: 121.966),
+    StationModel(id: "WRA007", name: "臺東資料浮標", region: "東部", isBuoy: true, lat: 22.716, lng: 121.183),
+    StationModel(id: "46761F", name: "成功浮球式波浪站", region: "東部", isBuoy: true, lat: 23.132, lng: 121.420),
+    StationModel(id: "C4T01", name: "花蓮潮位站", region: "東部", lat: 23.985, lng: 121.636),
+    StationModel(id: "C4S02", name: "成功潮位站", region: "東部", lat: 23.097, lng: 121.378),
+    StationModel(id: "C4U01", name: "蘇澳潮位站", region: "東部", lat: 24.595, lng: 121.865),
+    StationModel(id: "C4U02", name: "烏石潮位站", region: "東部", lat: 24.869, lng: 121.841),
+    StationModel(id: "1566", name: "石梯潮位站", region: "東部", lat: 23.491, lng: 121.512),
+    StationModel(id: "1586", name: "富岡潮位站", region: "東部", lat: 22.787, lng: 121.192),
+    StationModel(id: "1596", name: "大武潮位站", region: "東部", lat: 22.339, lng: 120.906),
+    StationModel(id: "12540", name: "和平港潮位站", region: "東部", lat: 24.298, lng: 121.758),
+    StationModel(id: "4T21", name: "石梯氣象站", region: "東部", lat: 23.495, lng: 121.510),
+
+    // --- 離島地區 ---
+    StationModel(id: "46735A", name: "澎湖資料浮標", region: "離島", isBuoy: true, lat: 23.633, lng: 119.450),
+    StationModel(id: "C6W08", name: "馬祖資料浮標", region: "離島", isBuoy: true, lat: 26.233, lng: 120.000),
+    StationModel(id: "C6W10", name: "七美資料浮標", region: "離島", isBuoy: true, lat: 23.166, lng: 119.333),
+    StationModel(id: "C6S94", name: "蘭嶼資料浮標", region: "離島", isBuoy: true, lat: 22.016, lng: 121.566),
+    StationModel(id: "C6V27", name: "東沙島資料浮標", region: "離島", isBuoy: true, lat: 20.700, lng: 116.716),
+    StationModel(id: "A6S01", name: "綠島公館資料浮標", region: "離島", isBuoy: true, lat: 22.683, lng: 121.483),
+    StationModel(id: "OAC006", name: "東吉嶼浮標", region: "離島", isBuoy: true, lat: 23.264, lng: 119.667),
+    StationModel(id: "C4W02", name: "澎湖潮位站", region: "離島", lat: 23.565, lng: 119.563),
+    StationModel(id: "C4W01", name: "馬祖潮位站", region: "離島", lat: 26.155, lng: 119.928),
+    StationModel(id: "C4W03", name: "七美潮位站", region: "離島", lat: 23.197, lng: 119.425),
+    StationModel(id: "C4W04", name: "吉貝潮位站", region: "離島", lat: 23.743, lng: 119.610),
+    StationModel(id: "C4W05", name: "東吉潮位站", region: "離島", lat: 23.256, lng: 119.675),
+    StationModel(id: "C5W09", name: "東吉島波浪站", region: "離島", isBuoy: true, lat: 23.258, lng: 119.671),
+    StationModel(id: "1966", name: "水頭潮位站(金門)", region: "離島", lat: 24.425, lng: 118.283),
+    StationModel(id: "1956", name: "料羅灣潮位站(金門)", region: "離島", lat: 24.416, lng: 118.433),
+    StationModel(id: "1676", name: "綠島潮位站", region: "離島", lat: 22.666, lng: 121.466),
+    StationModel(id: "C4S01", name: "蘭嶼潮位站", region: "離島", lat: 22.056, lng: 121.503),
+    StationModel(id: "C4P03", name: "南沙潮位站", region: "離島", lat: 10.376, lng: 114.364),
+    StationModel(id: "C4P02", name: "東沙潮位站-1", region: "離島", lat: 20.701, lng: 116.726),
+    StationModel(id: "C4P09", name: "東沙潮位站-2", region: "離島", lat: 20.710, lng: 116.730),
+    StationModel(id: "4S21", name: "綠島氣象站", region: "離島", lat: 22.671, lng: 121.467),
+    StationModel(id: "4W21", name: "料羅灣氣象站", region: "離島", lat: 24.410, lng: 118.430),
+  ];
+}
+
+=== [FILE] lib/core/theme/app_theme.dart ===
+
+import 'package:flutter/material.dart';
+
+class AppTheme {
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorSchemeSeed: const Color(0xFF0077B6),
+      scaffoldBackgroundColor: const Color(0xFFF8FBFF),
+      // 修正點：使用 CardThemeData 而不是 CardTheme
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.white,
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/providers/tide_provider.dart ===
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
+
+// 引入模型與核心服務
+import '../data/tide_model.dart';
+import '../../../core/network/tide_api_service.dart';
+import '../../../core/utils/constants.dart';
+
+/// 1. 提供 API 服務實例
+final tideApiServiceProvider = Provider((ref) => TideApiService());
+
+/// 2. 追蹤目前選擇的測站 ID
+/// 初始值設為 "46694A" (龍洞)，但會被下方的自動定位邏輯覆蓋
+final currentStationIdProvider = StateProvider<String>((ref) => "46694A");
+
+/// 3. 目前選擇的日期 (支援 過去30天 至 未來30天)
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+
+/// 4. 獲取使用者目前位置的 Provider
+final userLocationProvider = FutureProvider<Position?>((ref) async {
+  try {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    if (permission == LocationPermission.deniedForever) return null;
+
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.low, // 低精度即可滿足測站距離計算
+    );
+  } catch (e) {
+    return null;
+  }
+});
+
+/// 5. 🌟 [核心新功能]：自動計算最近測站 ID
+/// 根據使用者座標，在全台 86 個測站中尋找最短距離者
+final nearestStationIdProvider = Provider<String?>((ref) {
+  final userPos = ref.watch(userLocationProvider).value;
+  if (userPos == null) return null;
+
+  double minDistance = double.infinity;
+  String? nearestId;
+
+  // 遍歷 constants.dart 裡所有的 86 個測站
+  for (var station in AppConstants.allStations) {
+    double distance = Geolocator.distanceBetween(
+      userPos.latitude,
+      userPos.longitude,
+      station.lat,
+      station.lng,
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestId = station.id;
+    }
+  }
+  return nearestId;
+});
+
+/// 6. 綜合視圖模型
+class TideViewData {
+  final TideStationData stationData;
+  final double? distanceKm;
+  final DateTime selectedDate;
+
+  TideViewData({
+    required this.stationData,
+    this.distanceKm,
+    required this.selectedDate,
+  });
+}
+
+/// 7. 核心數據調度 Provider
+final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
+  final api = ref.watch(tideApiServiceProvider);
+  final stationId = ref.watch(currentStationIdProvider);
+  final selectedDate = ref.watch(selectedDateProvider);
+  final locationAsync = ref.watch(userLocationProvider);
+
+  // 時態判定
+  final now = DateTime.now();
+  final String todayStr = DateFormat('yyyyMMdd').format(now);
+  final String targetDateStr = DateFormat('yyyyMMdd').format(selectedDate);
+  
+  final bool isToday = targetDateStr == todayStr;
+  final bool isFuture = selectedDate.isAfter(now) && !isToday;
+
+  TideStationData stationData;
+
+  try {
+    if (isToday) {
+      // 🌟 [實時模式]
+      final results = await Future.wait([
+        api.fetchRealTimeProxy(stationId),
+        api.fetchForecastOfficial(stationId),
+      ]);
+
+      final proxyData = results[0] as TideStationData;
+      final fullForecastList = results[1] as List<TideForecast>;
+
+      // 過濾出今天的預報
+      final dailyForecasts = fullForecastList.where((f) => 
+        DateFormat('yyyyMMdd').format(f.dateTime) == targetDateStr).toList();
+
+      stationData = TideStationData(
+        info: proxyData.info,
+        observations: proxyData.observations,
+        forecasts: dailyForecasts,
+      );
+
+    } else if (isFuture) {
+      // 🌟 [遠期預報模式]
+      final fullForecastList = await api.fetchForecastOfficial(stationId);
+      final dailyForecasts = fullForecastList.where((f) => 
+        DateFormat('yyyyMMdd').format(f.dateTime) == targetDateStr).toList();
+
+      stationData = TideStationData(
+        info: _getBasicStationInfo(stationId),
+        observations: [], 
+        forecasts: dailyForecasts,
+      );
+
+    } else {
+      // 🌟 [歷史回測模式]
+      final String start = "${DateFormat('yyyy-MM-dd').format(selectedDate)}T00:00:00";
+      final String end = "${DateFormat('yyyy-MM-dd').format(selectedDate)}T23:59:59";
+      stationData = await api.fetchHistoryOfficial(stationId, start, end);
+    }
+  } catch (e) {
+    rethrow;
+  }
+
+  // 計算距離
+  double? distance;
+  final userPos = locationAsync.value;
+  if (userPos != null) {
+    try {
+      final sLat = double.tryParse(stationData.info.lat);
+      final sLng = double.tryParse(stationData.info.lng);
+      if (sLat != null && sLng != null && sLat != 0) {
+        distance = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, sLat, sLng) / 1000;
+      }
+    } catch (_) {}
+  }
+
+  return TideViewData(stationData: stationData, distanceKm: distance, selectedDate: selectedDate);
+});
+
+/// 輔助方法：無觀測數據時從本地資料庫提取基本資訊
+StationInfo _getBasicStationInfo(String id) {
+  final meta = AppConstants.allStations.firstWhere(
+    (s) => s.id == id,
+    orElse: () => StationModel(id: id, name: "未知站點", region: "未知", lat: 0, lng: 0),
+  );
+  return StationInfo(
+    stationName: meta.name,
+    countyName: meta.region,
+    townName: "",
+    lat: meta.lat.toString(),
+    lng: meta.lng.toString(),
+    attr: meta.isBuoy ? "資料浮標" : "潮位站",
+    addressDescription: "預報模式（無即時觀測）",
+  );
+}
+
+=== [FILE] lib/features/tide/data/tide_model.dart ===
+
+import 'dart:convert';
+
+/// 1. 測站數據總量模型 (包含基本資訊、觀測記錄、未來預報)
+class TideStationData {
+  final StationInfo info;
+  final List<Observation> observations;
+  final List<TideForecast> forecasts;
+
+  TideStationData({
+    required this.info,
+    required this.observations,
+    this.forecasts = const [],
+  });
+
+  /// 🌟 [專屬解析]：針對 O-B0075-002 (30天資料集)
+  /// 特徵：大寫 Records -> SeaSurfaceObs -> Location
+  factory TideStationData.fromOfficial30Day(Map<String, dynamic> locationJson) {
+    // 官方 30 天資料集的觀測列表路徑
+    final List obsRaw = locationJson['StationObsTimes']?['StationObsTime'] as List? ?? [];
+    
+    return TideStationData(
+      info: StationInfo.fromMap(locationJson),
+      observations: obsRaw.map((i) => Observation.fromOfficial30Day(i)).toList(),
+      forecasts: [], 
+    );
+  }
+
+  /// [解析]：代理實時 API (SuperiorAPIs)
+  factory TideStationData.fromProxy(String id, Map<String, dynamic> json, [List<TideForecast>? f]) {
+    final List obsRaw = json['StationObsTimes'] as List? ?? [];
+    return TideStationData(
+      info: StationInfo.fromMap(json['info'] ?? {}),
+      observations: obsRaw.map((i) => Observation.fromProxy(i)).toList(),
+      forecasts: f ?? [],
+    );
+  }
+
+  /// [解析]：官方標準觀測 API (O-B0075-001)
+  factory TideStationData.fromOfficial(Map<String, dynamic> json, [List<TideForecast>? f]) {
+    final List obsRaw = json['Observation'] as List? ?? [];
+    return TideStationData(
+      info: StationInfo.fromMap(json),
+      observations: obsRaw.map((i) => Observation.fromOfficial(i)).toList(),
+      forecasts: f ?? [],
+    );
+  }
+}
+
+/// 2. 測站基本資訊
+class StationInfo {
+  final String stationName;
+  final String countyName;
+  final String townName; // 已補齊
+  final String lat;
+  final String lng;
+  final String attr;
+  final String addressDescription;
+
+  StationInfo({
+    required this.stationName,
+    required this.countyName,
+    required this.townName,
+    required this.lat,
+    required this.lng,
+    required this.attr,
+    required this.addressDescription,
+  });
+
+  factory StationInfo.fromMap(Map<String, dynamic> json) {
+    // 智慧過濾不同 API 的經緯度鍵名
+    final String parsedLat = (json['lat'] ?? json['GeoLocation']?['Latitude'] ?? '0').toString();
+    final String parsedLng = (json['lng'] ?? json['GeoLocation']?['Longitude'] ?? '0').toString();
+    
+    // 處理 O-B0075-002 特有的 StationID 嵌套
+    final stationObj = json['Station'] ?? {};
+
+    return StationInfo(
+      stationName: json['StationName'] ?? stationObj['StationID'] ?? '未知測站',
+      countyName: json['CountyName'] ?? '',
+      townName: json['TownName'] ?? '', // 補齊 TownName 解析
+      lat: parsedLat,
+      lng: parsedLng,
+      attr: json['attr'] ?? json['StationAttribute'] ?? '一般站',
+      addressDescription: json['address-description'] ?? '',
+    );
+  }
+}
+
+/// 3. 即時與歷史觀測模型 (Observation)
+class Observation {
+  final DateTime dateTime;
+  
+  // 潮汐
+  final double? tideHeight;
+  final String? tideLevel;
+
+  // 波浪
+  final double? waveHeight;
+  final double? wavePeriod;
+  final double? waveDirection;
+
+  // 海水/海流
+  final double? seaTemperature;
+  final double? currentSpeed;
+
+  // 大氣 (已補齊：風向、氣壓、氣溫)
+  final double? windSpeed;
+  final double? windDirection;
+  final double? airTemperature;
+  final double? airPressure;
+
+  Observation({
+    required this.dateTime,
+    this.tideHeight,
+    this.tideLevel,
+    this.waveHeight,
+    this.wavePeriod,
+    this.waveDirection,
+    this.seaTemperature,
+    this.currentSpeed,
+    this.windSpeed,
+    this.windDirection,
+    this.airTemperature,
+    this.airPressure,
+  });
+
+  /// 🌟 [專屬解析]：O-B0075-002 歷史資料
+  factory Observation.fromOfficial30Day(Map<String, dynamic> json) {
+    final e = json['WeatherElements'] ?? {};
+    final wind = e['PrimaryAnemometer'] ?? {};
+    final currents = e['SeaCurrents']?['Layer']?[0] ?? {};
+
+    return Observation(
+      dateTime: DateTime.parse(json['DateTime']),
+      tideHeight: _n(e['TideHeight']),
+      tideLevel: _s(e['TideLevel']),
+      waveHeight: _n(e['WaveHeight']),
+      wavePeriod: _n(e['WavePeriod']),
+      waveDirection: _n(e['WaveDirection']),
+      seaTemperature: _n(e['SeaTemperature']),
+      windSpeed: _n(wind['WindSpeed']),
+      windDirection: _n(wind['WindDirection']), // 解析風向
+      currentSpeed: _n(currents['CurrentSpeed']),
+      airTemperature: _n(e['Temperature']),    // 解析氣溫
+      airPressure: _n(e['StationPressure']),   // 解析氣壓
+    );
+  }
+
+  /// [解析]：代理 API 格式
+  factory Observation.fromProxy(Map<String, dynamic> json) {
+    final e = json['WeatherElements'] ?? json['WeatherElement'] ?? {};
+    return Observation(
+      dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? DateTime.now().toIso8601String()),
+      tideHeight: _n(e['TideHeight']),
+      tideLevel: _s(e['TideLevel']),
+      waveHeight: _n(e['WaveHeight']),
+      wavePeriod: _n(e['WavePeriod']),
+      waveDirection: _n(e['WaveDirection']),
+      seaTemperature: _n(e['SeaTemperature']),
+      currentSpeed: _n(e['CurrentSpeed']),
+      windSpeed: _n(e['WindSpeed']),
+      windDirection: _n(e['WindDirection']),
+      airTemperature: _n(e['AirTemperature']),
+      airPressure: _n(e['AirPressure']),
+    );
+  }
+
+  /// [解析]：官方標準格式 (O-B0075-001)
+  factory Observation.fromOfficial(Map<String, dynamic> json) {
+    final tide = json['Tide'] ?? {};
+    final wave = json['Wave'] ?? json['SeaState'] ?? {};
+    final weather = json['Weather'] ?? {};
+
+    return Observation(
+      dateTime: DateTime.parse(json['DataTime'] ?? json['DateTime'] ?? DateTime.now().toIso8601String()),
+      tideHeight: _n(tide['TideHeight']),
+      tideLevel: _s(tide['TideLevel']),
+      waveHeight: _n(wave['WaveHeight']) ?? _n(wave['SignificantWaveHeight']),
+      wavePeriod: _n(wave['WavePeriod']) ?? _n(wave['PeakPeriod']),
+      waveDirection: _n(wave['WaveDirection']),
+      seaTemperature: _n(weather['SeaTemperature']) ?? _n(json['SeaTemperature']),
+      currentSpeed: _n(json['CurrentSpeed']),
+      windSpeed: _n(weather['WindSpeed']) ?? _n(json['WindSpeed']),
+      windDirection: _n(weather['WindDirection']) ?? _n(json['WindDirection']),
+      airTemperature: _n(weather['AirTemperature']),
+      airPressure: _n(weather['AirPressure']),
+    );
+  }
+
+  static double? _n(dynamic v) {
+    if (v == null) return null;
+    String s = v.toString().trim();
+    if (s == "None" || s == "-99" || s == "-99.0" || s == "" || s == "nan" || s == "null") return null;
+    return double.tryParse(s.replaceAll(RegExp(r'[^0-9.-]'), ''));
+  }
+
+  static String? _s(dynamic v) {
+    if (v == null) return null;
+    String s = v.toString().trim();
+    if (s == "None" || s == "-99" || s == "-" || s == "null" || s == "") return null;
+    return s;
+  }
+}
+
+/// 4. 潮汐預報模型 (未來滿乾潮)
+class TideForecast {
+  final DateTime dateTime;
+  final String tideType, tideHeight;
+
+  TideForecast({required this.dateTime, required this.tideType, required this.tideHeight});
+
+  factory TideForecast.fromOfficial(Map<String, dynamic> json) {
+    final heights = json['TideHeights'] ?? {};
+    return TideForecast(
+      dateTime: DateTime.parse(json['DateTime']),
+      tideType: json['Tide']?.toString() ?? '',
+      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? '--').toString(),
+    );
+  }
+}
+
+/// 5. 圖表適配器模型
+class TideRecord {
+  final DateTime time;
+  final double height;
+  final String state;
+  TideRecord({required this.time, required this.height, required this.state});
+}
+
+=== [FILE] lib/features/tide/domain/tide_repository.dart ===
+
+
+
+=== [FILE] lib/features/tide/presentation/station_guide_page.dart ===
+
+
+
+=== [FILE] lib/features/tide/presentation/tide_chart_sheet.dart ===
+
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../data/tide_model.dart';
+
+class TideChartSheet extends StatelessWidget {
+  final List<Observation> observations;
+
+  const TideChartSheet({
+    super.key,
+    required this.observations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (observations.isEmpty) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: Text("目前無圖表觀測數據", style: TextStyle(color: Colors.grey))),
+      );
+    }
+
+    // 取得該批數據的日期 (取第一筆觀測資料的日期)
+    final String chartDate = DateFormat('yyyy/MM/dd').format(observations.first.dateTime);
+
+    // 判斷數據源：優先使用潮位高度，若無則使用波浪高度
+    final bool useWaveHeight = observations.any((o) => o.tideHeight == null) &&
+                               observations.any((o) => o.waveHeight != null);
+
+    return Column(
+      children: [
+        // --- 圖表標題與日期 ---
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(width: 12, height: 3, color: const Color(0xFF0077B6)),
+                  const SizedBox(width: 6),
+                  Text(
+                    useWaveHeight ? "波高趨勢 (m)" : "潮位趨勢 (m)",
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                  ),
+                ],
+              ),
+              // 🌟 新增：顯示圖表日期
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  chartDate,
+                  style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // --- 核心圖表區 ---
+        Container(
+          height: 220,
+          padding: const EdgeInsets.only(right: 20, top: 10),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: 1,
+                getDrawingHorizontalLine: (value) => FlLine(
+                  color: Colors.grey.withOpacity(0.1),
+                  strokeWidth: 1,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                
+                // 下方 X 軸：顯示時間
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    interval: 4, 
+                    getTitlesWidget: (value, meta) {
+                      final int index = value.toInt();
+                      if (index >= 0 && index < observations.length) {
+                        final String timeStr = DateFormat('HH:mm').format(observations[index].dateTime);
+                        return SideTitleWidget(
+                          axisSide: meta.axisSide,
+                          space: 8,
+                          child: Text(timeStr, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+                
+                // 左側 Y 軸：顯示高度
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      return Text(
+                        "${value.toStringAsFixed(1)}m",
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      );
+                    },
+                    reservedSize: 35,
+                  ),
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              
+              lineBarsData: [
+                LineChartBarData(
+                  spots: observations.asMap().entries.map((e) {
+                    final double yValue = useWaveHeight 
+                        ? (e.value.waveHeight ?? 0.0) 
+                        : (e.value.tideHeight ?? 0.0);
+                    return FlSpot(e.key.toDouble(), yValue);
+                  }).toList(),
+                  isCurved: true, 
+                  curveSmoothness: 0.35, 
+                  color: const Color(0xFF0077B6),
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false), 
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF0077B6).withOpacity(0.3),
+                        const Color(0xFF0077B6).withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              
+              // 🌟 修改：點擊圖表時顯示詳細日期與時間
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  tooltipBgColor: const Color(0xFF023E8A).withOpacity(0.9),
+                  getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                    return touchedBarSpots.map((barSpot) {
+                      final obs = observations[barSpot.x.toInt()];
+                      // Tooltip 顯示範例：03/12 20:00
+                      final String fullTime = DateFormat('MM/dd HH:mm').format(obs.dateTime);
+                      return LineTooltipItem(
+                        "$fullTime\n",
+                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        children: [
+                          TextSpan(
+                            text: "${barSpot.y.toStringAsFixed(2)} m",
+                            style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/home_page.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+// 核心配置與 Provider
+import '../providers/tide_provider.dart';
+import '../data/tide_model.dart';
+import '../../../core/utils/constants.dart';
+import '../../premium/services/premium_service.dart';
+import '../../premium/presentation/premium_page.dart';
+
+// 專業組件
+import 'tide_chart_sheet.dart';
+import 'widgets/station_drawer.dart';
+import 'widgets/station_header.dart';
+import 'widgets/hero_metric_card.dart';
+import 'widgets/metric_grid.dart';
+import 'widgets/safety_alert.dart';
+import 'widgets/sea_briefing_card.dart';
+import '../../../shared/widgets/custom_card.dart';
+
+class HomePage extends ConsumerWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 🌟 1. 自動定位邏輯：一開啟 App 若抓到位置就切換到最近測站
+    ref.listen<String?>(nearestStationIdProvider, (previous, next) {
+      if (next != null && previous == null) {
+        ref.read(currentStationIdProvider.notifier).state = next;
+      }
+    });
+
+    final tideViewAsync = ref.watch(tideViewDataProvider);
+    final currentId = ref.watch(currentStationIdProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+    final premiumState = ref.watch(premiumProvider);
+
+    // --- 2. 時態與主題視覺邏輯 ---
+    final now = DateTime.now();
+    final String selectedKey = DateFormat('yyyyMMdd').format(selectedDate);
+    final String todayKey = DateFormat('yyyyMMdd').format(now);
+
+    final bool isToday = selectedKey == todayKey;
+    final bool isFuture = selectedDate.isAfter(now) && !isToday;
+    final bool isPast = selectedDate.isBefore(now) && !isToday;
+
+    // 動態色彩：實時藍 / 預報靛 / 歷史橘
+    final Color modeColor = isToday 
+        ? const Color(0xFF0077B6) 
+        : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      drawer: StationDrawer(currentId: currentId),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // --- 3. 強化版時間軸 AppBar ---
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 185,
+            backgroundColor: modeColor,
+            elevation: 0,
+            leadingWidth: 100,
+            leading: Builder(builder: (context) => _buildRegionButton(context)),
+            centerTitle: true,
+            title: Text(
+              isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.calendar_month, 
+                  color: premiumState.isPremium ? Colors.amberAccent : Colors.white),
+                onPressed: () => _openCalendar(context, ref),
+              )
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // 🌟 置中日期滑軌
+                  DateRibbon(selectedDate: selectedDate, themeColor: modeColor),
+                  const SizedBox(height: 15),
+                ],
+              ),
+            ),
+          ),
+
+          // --- 4. 數據渲染區域 ---
+          tideViewAsync.when(
+            loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF0077B6)))),
+            error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
+            data: (viewData) {
+              final station = viewData.stationData;
+              final isBuoy = AppConstants.allStations.any((s) => s.id == currentId && s.isBuoy);
+
+              // 無觀測數據時的保護 (歷史超期)
+              if (station.observations.isEmpty && !isFuture) {
+                return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    
+                    // 🌟 核心功能：老船長快報 (置頂報告)
+                    if (!isFuture) ...[
+                      SeaBriefingCard(
+                        station: station,
+                        distance: viewData.distanceKm,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // 基本標頭資訊
+                    StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
+                    const SizedBox(height: 20),
+
+                    // --- 未來日期排版 (F-A0021-001) ---
+                    if (isFuture) ...[
+                      _sectionTitle("🌟 專家級潮汐預報 (30日)", modeColor),
+                      const SizedBox(height: 12),
+                      _buildForecastList(station.forecasts, modeColor),
+                      const SizedBox(height: 20),
+                      _infoCard("預報模式說明", "您正在查看未來預報。實時波高與風速感測數據將於該日期當天產生觀測紀錄。"),
+                    ] 
+                    // --- 實時與回測排版 ---
+                    else ...[
+                      HeroMetricCard(current: station.observations.last, isBuoy: isBuoy),
+                      const SizedBox(height: 16),
+                      SafetyAlert(current: station.observations.last),
+                      
+                      if (isToday && station.forecasts.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _sectionTitle("⏱️ 今日滿乾潮預測", modeColor),
+                        const SizedBox(height: 12),
+                        _buildForecastList(station.forecasts, modeColor),
+                      ],
+
+                      const SizedBox(height: 24),
+                      _sectionTitle(isPast ? "🗓️ 歷史走勢圖" : "🌊 24h 走勢監控", modeColor),
+                      const SizedBox(height: 12),
+                      CustomCard(child: TideChartSheet(observations: station.observations)),
+
+                      const SizedBox(height: 24),
+                      _sectionTitle("📋 詳細觀測參數", modeColor),
+                      const SizedBox(height: 12),
+                      MetricGrid(current: station.observations.last),
+                    ],
+
+                    const SizedBox(height: 24),
+                    _buildFooter(station.info.addressDescription),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      
+      // 快速返回今日 FAB
+      floatingActionButton: !isToday ? FloatingActionButton.extended(
+        onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
+        backgroundColor: modeColor,
+        icon: const Icon(Icons.today, color: Colors.white),
+        label: const Text("返回今日", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ) : null,
+    );
+  }
+
+  // --- UI Helper 小組件 ---
+
+  Widget _buildRegionButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12.0, top: 10, bottom: 10),
+      child: InkWell(
+        onTap: () => Scaffold.of(context).openDrawer(),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.4)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.map_outlined, color: Colors.white, size: 16),
+              SizedBox(width: 4),
+              Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, Color color) => Text(title, 
+      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withOpacity(0.9)));
+
+  Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
+    return CustomCard(
+      child: Column(
+        children: forecasts.map((f) {
+          bool isHigh = f.tideType.contains("滿");
+          return ListTile(
+            dense: true,
+            leading: Icon(
+              isHigh ? Icons.arrow_upward : Icons.arrow_downward, 
+              color: isHigh ? Colors.redAccent : Colors.blueAccent, 
+              size: 20
+            ),
+            title: Text("${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}", 
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+            trailing: Text("${f.tideHeight} cm", 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _infoCard(String title, String content) {
+    return CustomCard(
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.blueGrey),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          ]))
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(String desc) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("站點資訊", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        const SizedBox(height: 4),
+        Text(desc.isEmpty ? "中央氣象署官方 30 天數據備份節點。數據每小時更新一次。" : desc, 
+             style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 40),
+      ],
+    );
+  }
+
+  Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: ref.read(selectedDateProvider),
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 30)),
+      helpText: "選擇回測或預報日期",
+    );
+    if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
+  }
+
+  Widget _buildErrorUI(String error, WidgetRef ref) {
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.red),
+      const SizedBox(height: 16),
+      const Text("資料加載失敗", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+        child: Text("請檢查網路連線或稍後再試", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+      ),
+      TextButton(onPressed: () => ref.refresh(tideViewDataProvider), child: const Text("重試")),
+    ]));
+  }
+
+  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name) {
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const SizedBox(height: 100),
+      const Icon(Icons.event_busy, size: 80, color: Colors.grey),
+      const SizedBox(height: 16),
+      Text("$name 無觀測紀錄", 
+           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      const SizedBox(height: 8),
+      Text("${DateFormat('yyyy/MM/dd').format(date)} 暫無數據存檔", style: const TextStyle(color: Colors.grey)),
+      const SizedBox(height: 24),
+      ElevatedButton(
+        onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), 
+        child: const Text("返回今日觀測")
+      ),
+    ]);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 🌟 強化組件：今日自動置中 + 付費牆日期列
+// -----------------------------------------------------------------------------
+class DateRibbon extends ConsumerStatefulWidget {
+  final DateTime selectedDate;
+  final Color themeColor;
+  const DateRibbon({super.key, required this.selectedDate, required this.themeColor});
+
+  @override
+  ConsumerState<DateRibbon> createState() => _DateRibbonState();
+}
+
+class _DateRibbonState extends ConsumerState<DateRibbon> {
+  late ScrollController _scrollController;
+  final double itemWidth = 66.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    // 🌟 啟動即橫移置中 (今日為第 30 格)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
+  }
+
+  void _scrollToToday() {
+    if (_scrollController.hasClients) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final offset = (30 * itemWidth) - (screenWidth / 2) + (itemWidth / 2);
+      _scrollController.animateTo(offset, 
+          duration: const Duration(milliseconds: 800), 
+          curve: Curves.easeOutBack);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime now = DateTime.now();
+    final DateTime todayZero = DateTime(now.year, now.month, now.day);
+    final String todayStr = DateFormat('yyyyMMdd').format(now);
+    final String selectedStr = DateFormat('yyyyMMdd').format(widget.selectedDate);
+    final isPremium = ref.watch(premiumProvider).isPremium;
+
+    return SizedBox(
+      height: 78,
+      child: ListView.builder(
+        controller: _scrollController,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: 61, 
+        itemBuilder: (context, index) {
+          final date = now.subtract(const Duration(days: 30)).add(Duration(days: index));
+          final String currentStr = DateFormat('yyyyMMdd').format(date);
+          final bool isToday = currentStr == todayStr;
+          final bool isSelected = currentStr == selectedStr;
+
+          // 商業邏輯：昨日、今日、明日免費 (-1, 0, 1)
+          final int dayDiff = date.difference(todayZero).inDays;
+          final bool isFree = dayDiff >= -1 && dayDiff <= 1;
+          final bool isLocked = !isFree && !isPremium;
+
+          return GestureDetector(
+            onTap: () {
+              if (isLocked) {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage()));
+              } else {
+                ref.read(selectedDateProvider.notifier).state = date;
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 58,
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: isToday 
+                    ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5)
+                    : null,
+                boxShadow: isSelected ? [const BoxShadow(color: Colors.black26, blurRadius: 4)] : null,
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(DateFormat('E').format(date),
+                          style: TextStyle(
+                            color: isSelected ? widget.themeColor : (isToday ? Colors.amberAccent : Colors.white70), 
+                            fontSize: 10,
+                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal
+                          )),
+                        Text(DateFormat('dd').format(date),
+                          style: TextStyle(
+                            color: isSelected ? widget.themeColor : Colors.white, 
+                            fontSize: 18, 
+                            fontWeight: FontWeight.bold
+                          )),
+                      ],
+                    ),
+                  ),
+                  if (isToday)
+                    Positioned(top: -11, left: 0, right: 0, child: Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber, 
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]
+                      ),
+                      child: const Text("今日", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900)),
+                    ))),
+                  if (isLocked)
+                    Positioned(top: 4, right: 4, child: Icon(Icons.lock_outline, size: 10, color: Colors.white.withOpacity(0.7))),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/safety_alert.dart ===
+
+import 'package:flutter/material.dart';
+import '../../data/tide_model.dart';
+
+class SafetyAlert extends StatelessWidget {
+  final Observation current;
+
+  const SafetyAlert({super.key, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    // 安全評估邏輯：波高 > 1.5m 或 風速 > 8m/s 視為不佳
+    bool isDanger = (current.waveHeight ?? 0) > 1.5 || (current.windSpeed ?? 0) > 8.0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDanger ? Colors.red.shade50 : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDanger ? Colors.red.shade100 : Colors.green.shade100,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isDanger ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+            color: isDanger ? Colors.red : Colors.green,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isDanger 
+                  ? "海況警告：風浪較大，不建議從事岸邊活動。" 
+                  : "海況良好：目前環境適合戶外活動，請注意安全。",
+              style: TextStyle(
+                color: isDanger ? Colors.red.shade900 : Colors.green.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/station_header.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../data/tide_model.dart';
+
+class StationHeader extends StatelessWidget {
+  final StationInfo info;
+  final double? distanceKm;
+
+  const StationHeader({super.key, required this.info, this.distanceKm});
+
+  @override
+  Widget build(BuildContext context) {
+    // 組合地點顯示文字，如果鄉鎮名稱為空則只顯示縣市
+    final String locationText = info.townName.isNotEmpty 
+        ? "${info.countyName} · ${info.townName}" 
+        : info.countyName;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Color(0xFF0077B6)),
+                const SizedBox(width: 4),
+                Text(
+                  locationText, 
+                  style: const TextStyle(color: Colors.blueGrey, fontSize: 14)
+                ),
+              ],
+            ),
+            if (distanceKm != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0077B6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "距離 ${distanceKm!.toStringAsFixed(1)} km",
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    color: Color(0xFF0077B6), 
+                    fontWeight: FontWeight.bold
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          info.stationName, 
+          style: GoogleFonts.notoSansTc(
+            fontSize: 30, 
+            fontWeight: FontWeight.bold, 
+            color: Colors.black87
+          )
+        ),
+        Text(
+          info.attr, 
+          style: const TextStyle(
+            color: Color(0xFF00B4D8), 
+            fontWeight: FontWeight.w600, 
+            fontSize: 14
+          )
+        ),
+      ],
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/station_drawer.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// 核心配置與 Provider
+import '../../../../core/utils/constants.dart';
+import '../../providers/tide_provider.dart';
+
+// Premium 服務與頁面
+import '../../../premium/services/premium_service.dart';
+import '../../../premium/presentation/premium_page.dart';
+
+class StationDrawer extends ConsumerStatefulWidget {
+  final String currentId;
+
+  const StationDrawer({super.key, required this.currentId});
+
+  @override
+  ConsumerState<StationDrawer> createState() => _StationDrawerState();
+}
+
+class _StationDrawerState extends ConsumerState<StationDrawer> {
+  String _searchQuery = ""; // 搜尋文字狀態
+
+  @override
+  Widget build(BuildContext context) {
+    // 監聽目前的訂閱狀態
+    final premiumState = ref.watch(premiumProvider);
+    final bool isPremium = premiumState.isPremium;
+
+    return Drawer(
+      backgroundColor: const Color(0xFFF8FAFC),
+      child: Column(
+        children: [
+          // --- 1. 品牌視覺 Header ---
+          _buildDrawerHeader(),
+
+          // --- 2. Pro 訂閱入口 (動態顯示狀態) ---
+          _buildPremiumEntry(isPremium, premiumState.type),
+
+          // --- 3. 搜尋輸入框 ---
+          _buildSearchField(),
+
+          // --- 4. 測站列表 (按地區分類) ---
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: AppConstants.regions.map((region) {
+                // 過濾該地區且符合搜尋條件的測站
+                final List<StationModel> stations = AppConstants.allStations.where((s) {
+                  final bool matchesRegion = s.region == region;
+                  final bool matchesSearch = s.name.contains(_searchQuery) || 
+                                          s.id.contains(_searchQuery);
+                  return matchesRegion && matchesSearch;
+                }).toList();
+
+                if (stations.isEmpty && _searchQuery.isNotEmpty) return const SizedBox.shrink();
+
+                return Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    initiallyExpanded: region == "北部" || _searchQuery.isNotEmpty,
+                    leading: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFF0077B6).withOpacity(0.1),
+                      child: Text(
+                        region[0], 
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF0077B6), fontWeight: FontWeight.bold)
+                      ),
+                    ),
+                    title: Text(
+                      region, 
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                    ),
+                    subtitle: Text(
+                      "${stations.length} 個監測點", 
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)
+                    ),
+                    children: stations.map((s) => _buildStationTile(s)).toList(),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // --- 5. 底部來源宣告 ---
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              "資料來源：中央氣象署 (CWA)",
+              style: GoogleFonts.notoSansTc(fontSize: 10, color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Header：品牌質感展示
+  Widget _buildDrawerHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 50, 24, 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF023E8A), Color(0xFF0077B6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.analytics_rounded, color: Colors.white, size: 36),
+          const SizedBox(height: 12),
+          Text(
+            "海象監測指揮中心",
+            style: GoogleFonts.notoSansTc(
+              color: Colors.white, 
+              fontSize: 22, 
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🌟 Premium 快速入口按鈕
+  Widget _buildPremiumEntry(bool isPremium, SubscriptionType type) {
+    String typeText = type == SubscriptionType.monthly ? "月費版" : "年費版";
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context, 
+        MaterialPageRoute(builder: (context) => const PremiumPage())
+      ),
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isPremium ? Colors.amber.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isPremium ? Colors.amber.shade300 : Colors.grey.shade200, width: 1.5),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isPremium ? Icons.stars_rounded : Icons.workspace_premium_outlined,
+              color: Colors.amber.shade800,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isPremium ? "您已是 Pro $typeText" : "升級 Pro 專業版",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  Text(
+                    isPremium ? "享受 60 天完整數據跨度" : "解鎖 30 天歷史與未來潮汐",
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 搜尋框組件
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
+        onChanged: (value) => setState(() => _searchQuery = value),
+        decoration: InputDecoration(
+          hintText: "搜尋測站名稱或 ID...",
+          hintStyle: const TextStyle(fontSize: 13),
+          prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF0077B6)),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF0077B6), width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 測站單元格
+  Widget _buildStationTile(StationModel station) {
+    final bool isSelected = station.id == widget.currentId;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFF0077B6).withOpacity(0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ListTile(
+        onTap: () {
+          // 1. 更新全局測站 ID
+          ref.read(currentStationIdProvider.notifier).state = station.id;
+          
+          // 2. 🌟 UX 優化：切換地點時自動重置回「今日」，避免停留在舊地點的歷史頁面
+          ref.read(selectedDateProvider.notifier).state = DateTime.now();
+          
+          // 3. 關閉 Drawer
+          Navigator.pop(context);
+        },
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+        leading: Icon(
+          station.isBuoy ? Icons.sensors_rounded : Icons.water_drop_outlined,
+          size: 16,
+          color: isSelected ? const Color(0xFF0077B6) : Colors.blueGrey.shade200,
+        ),
+        title: Text(
+          station.name,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? const Color(0xFF0077B6) : Colors.black87,
+          ),
+        ),
+        trailing: station.isBuoy
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text("全功能", style: TextStyle(fontSize: 8, color: Colors.blue, fontWeight: FontWeight.bold)),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/metric_grid.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../data/tide_model.dart';
+
+class MetricGrid extends StatelessWidget {
+  final Observation current;
+
+  const MetricGrid({super.key, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> metrics = [];
+
+    void addIfValid(String label, double? val, String unit, IconData icon, Color color) {
+      if (val != null) {
+        metrics.add(_buildMetricTile(label, "$val$unit", icon, color));
+      }
+    }
+
+    // 依序檢查所有可能的海象數據
+    addIfValid("波浪高度", current.waveHeight, " m", Icons.waves, Colors.indigo);
+    addIfValid("海水溫度", current.seaTemperature, " ℃", Icons.thermostat, Colors.orange);
+    addIfValid("觀測風速", current.windSpeed, " m/s", Icons.air, Colors.green);
+    addIfValid("海流流速", current.currentSpeed, " m/s", Icons.explore_outlined, Colors.teal);
+    addIfValid("風向角度", current.windDirection, "°", Icons.navigation_outlined, Colors.brown);
+    addIfValid("大氣壓力", current.airPressure, " hPa", Icons.speed, Colors.purple);
+    addIfValid("即時氣溫", current.airTemperature, " ℃", Icons.wb_sunny_outlined, Colors.amber);
+
+    if (metrics.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        child: const Center(
+          child: Text("該測站目前僅提供基礎潮位資訊", style: TextStyle(color: Colors.grey)),
+        ),
+      );
+    }
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.7,
+      children: metrics,
+    );
+  }
+
+  Widget _buildMetricTile(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(backgroundColor: color.withOpacity(0.1), radius: 18, child: Icon(icon, color: color, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                FittedBox(child: Text(value, style: GoogleFonts.rubik(fontSize: 15, fontWeight: FontWeight.bold))),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/sea_briefing_card.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../../data/tide_model.dart';
+
+// 🌟 擴充 Observation 邏輯：提供智慧判斷建議
+extension ObservationBriefing on Observation {
+  String getActivityRecommendation() {
+    // 取得數據，若為 null 則給予安全預設值
+    double wave = waveHeight ?? 0.0;
+    double wind = windSpeed ?? 0.0;
+    String tide = tideLevel ?? "";
+
+    if (wave > 2.0 || wind > 12.0) {
+      return "警告：目前風浪強勁，極度不建議出海或靠近岸邊，安全第一。";
+    }
+    if (wave > 1.2 || wind > 8.0) {
+      return "提醒：海象轉趨惡劣，新手建議避免出海，岸釣請加強防護措施。";
+    }
+    if (tide.contains("漲") && wave < 0.8) {
+      return "推薦：海況極為平穩且正值漲潮，是非常適合釣魚與水上活動的黃金時刻！";
+    }
+    if (tide.contains("退") && (tideHeight ?? 1.0) < 0.2) {
+      return "推薦：潮水接近低位，石滬與潮間帶顯露，是趕海與觀察生態的最佳時機。";
+    }
+    return "提示：海況平穩，適合一般性休閒活動。出發前請再次確認局部天氣變化。";
+  }
+}
+
+class SeaBriefingCard extends StatelessWidget {
+  final TideStationData station;
+  final double? distance;
+
+  const SeaBriefingCard({super.key, required this.station, this.distance});
+
+  @override
+  Widget build(BuildContext context) {
+    // 保護邏輯：若無觀測數據
+    if (station.observations.isEmpty) return const SizedBox.shrink();
+
+    final current = station.observations.last;
+    final nextTide = station.forecasts.isNotEmpty ? station.forecasts.first : null;
+    final recommendation = current.getActivityRecommendation();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0077B6), Color(0xFF023E8A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0077B6).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. 最近地點與距離標籤
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "📍 距離最近的觀測站",
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                    ),
+                    Text(
+                      station.info.stationName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (distance != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "${distance!.toStringAsFixed(1)} km",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Divider(color: Colors.white24, height: 1),
+          ),
+
+          // 2. 核心數據摘要 (橫向)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildSummaryItem(
+                "目前潮況",
+                current.tideLevel ?? "平穩",
+                Icons.waves_rounded,
+              ),
+              _buildSummaryItem(
+                "即時波高",
+                "${current.waveHeight ?? '--'} m",
+                Icons.tsunami_rounded,
+              ),
+              if (nextTide != null)
+                _buildSummaryItem(
+                  "下一波${nextTide.tideType}",
+                  DateFormat('HH:mm').format(nextTide.dateTime),
+                  Icons.timer_outlined,
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 3. 🌟 老船長的智慧建議：一句話判斷
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.anchor_rounded, color: Colors.amberAccent, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "老船長快報",
+                        style: TextStyle(
+                          color: Colors.amberAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        recommendation,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white60, size: 18),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+=== [FILE] lib/features/tide/presentation/widgets/hero_metric_card.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../../shared/widgets/custom_card.dart';
+import '../../data/tide_model.dart';
+
+class HeroMetricCard extends StatelessWidget {
+  final Observation current;
+  final bool isBuoy;
+
+  const HeroMetricCard({super.key, required this.current, required this.isBuoy});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool showWave = isBuoy && current.tideHeight == null;
+
+    return CustomCard(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          if (showWave) ...[
+            _item("目前波高", "${current.waveHeight ?? '--'} m", Colors.indigo),
+            _divider(),
+            _item("波浪週期", "${current.wavePeriod ?? '--'} s", Colors.cyan),
+          ] else ...[
+            _item("目前潮高", "${current.tideHeight ?? '--'} m", const Color(0xFF0077B6)),
+            _divider(),
+            _item("潮位狀態", current.tideLevel ?? '--', Colors.black87),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _item(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        const SizedBox(height: 4),
+        Text(value, style: GoogleFonts.rubik(fontSize: 34, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _divider() => Container(width: 1, height: 40, color: Colors.grey.shade100);
+}
+
+=== [FILE] lib/features/premium/presentation/premium_page.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart'; // 🌟 引入用於開啟網頁
+import '../services/premium_service.dart';
+import '../../../core/utils/constants.dart';
+import '../../../shared/widgets/custom_card.dart';
+
+// 🌟 核心 Provider：從商店獲取真實產品清單與價格
+final storeProductsProvider = FutureProvider<List<ProductDetails>>((ref) async {
+  final iapManager = ref.read(iapManagerProvider);
+  return await iapManager.fetchProducts();
+});
+
+class PremiumPage extends ConsumerWidget {
+  const PremiumPage({super.key});
+
+  // 🌟 輔助方法：開啟 Gist 連結
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint("無法開啟網址: $urlString");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 監聽本地付費狀態
+    final premiumState = ref.watch(premiumProvider);
+    // 監聽商店產品資訊 (動態價格)
+    final productsAsync = ref.watch(storeProductsProvider);
+
+    // 您的法律條款連結
+    const String legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+        title: const Text(
+          "專業版會員計畫",
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // --- 1. 頂部品牌橫幅 ---
+            _buildPremiumHeader(premiumState.isPremium),
+
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- 2. 方案選擇區 ---
+                  if (!premiumState.isPremium) ...[
+                    const Text(
+                      "選擇您的計畫",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    productsAsync.when(
+                      data: (List<ProductDetails> products) {
+                        if (products.isEmpty) {
+                          return _buildNoStoreDataUI();
+                        }
+                        
+                        try {
+                          final yearlyProduct = products.firstWhere(
+                            (p) => p.id == AppConstants.iapProYearly
+                          );
+                          final monthlyProduct = products.firstWhere(
+                            (p) => p.id == AppConstants.iapProMonthly
+                          );
+
+                          return Column(
+                            children: [
+                              _buildIAPPlanCard(
+                                context, ref,
+                                product: yearlyProduct,
+                                title: "年度指揮官計畫",
+                                desc: "解鎖 60 天數據，現省 24%",
+                                isBestValue: true,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildIAPPlanCard(
+                                context, ref,
+                                product: monthlyProduct,
+                                title: "月度專業計畫",
+                                desc: "彈性訂閱，隨時可取消",
+                                isBestValue: false,
+                              ),
+                            ],
+                          );
+                        } catch (e) {
+                          return const Center(child: Text("商店產品配置不完整"));
+                        }
+                      },
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(30.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (err, _) => Center(child: Text("無法連線至 App Store: $err")),
+                    ),
+                  ] else ...[
+                    _buildSubscriptionStatusCard(context, ref, premiumState),
+                  ],
+
+                  const SizedBox(height: 32),
+                  
+                  // --- 3. 特權清單 ---
+                  const Text(
+                    "Pro 會員專屬特權",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFeatureItem(Icons.history_rounded, "30 天深度歷史回測", "觀測過去一個月內每一小時的風浪數據"),
+                  _buildFeatureItem(Icons.calendar_view_month_rounded, "1 個月遠期潮汐預報", "提前規劃未來一個月的行程"),
+                  _buildFeatureItem(Icons.block_flipped, "純淨無廣告體驗", "移除所有干擾資訊，專注於海象分析"),
+                  _buildFeatureItem(Icons.cloud_download_rounded, "優先數據加載", "使用專屬伺服器線路，數據更新更及時"),
+
+                  const SizedBox(height: 40),
+                  
+                  // --- 4. 🌟 法律宣告與恢復購買 (Apple 審核必備) ---
+                  Center(
+                    child: Column(
+                      children: [
+                        const Text(
+                          "訂閱將透過您的商店帳號扣款並自動續費",
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // 🌟 連結到您的 Gist
+                            _buildFooterLink("服務條款", () => _launchURL(legalUrl)),
+                            const Text(" | ", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            _buildFooterLink("隱私政策", () => _launchURL(legalUrl)),
+                            const Text(" | ", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            // 🌟 恢復購買功能
+                            _buildFooterLink("恢復購買", () {
+                              ref.read(iapManagerProvider).restorePurchases();
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIAPPlanCard(
+    BuildContext context, 
+    WidgetRef ref, {
+    required ProductDetails product,
+    required String title,
+    required String desc,
+    required bool isBestValue,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isBestValue ? Colors.amber : Colors.grey.shade200, width: 2),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Stack(
+        children: [
+          if (isBestValue)
+            Positioned(
+              top: 0, right: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: const BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                ),
+                child: const Text("最划算", style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      product.price, 
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0077B6)),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        ref.read(iapManagerProvider).buySubscription(product);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0077B6),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        elevation: 0,
+                      ),
+                      child: const Text("選擇", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumHeader(bool isPro) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF023E8A), Color(0xFF0077B6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(isPro ? Icons.stars_rounded : Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
+          const SizedBox(height: 20),
+          Text(
+            isPro ? "您已解鎖專業權限" : "升級專業版計畫",
+            style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "掌握全台 86 個測站，解鎖完整 60 天數據",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFF0077B6).withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: const Color(0xFF0077B6), size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          ),
+          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionStatusCard(BuildContext context, WidgetRef ref, PremiumState state) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.green.shade200, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.verified_rounded, color: Colors.green, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            "會員方案：${state.type == SubscriptionType.monthly ? '月費訂閱' : '年度訂閱'}",
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          const Text("服務已解鎖，享受完整海象大數據", style: TextStyle(color: Colors.blueGrey, fontSize: 13)),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: () => ref.read(premiumProvider.notifier).cancelSubscription(),
+            child: const Text("管理訂閱設定", style: TextStyle(color: Colors.grey, fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoStoreDataUI() {
+    return const CustomCard(
+      child: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Icon(Icons.storefront_outlined, size: 40, color: Colors.grey),
+            SizedBox(height: 12),
+            Text("目前無法連線至商店", style: TextStyle(fontWeight: FontWeight.bold)),
+            Text("請檢查網路或實機進行沙盒測試", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterLink(String text, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 11, color: Color(0xFF0077B6), decoration: TextDecoration.underline),
+      ),
+    );
+  }
+}
+
+=== [FILE] lib/features/premium/services/iap_manager.dart ===
+
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+
+// 🌟 核心修正：直接引入 StoreKit 底層 Wrapper 檔案以消除紅字
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+
+import '../../../core/utils/constants.dart';
+import 'premium_service.dart';
+
+class IAPManager {
+  final InAppPurchase _iap = InAppPurchase.instance;
+  late StreamSubscription<List<PurchaseDetails>> _subscription;
+  final PremiumNotifier premiumNotifier;
+
+  IAPManager(this.premiumNotifier) {
+    // 1. 初始化交易監聽流
+    final Stream<List<PurchaseDetails>> purchaseUpdated = _iap.purchaseStream;
+    _subscription = purchaseUpdated.listen(
+      (purchaseDetailsList) => _listenToPurchaseUpdated(purchaseDetailsList),
+      onDone: () => _subscription.cancel(),
+      onError: (error) => debugPrint("🚨 IAP 串流錯誤: $error"),
+    );
+  }
+
+  /// 2. 核心邏輯：處理所有交易狀態更新
+  Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
+    for (var purchaseDetails in purchaseDetailsList) {
+      if (purchaseDetails.status == PurchaseStatus.pending) {
+        debugPrint("⏳ 交易處理中...");
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.error) {
+        debugPrint("❌ 購買出錯: ${purchaseDetails.error}");
+        _finishTransaction(purchaseDetails);
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.purchased ||
+               purchaseDetails.status == PurchaseStatus.restored) {
+        
+        // 🌟 成功購買或恢復，執行收據驗證
+        bool valid = await _verifyPurchase(purchaseDetails);
+        
+        if (valid) {
+          // 判定是月費還是年費 (對應 Constants 裡的 ID)
+          final type = (purchaseDetails.productID == AppConstants.iapProYearly)
+              ? SubscriptionType.yearly
+              : SubscriptionType.monthly;
+
+          // 通知 PremiumService 更新本地狀態與 UI
+          await premiumNotifier.setPremiumStatus(true, type);
+          debugPrint("✅ Pro 權限已解鎖: $type");
+        }
+
+        _finishTransaction(purchaseDetails);
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.canceled) {
+        debugPrint("🚫 使用者取消了交易");
+        _finishTransaction(purchaseDetails);
+      }
+    }
+  }
+
+  /// 3. 獲取商店產品 (月費/年費) 真實資訊與價格
+  Future<List<ProductDetails>> fetchProducts() async {
+    final bool available = await _iap.isAvailable();
+    if (!available) {
+      debugPrint("❌ 商店目前無法連線");
+      return [];
+    }
+
+    final ProductDetailsResponse response = 
+        await _iap.queryProductDetails(AppConstants.iapProductIds);
+
+    if (response.notFoundIDs.isNotEmpty) {
+      debugPrint("⚠️ 找不到產品 ID: ${response.notFoundIDs}");
+    }
+
+    return response.productDetails;
+  }
+
+  /// 4. 執行購買
+  Future<void> buySubscription(ProductDetails product) async {
+    final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
+    
+    try {
+      if (Platform.isIOS) {
+        // 🌟 針對 iOS 的特殊處理：清理舊的交易隊列
+        // 這裡使用的是 store_kit_wrappers.dart 提供的類別
+        final SKPaymentQueueWrapper queueWrapper = SKPaymentQueueWrapper();
+        final List<SKPaymentTransactionWrapper> transactions = await queueWrapper.transactions();
+        
+        for (final SKPaymentTransactionWrapper transaction in transactions) {
+          // 只有非進行中的交易才手動結束，避免卡住
+          if (transaction.transactionState != SKPaymentTransactionStateWrapper.purchasing) {
+            await queueWrapper.finishTransaction(transaction);
+          }
+        }
+      }
+      
+      // 自動續期訂閱使用 buyNonConsumable
+      await _iap.buyNonConsumable(purchaseParam: purchaseParam);
+    } catch (e) {
+      debugPrint("🚨 發起購買失敗: $e");
+    }
+  }
+
+  /// 5. 恢復購買 (Apple 審核必備功能)
+  Future<void> restorePurchases() async {
+    try {
+      await _iap.restorePurchases();
+    } catch (e) {
+      debugPrint("🚨 恢復購買失敗: $e");
+    }
+  }
+
+  /// 輔助方法：標記交易完成
+  Future<void> _finishTransaction(PurchaseDetails purchaseDetails) async {
+    if (purchaseDetails.pendingCompletePurchase) {
+      await _iap.completePurchase(purchaseDetails);
+    }
+  }
+
+  /// 驗證邏輯 (本地端簡單模擬)
+  Future<bool> _verifyPurchase(PurchaseDetails purchaseDetails) async {
+    // 正式環境應將 purchaseDetails.verificationData 送至後端驗證
+    return true; 
+  }
+
+  void dispose() {
+    _subscription.cancel();
+  }
+}
+
+=== [FILE] lib/features/premium/services/premium_service.dart ===
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'iap_manager.dart';
+
+/// 1. 定義訂閱類型 (月費、年費、無)
+enum SubscriptionType { none, monthly, yearly }
+
+/// 2. 定義 Premium 狀態模型
+class PremiumState {
+  final bool isPremium;
+  final SubscriptionType type;
+  final DateTime? expiryDate;
+
+  PremiumState({
+    required this.isPremium,
+    this.type = SubscriptionType.none,
+    this.expiryDate,
+  });
+
+  /// 輔助方法：將狀態轉為 Map 以便觀察
+  Map<String, dynamic> toJson() => {
+    'isPremium': isPremium,
+    'type': type.index,
+    'expiryDate': expiryDate?.toIso8601String(),
+  };
+}
+
+/// 3. 提供訂閱狀態的 Provider (UI 監聽此項)
+final premiumProvider = StateNotifierProvider<PremiumNotifier, PremiumState>((ref) {
+  return PremiumNotifier();
+});
+
+/// 4. 提供 IAP 管理員的 Provider
+/// 將 PremiumNotifier 注入其中，讓交易成功時能自動更新狀態
+final iapManagerProvider = Provider<IAPManager>((ref) {
+  final notifier = ref.read(premiumProvider.notifier);
+  final manager = IAPManager(notifier);
+  
+  // 當 Provider 銷毀時（例如使用者登出），自動關閉 IAP 監聽流
+  ref.onDispose(() => manager.dispose());
+  return manager;
+});
+
+/// 5. 訂閱狀態管理邏輯中心
+class PremiumNotifier extends StateNotifier<PremiumState> {
+  PremiumNotifier() : super(PremiumState(isPremium: false)) {
+    _loadStatus();
+  }
+
+  /// 從手機本地儲存載入訂閱狀態
+  Future<void> _loadStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isPro = prefs.getBool('is_pro') ?? false;
+      final typeIndex = prefs.getInt('sub_type') ?? 0;
+      final expiryStr = prefs.getString('expiry_date');
+
+      state = PremiumState(
+        isPremium: isPro,
+        type: SubscriptionType.values[typeIndex],
+        expiryDate: expiryStr != null ? DateTime.parse(expiryStr) : null,
+      );
+    } catch (e) {
+      // 若載入失敗則預設為非付費會員
+      state = PremiumState(isPremium: false);
+    }
+  }
+
+  /// 🌟 核心方法：由 IAPManager 成功驗證收據後呼叫
+  /// 負責更新狀態並存入本地儲存
+  Future<void> setPremiumStatus(bool isPro, SubscriptionType type) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // 計算模擬到期日 (正式環境建議由伺服器端判斷)
+    DateTime? expiry;
+    if (isPro) {
+      final now = DateTime.now();
+      expiry = (type == SubscriptionType.yearly) 
+          ? now.add(const Duration(days: 365)) 
+          : now.add(const Duration(days: 30));
+    }
+
+    // 持久化儲存數據
+    await prefs.setBool('is_pro', isPro);
+    await prefs.setInt('sub_type', type.index);
+    if (expiry != null) {
+      await prefs.setString('expiry_date', expiry.toIso8601String());
+    } else {
+      await prefs.remove('expiry_date');
+    }
+
+    // 發送通知給所有監聽者 (UI 會立即刷新)
+    state = PremiumState(
+      isPremium: isPro,
+      type: type,
+      expiryDate: expiry,
+    );
+  }
+
+  /// 測試用：手動購買 (模擬購買流程)
+  Future<void> purchase(SubscriptionType type) async {
+    // 這裡直接執行狀態變更，讓開發期間不用連商店也能測試 UI
+    await setPremiumStatus(true, type);
+  }
+
+  /// 測試用：還原/重置狀態
+  Future<void> cancelSubscription() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // 清除本地紀錄
+    state = PremiumState(isPremium: false, type: SubscriptionType.none);
+  }
+}
+
+=== [FILE] lib/shared/widgets/custom_card.dart ===
+
+import 'package:flutter/material.dart';
+
+class CustomCard extends StatelessWidget {
+  final Widget child;
+  const CustomCard({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+=== [FILE] lib/shared/widgets/loading_indicator.dart ===
+
+
+
+=== [FILE] lib/main.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 🌟 必須引入，處理繁體中文環境
+import 'features/tide/presentation/home_page.dart';
+
+void main() {
+  // 確保 Flutter 引擎在啟動前已完成初始化
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  runApp(
+    // 🌟 必須包裹 ProviderScope，否則所有 ref.watch 都不會運作
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: '潮汐海象預報',
+
+      // 🌟 核心修正 1：處理繁體中文語系 (讓日曆、對話框顯示中文)
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('zh', 'TW'), // 繁體中文
+        Locale('en', 'US'), // 英文備援
+      ],
+
+      // 🌟 核心修正 2：解決字體出現問號的問題
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF0077B6), // 專業海洋藍色調
+        
+        // 當預設字體找不到中文字符時，強制回退到系統自帶的繁體中文字體
+        fontFamilyFallback: const [
+          'PingFang TC',       // iOS 繁體中文
+          'Noto Sans TC',      // Android 繁體中文
+          'Microsoft JhengHei', // Windows 繁體中文
+          'sans-serif',
+        ],
+        
+        // 優化 AppBar 文字樣式
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+        ),
+      ),
+
+      // 設定首頁
+      home: const HomePage(),
+    );
+  }
+}

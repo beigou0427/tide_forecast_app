@@ -1,0 +1,68 @@
+name: tide_forecast_app
+description: "專業級台灣海象與潮汐預報儀表板。支援 86 個測站實時監控、30 天歷史回測、未來一個月預報及 Apple/Google 訂閱功能。"
+
+# 防止意外發布到 pub.dev
+publish_to: 'none'
+
+# 版本號：1.0.0 代表顯示版本，+1 代表 Build Number (上架時每次需遞增)
+version: 1.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 🌟 解決繁體中文日曆、對話框與 main.dart 紅字必備
+  flutter_localizations:
+    sdk: flutter
+
+  # --- UI 與 視覺表現 ---
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0          # 提供現代感字體
+  
+  # --- 狀態管理 (核心) ---
+  flutter_riverpod: ^2.4.9      # 管理 API 數據、GPS 定位、日期與付費狀態
+
+  # --- 網路與數據處理 ---
+  http: ^1.1.0                  # 請求代理 API 與氣象署官方 API
+  # 🌟 重要：版本提升至 ^0.20.2 以對齊最新 Flutter SDK 在地化需求
+  intl: ^0.20.2                 
+  
+  # --- 資料視覺化 ---
+  fl_chart: ^0.65.0             # 繪製專業潮汐曲線與歷史統計圖表
+
+  # --- 地理位置服務 ---
+  geolocator: ^10.1.0           # 獲取座標並計算與測站的公里距離
+
+  # --- 本地儲存與跳轉 ---
+  shared_preferences: ^2.2.2    # 儲存 Pro 會員狀態與常用設定
+  url_launcher: ^6.2.5          # 🌟 核心：用於開啟 Gist 法律條款與服務協議
+
+  # --- 內購功能 (IAP) ---
+  in_app_purchase: ^3.1.11      # 通用內購介面
+  # 🌟 修正 SKPaymentQueueWrapper 紅字關鍵：iOS 專用 StoreKit 橋接
+  in_app_purchase_storekit: ^0.3.16
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0         # 保持程式碼規範
+
+flutter:
+  # 確保啟用 Material Design 3
+  uses-material-design: true
+
+  # 💡 如果你有準備 App Icon 或 Splash Screen，在此取消註解設定
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
+
+  # 💡 如果你下載了 Noto Sans TC 字體放到 assets/fonts，在此設定
+  # fonts:
+  #   - family: NotoSansTC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSansTC-Regular.ttf
+  #       - asset: assets/fonts/NotoSansTC-Bold.ttf
+  #         weight: 700
