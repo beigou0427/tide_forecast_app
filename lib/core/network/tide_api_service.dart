@@ -3,17 +3,14 @@ import 'package:http/http.dart' as http;
 import '../../features/tide/data/tide_model.dart';
 
 class TideApiService {
-  // 🌟 最終網址：直接指向倉庫名稱後面的檔案
   static const String _baseUrl = "https://beigou0427.github.io/tide_forecast_app";
 
   Future<TideStationData> fetchRealTimeProxy(String stationId) async {
     try {
       final t = DateTime.now().millisecondsSinceEpoch;
       final url = "$_baseUrl/edge_$stationId.json?t=$t";
-      print("DEBUG: 正在請求 -> $url");
-      
+      print("DEBUG: 正在請求最新數據 -> $url");
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-
       if (response.statusCode == 200) {
         return TideStationData.fromEdgeJson(jsonDecode(response.body));
       }
