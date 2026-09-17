@@ -2,44 +2,28 @@ name: 每小時 AI 海象同步
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '30 * * * *'
 jobs:
   tide-job:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Run Engine
-        env:
+      - run: pip install requests google-generativeai
+      - env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-        run: |
-          pip install requests google-generativeai
-          python tide_backend/tide_engine.py
+        run: python tide_backend/tide_engine.py
 
-      - name: 🚀 強制推送資料到 api-data 分支
+      - name: 🚀 核彈級強制推送至 api-data 分支
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 建立一個暫存目錄並將 JSON 放進去
-          mkdir temp_deploy
-          cp data_out/*.json temp_deploy/
-          touch temp_deploy/.nojekyll
-          
-          # 切換到 api-data 分支並強制更新內容
-          git checkout api-data || git checkout -b api-data
-          git rm -rf .
-          cp -r temp_deploy/* .
-          rm -rf temp_deploy
-          
+          cd deploy_api
+          git init
+          git config user.name "TideBot"
+          git config user.email "bot@tide.app"
           git add .
-          git commit -m "AI Data Force Update: $(date)"
-          git push origin api-data --force
+          git commit -m "AI Data Update: $(date)"
+          # 使用 Token 進行暴力強制推送，覆蓋 api-data 分支
+          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:api-data
