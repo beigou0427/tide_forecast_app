@@ -2,7 +2,7 @@ name: 每小時 AI 海象同步
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 * * * *'
+    - cron: '40 * * * *'
 jobs:
   tide-job:
     runs-on: ubuntu-latest
@@ -12,18 +12,15 @@ jobs:
         with:
           python-version: '3.9'
       - run: pip install requests google-generativeai
-      - env:
+      - name: 🚀 執行腳本
+        env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-
-      - name: 🚀 核彈級強制推送至 api-data 分支
-        run: |
-          cd deploy_api
-          git init
-          git config user.name "TideBot"
-          git config user.email "bot@tide.app"
-          git add .
-          git commit -m "AI Data Update: $(date)"
-          # 使用 Token 進行暴力強制推送，覆蓋 api-data 分支
-          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:api-data
+      - name: 📤 暴力覆蓋部署
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: api-data
+          publish_dir: ./deploy_api
+          enable_jekyll: false
