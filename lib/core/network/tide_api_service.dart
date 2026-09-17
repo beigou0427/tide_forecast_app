@@ -9,7 +9,7 @@ class TideApiService {
     try {
       final t = DateTime.now().millisecondsSinceEpoch;
       final url = "$_baseUrl/edge_$stationId.json?t=$t";
-      print("DEBUG: 正在請求最新數據 -> $url");
+      print("DEBUG: 請求網址 -> $url");
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         return TideStationData.fromEdgeJson(jsonDecode(response.body));

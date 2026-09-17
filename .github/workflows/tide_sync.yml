@@ -6,22 +6,40 @@ on:
 jobs:
   tide-job:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - run: pip install requests google-generativeai
-      - env:
+
+      - name: Run Engine
+        env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-        run: python tide_backend/tide_engine.py
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: api-data
-          publish_dir: ./deploy
-          enable_jekyll: false
+        run: |
+          pip install requests google-generativeai
+          python tide_backend/tide_engine.py
+
+      - name: 🚀 強制推送資料到 api-data 分支
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 建立一個暫存目錄並將 JSON 放進去
+          mkdir temp_deploy
+          cp data_out/*.json temp_deploy/
+          touch temp_deploy/.nojekyll
+          
+          # 切換到 api-data 分支並強制更新內容
+          git checkout api-data || git checkout -b api-data
+          git rm -rf .
+          cp -r temp_deploy/* .
+          rm -rf temp_deploy
+          
+          git add .
+          git commit -m "AI Data Force Update: $(date)"
+          git push origin api-data --force
