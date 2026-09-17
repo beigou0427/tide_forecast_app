@@ -18,16 +18,17 @@ def fetch_data(sid):
     return r.json()['records']['location'][0]
 
 def get_ai_advice_batch(batch_data):
-    prompt = f"你是台灣海象專家。分析以下數據並回傳 JSON：{json.dumps(batch_data)}。請包含 briefing (一句話), safety_score (0-100), activities (清單)。"
+    prompt = f"你是台灣海象專家。分析數據：{json.dumps(batch_data)}。回傳JSON，Key為ID，含briefing, safety_score, activities。"
     try:
         res = model.generate_content(prompt)
-        clean_json = res.text.strip().replace('```json', '').replace('```', '')
-        return json.loads(clean_json)
+        return json.loads(res.text.strip().replace('```json', '').replace('```', ''))
     except: return {}
 
 def main():
-    # 直接建立 api 資料夾在根目錄
     os.makedirs("api", exist_ok=True)
+    # 🌟 關鍵修正：建立 .nojekyll 確保 GitHub Pages 不會擋掉檔案
+    with open(".nojekyll", "w") as f: f.write("")
+    
     batch_size = 3
     for i in range(0, len(STATION_IDS), batch_size):
         batch_ids = STATION_IDS[i:i+batch_size]
@@ -40,15 +41,10 @@ def main():
                 obs_map[sid] = data
             except: continue
         
-        print(f"📡 AI Batch 處理中: {batch_ids}")
         results = get_ai_advice_batch(batch_list)
-        
         for sid in batch_ids:
             if sid in obs_map:
-                output = {
-                    "obs": obs_map[sid], 
-                    "ai_expert": results.get(sid, {"briefing":"海象平穩","safety_score":80,"activities":["釣魚"]})
-                }
+                output = {"obs": obs_map[sid], "ai_expert": results.get(sid, {"briefing":"海象平穩","safety_score":80,"activities":["釣魚"]})}
                 with open(f"api/edge_{sid}.json", "w", encoding="utf-8") as f:
                     json.dump(output, f, ensure_ascii=False)
         time.sleep(5)

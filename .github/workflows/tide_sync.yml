@@ -1,37 +1,30 @@
 name: 每小時 AI 海象同步
-
 on:
   schedule:
-    - cron: '15 * * * *'
-  workflow_dispatch: 
-
+    - cron: '20 * * * *'
+  workflow_dispatch:
 jobs:
   tide-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v3
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Install Dependencies
+      - name: Install
         run: pip install requests google-generativeai
-
-      - name: Run AI Engine
+      - name: Run
         env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-
-      - name: Deploy Data to Branch
+      - name: Deploy
         run: |
-          git config --global user.name "Tide-AI-Bot"
+          git config --global user.name "TideBot"
           git config --global user.email "bot@tide.app"
           git checkout -B api-data
-          # 🌟 核心：確保將 api 資料夾下的最新 JSON 加入提交
-          git add api/*.json
-          git commit -m "AI 同步更新: $(date)"
+          git add api/*.json .nojekyll
+          git commit -m "AI Update with nojekyll"
           git push origin api-data --force
