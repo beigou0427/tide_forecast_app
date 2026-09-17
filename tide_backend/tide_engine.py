@@ -18,15 +18,17 @@ def fetch_data(sid):
     return r.json()['records']['location'][0]
 
 def get_ai_advice_batch(batch_data):
-    prompt = f"分析數據：{json.dumps(batch_data)}。回傳JSON格式，Key為ID，含briefing, safety_score, activities。"
+    prompt = f"分析海象數據：{json.dumps(batch_data)}。請回傳 JSON，格式為 {{'站點ID': {{'briefing':'...','safety_score':80,'activities':['...']}}}}"
     try:
         res = model.generate_content(prompt)
         return json.loads(res.text.strip().replace('```json', '').replace('```', ''))
     except: return {}
 
 def main():
-    # 建立臨時輸出目錄
-    os.makedirs("api_output", exist_ok=True)
+    # 強制建立一個乾淨的部署資料夾
+    out_dir = "deploy_me"
+    os.makedirs(out_dir, exist_ok=True)
+    
     batch_size = 3
     for i in range(0, len(STATION_IDS), batch_size):
         batch_ids = STATION_IDS[i:i+batch_size]
@@ -37,12 +39,13 @@ def main():
                 data = fetch_data(sid)
                 batch_list.append({"id": sid, "data": data})
                 obs_map[sid] = data
-            except: continue
+            except: print(f"Skip {sid}"); continue
+        
         results = get_ai_advice_batch(batch_list)
         for sid in batch_ids:
             if sid in obs_map:
-                output = {"obs": obs_map[sid], "ai_expert": results.get(sid, {"briefing":"海象平穩","safety_score":80,"activities":["釣魚"]})}
-                with open(f"api_output/edge_{sid}.json", "w", encoding="utf-8") as f:
+                output = {"obs": obs_map[sid], "ai_expert": results.get(sid, {"briefing":"海象平穩","safety_score":85,"activities":["釣魚"]})}
+                with open(f"{out_dir}/edge_{sid}.json", "w", encoding="utf-8") as f:
                     json.dump(output, f, ensure_ascii=False)
         time.sleep(2)
 

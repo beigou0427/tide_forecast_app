@@ -1,7 +1,7 @@
 name: 每小時 AI 海象同步
 on:
   schedule:
-    - cron: '20 * * * *'
+    - cron: '30 * * * *'
   workflow_dispatch:
 jobs:
   tide-job:
@@ -18,10 +18,10 @@ jobs:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-      - name: Deploy to Branch
+      - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: api-data
-          publish_dir: ./api_output
+          publish_dir: ./deploy_me
           enable_jekyll: false
