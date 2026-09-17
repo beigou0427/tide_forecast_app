@@ -18,14 +18,15 @@ def fetch_data(sid):
     return r.json()['records']['location'][0]
 
 def get_ai_advice_batch(batch_data):
-    prompt = f"分析數據：{json.dumps(batch_data)}。回傳JSON，Key為站點ID，含briefing, safety_score, activities。"
+    prompt = f"分析數據：{json.dumps(batch_data)}。回傳JSON格式，Key為ID，含briefing, safety_score, activities。"
     try:
         res = model.generate_content(prompt)
         return json.loads(res.text.strip().replace('```json', '').replace('```', ''))
     except: return {}
 
 def main():
-    os.makedirs("api", exist_ok=True)
+    # 建立臨時輸出目錄
+    os.makedirs("api_output", exist_ok=True)
     batch_size = 3
     for i in range(0, len(STATION_IDS), batch_size):
         batch_ids = STATION_IDS[i:i+batch_size]
@@ -41,7 +42,7 @@ def main():
         for sid in batch_ids:
             if sid in obs_map:
                 output = {"obs": obs_map[sid], "ai_expert": results.get(sid, {"briefing":"海象平穩","safety_score":80,"activities":["釣魚"]})}
-                with open(f"api/edge_{sid}.json", "w", encoding="utf-8") as f:
+                with open(f"api_output/edge_{sid}.json", "w", encoding="utf-8") as f:
                     json.dump(output, f, ensure_ascii=False)
         time.sleep(2)
 
