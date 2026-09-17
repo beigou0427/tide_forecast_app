@@ -1,7 +1,5 @@
 name: 每小時 AI 海象同步
 on:
-  schedule:
-    - cron: '30 * * * *'
   workflow_dispatch:
 jobs:
   tide-job:
@@ -14,11 +12,21 @@ jobs:
         with:
           python-version: '3.9'
       - run: pip install requests google-generativeai
-      - env:
+      
+      - name: 🚀 執行 AI 引擎 (Debug 模式)
+        env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-      - name: Deploy
+      
+      - name: 🔍 超級路徑偵錯 (重點步奏)
+        run: |
+          echo "--- 根目錄清單 ---"
+          ls -F
+          echo "--- deploy_me 資料夾內容 ---"
+          ls -R deploy_me/
+
+      - name: 📤 部署到 api-data 分支
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
