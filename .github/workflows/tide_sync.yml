@@ -2,7 +2,7 @@ name: 每小時 AI 海象同步
 on:
   workflow_dispatch:
   schedule:
-    - cron: '45 * * * *'
+    - cron: '0 * * * *'
 jobs:
   tide-job:
     runs-on: ubuntu-latest
@@ -13,13 +13,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - run: pip install requests google-generativeai
+      - run: pip install requests
       - name: 🚀 執行 AI 引擎
         env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
-          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-      - name: 📤 部署資料
+      - name: 📤 部署至 api-data 分支
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
