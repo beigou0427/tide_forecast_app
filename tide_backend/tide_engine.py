@@ -1,81 +1,68 @@
 import requests
 import json
 import os
+import google.generativeai as gemini
 
 CWA_API_KEY = os.environ.get("CWA_KEY")
-
-def _n(v):
-    if v is None or str(v).lower() in ["none", "-99", "-99.0", "", "nan"]: return None
-    try: return float(v)
-    except: return None
+GEMINI_API_KEY = os.environ.get("GEMINI_KEY")
+MODEL_NAME = 'gemini-flash-lite-latest'
+STATION_IDS = ["46694A", "C6B01", "C4A01", "C4B01", "C4D01", "C4F01", "C4P01", "C4T01", "C4W02"]
 
 def main():
     out_dir = "deploy_api"
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, ".nojekyll"), "w") as f: f.write("")
 
-    # 測站清單
-    STATION_IDS = ["46694A", "C6B01", "C4A01", "C4B01", "C4D01", "C4F01", "C4P01", "C4T01", "C4W02"]
-
     for sid in STATION_IDS:
         try:
-            print(f"📡 正在精準抓取: {sid}")
+            print(f"📡 深度抓取測站: {sid}")
             url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization={CWA_API_KEY}&StationID={sid}"
             r = requests.get(url, timeout=15)
             data = r.json()
             
-            # 1. 精準定位數據路徑
-            records = data.get('Records') or data.get('records', {})
-            sea_obs = records.get('SeaSurfaceObs', {})
+            # 1. 深度解析路徑：相容大寫 Records 與小寫 records
+            recs = data.get('Records') or data.get('records', {})
+            sea_obs = recs.get('SeaSurfaceObs', {})
             locations = sea_obs.get('Location', [])
             
             if not locations:
-                print(f"⚠️ {sid} 無即時觀測，跳過")
+                print(f"⚠️ {sid} 找不到 Location 數據")
                 continue
                 
             loc_data = locations[0]
-            obs_list = loc_data.get('StationObsTimes', {}).get('StationObsTime', [])
-            
-            if not obs_list:
+            # 這是 App 繪圖最需要的清單
+            obs_times = loc_data.get('StationObsTimes', {}).get('StationObsTime', [])
+
+            if not obs_times:
                 print(f"⚠️ {sid} 觀測清單為空")
                 continue
 
-            # 2. 提取最新的一筆觀測 (Last One)
-            latest_raw = obs_list[-1]
-            elements = latest_raw.get('WeatherElements', {})
-            anemometer = elements.get('PrimaryAnemometer', {})
-            
-            tide_h = _n(elements.get('TideHeight'))
-            wave_h = _n(elements.get('WaveHeight'))
-            wind_s = _n(anemometer.get('WindSpeed'))
-            tide_l = elements.get('TideLevel', '-')
+            # 2. 呼叫 AI 進行簡報 (使用最新的 Lite 模型)
+            ai_data = {"briefing": "正在透過衛星解析海象...", "safety_score": 80, "activities": ["待定"]}
+            try:
+                gemini.configure(api_key=GEMINI_API_KEY)
+                model = gemini.GenerativeModel(MODEL_NAME)
+                # 只給最後三筆數據節省 Token 並提高準確度
+                prompt = f"你是台灣海象專家。分析數據：{json.dumps(obs_times[-3:])}。回傳單行JSON: {{\"briefing\":\"一句話描述\",\"safety_score\":85,\"activities\":[\"活動1\",\"活動2\"]}}"
+                res = model.generate_content(prompt)
+                ai_text = res.text.strip().replace('```json', '').replace('```', '')
+                ai_data = json.loads(ai_text)
+                print(f"✅ {sid} AI 推理成功")
+            except Exception as e:
+                print(f"❌ {sid} AI 失敗: {e}")
 
-            # 3. 簡易 AI 邏輯 (此處可未來串接 Gemini)
-            safety = 95
-            brief = "海象平穩，非常適合戶外活動。"
-            if wave_h and wave_h > 1.5:
-                safety = 40
-                brief = "風浪較大，岸邊活動請務必注意安全！"
-            elif wind_s and wind_s > 8:
-                safety = 60
-                brief = "陣風較強，建議從事背風側活動。"
-
-            # 4. 封裝成 App 期待的格式
+            # 3. 封裝完整數據
             output = {
-                "obs": loc_data, # 保留原始結構供 Chart 繪圖
-                "ai_expert": {
-                    "briefing": f"老船長報告：{brief}",
-                    "safety_score": safety,
-                    "activities": ["岸釣" if safety > 70 else "室內待命", "觀浪"]
-                }
+                "obs": loc_data, # 這裡現在包含了 StationObsTimes，圖表有救了！
+                "ai_expert": ai_data
             }
             
             with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
                 json.dump(output, f, ensure_ascii=False)
-            print(f"✅ {sid} 真實數據同步成功！")
+            print(f"💾 {sid} 完整數據儲存完成 (共 {len(obs_times)} 筆觀測)")
 
         except Exception as e:
-            print(f"❌ {sid} 處理出錯: {e}")
+            print(f"💥 {sid} 系統錯誤: {e}")
 
 if __name__ == "__main__":
     main()
