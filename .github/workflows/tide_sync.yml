@@ -1,7 +1,7 @@
 name: 每小時 AI 海象同步
 on:
   schedule:
-    - cron: '25 * * * *'
+    - cron: '30 * * * *'
   workflow_dispatch:
 jobs:
   tide-job:
@@ -9,28 +9,19 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      - name: Install Dependencies
-        run: pip install requests google-generativeai
-
-      - name: Run AI Engine
-        env:
+      - run: pip install requests google-generativeai
+      - env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-
-      - name: 🌟 專業級自動部署資料分支
+      - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: api-data
           publish_dir: ./api
-          enable_jekyll: false # 這會自動幫你建立 .nojekyll
-          commit_message: "AI Data Auto Update"
+          enable_jekyll: false
