@@ -41,13 +41,12 @@ def get_ai_advice_batch(batch_data):
         return {}
 
 def main():
-    # 🌟🌟🌟 就是這裡！修正為 deploy_api 讓 GitHub Actions 找得到！
+    # 確保輸出目錄是 deploy_api，讓 GitHub Actions 找得到
     out_dir = "deploy_api"
     os.makedirs(out_dir, exist_ok=True)
     
     with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
         json.dump(STATIONS_META, f, ensure_ascii=False)
-    print("✅ stations_config.json 已生成！")
 
     station_ids = [s["id"] for s in STATIONS_META]
     batch_size = 3
