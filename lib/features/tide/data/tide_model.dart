@@ -3,7 +3,7 @@ import 'dart:convert';
 class TideStationData {
   final StationInfo info;
   final List<Observation> observations;
-  final List<TideForecast> forecasts; // 🌟 補回預報清單
+  final List<TideForecast> forecasts;
   final AIExpertBriefing? aiBriefing;
 
   TideStationData({
@@ -14,11 +14,22 @@ class TideStationData {
   });
 
   factory TideStationData.fromEdgeJson(Map<String, dynamic> json) {
-    final obsRaw = json['obs']?['StationObsTimes'] as List? ?? json['obs']?['Observation'] as List? ?? [];
+    final obsNode = json['obs'] ?? {};
+    
+    // 🌟 核心修正：正確解析氣象署深層嵌套的 Map -> List 結構
+    List obsRaw = [];
+    if (obsNode['StationObsTimes'] is Map) {
+      obsRaw = obsNode['StationObsTimes']['StationObsTime'] as List? ?? [];
+    } else if (obsNode['StationObsTimes'] is List) {
+      obsRaw = obsNode['StationObsTimes'];
+    } else if (obsNode['Observation'] is List) {
+      obsRaw = obsNode['Observation'];
+    }
+
     return TideStationData(
-      info: StationInfo.fromMap(json['obs']?['info'] ?? json['obs'] ?? {}),
-      observations: obsRaw.map((i) => Observation.fromProxy(i)).toList(),
-      forecasts: [], // 預報數據目前由後端整合處理
+      info: StationInfo.fromMap(obsNode['info'] ?? obsNode),
+      observations: obsRaw.map((i) => Observation.fromProxy(i as Map<String, dynamic>)).toList(),
+      forecasts: [], 
       aiBriefing: json['ai_expert'] != null ? AIExpertBriefing.fromMap(json['ai_expert']) : null,
     );
   }
@@ -57,47 +68,30 @@ class StationInfo {
 
 class Observation {
   final DateTime dateTime;
-  final double? tideHeight, waveHeight, windSpeed;
+  final double? tideHeight, waveHeight, windSpeed, wavePeriod, seaTemperature, currentSpeed, windDirection, airTemperature, airPressure;
   final String? tideLevel;
-  
-  // 🌟 補回 UI 依賴的所有進階觀測欄位
-  final double? wavePeriod;
-  final double? seaTemperature;
-  final double? currentSpeed;
-  final double? windDirection;
-  final double? airTemperature;
-  final double? airPressure;
 
   Observation({
-    required this.dateTime, 
-    this.tideHeight, 
-    this.tideLevel, 
-    this.waveHeight, 
-    this.windSpeed,
-    this.wavePeriod,
-    this.seaTemperature,
-    this.currentSpeed,
-    this.windDirection,
-    this.airTemperature,
-    this.airPressure,
+    required this.dateTime, this.tideHeight, this.tideLevel, this.waveHeight, this.windSpeed,
+    this.wavePeriod, this.seaTemperature, this.currentSpeed, this.windDirection, this.airTemperature, this.airPressure,
   });
 
   factory Observation.fromProxy(Map<String, dynamic> json) {
     final e = json['WeatherElements'] ?? json['WeatherElement'] ?? json['Weather'] ?? {};
     final tide = json['Tide'] ?? {};
     final wave = json['Wave'] ?? {};
+    final anemometer = e['PrimaryAnemometer'] ?? {};
 
     return Observation(
       dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? DateTime.now().toIso8601String()),
       tideHeight: _n(e['TideHeight'] ?? tide['TideHeight']),
       tideLevel: (e['TideLevel'] ?? tide['TideLevel'])?.toString(),
       waveHeight: _n(e['WaveHeight'] ?? wave['WaveHeight']),
-      windSpeed: _n(e['WindSpeed'] ?? json['WindSpeed']),
-      // 解析補回欄位
+      windSpeed: _n(e['WindSpeed'] ?? json['WindSpeed'] ?? anemometer['WindSpeed']),
       wavePeriod: _n(e['WavePeriod'] ?? wave['WavePeriod']),
       seaTemperature: _n(e['SeaTemperature'] ?? json['SeaTemperature']),
       currentSpeed: _n(e['CurrentSpeed'] ?? json['CurrentSpeed']),
-      windDirection: _n(e['WindDirection'] ?? json['WindDirection']),
+      windDirection: _n(e['WindDirection'] ?? json['WindDirection'] ?? anemometer['WindDirection']),
       airTemperature: _n(e['AirTemperature'] ?? e['Temperature']),
       airPressure: _n(e['AirPressure'] ?? e['StationPressure']),
     );

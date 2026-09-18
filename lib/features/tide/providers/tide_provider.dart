@@ -6,15 +6,16 @@ import '../data/tide_repository_impl.dart';
 import '../../../core/network/tide_api_service.dart';
 import '../../../core/utils/constants.dart';
 
+// 🌟 引入付費狀態服務
+import '../../premium/services/premium_service.dart';
+
 final tideApiServiceProvider = Provider((ref) => TideApiService());
 
-/// 🌟 這裡不再是回傳 Null，而是連接實作
 final tideRepositoryProvider = Provider<TideRepository>((ref) {
   final api = ref.watch(tideApiServiceProvider);
   return TideRepositoryImpl(api);
 });
 
-/// 🌟 恢復收藏清單 Provider
 final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
@@ -55,12 +56,17 @@ class TideViewData {
 }
 
 final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
-  final repo = ref.watch(tideRepositoryProvider);
+  final api = ref.watch(tideApiServiceProvider);
   final stationId = ref.watch(currentStationIdProvider);
   final locationAsync = ref.watch(userLocationProvider);
+  
+  // 🌟 獲取使用者是否為 Pro 會員
+  final isPremium = ref.watch(premiumProvider).isPremium;
 
   try {
-    final TideStationData stationData = await repo.getTideData(stationId);
+    // 將 isPremium 狀態傳入 fetchData
+    final TideStationData stationData = await api.fetchData(stationId, isPremium: isPremium);
+    
     double? distance;
     final userPos = locationAsync.value;
     if (userPos != null) {

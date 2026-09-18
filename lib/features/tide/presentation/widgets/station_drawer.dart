@@ -6,6 +6,7 @@ import '../../../../core/utils/constants.dart';
 import '../../providers/tide_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
+import '../../../diagnostic/presentation/diagnostic_page.dart';
 
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
@@ -36,14 +37,10 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                // 🌟 1. 我的最愛分組 (僅在有收藏時顯示)
                 favoriteIdsAsync.when(
                   data: (favIds) {
                     if (favIds.isEmpty) return const SizedBox.shrink();
-                    final favStations = AppConstants.allStations
-                        .where((s) => favIds.contains(s.id))
-                        .toList();
-                    
+                    final favStations = AppConstants.allStations.where((s) => favIds.contains(s.id)).toList();
                     return Theme(
                       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                       child: ExpansionTile(
@@ -60,7 +57,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                 const Divider(height: 1),
 
-                // 2. 地區分類列表
                 ...AppConstants.regions.map((region) {
                   final List<StationModel> stations = AppConstants.allStations.where((s) {
                     final bool matchesRegion = s.region == region;
@@ -91,9 +87,22 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             ),
           ),
 
+          // 🌟 加入系統自檢入口
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.health_and_safety_outlined, color: Colors.teal),
+            title: const Text("系統自檢中心", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+            onTap: () {
+              Navigator.pop(context); // 關閉 Drawer
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
+            },
+          ),
+
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.only(top: 8, bottom: 24),
             child: Text("資料來源：中央氣象署 (CWA)", style: GoogleFonts.notoSansTc(fontSize: 10, color: Colors.grey)),
           ),
         ],
@@ -161,7 +170,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
   Widget _buildStationTile(StationModel station, bool isFavorited) {
     final bool isSelected = station.id == widget.currentId;
-
     return ListTile(
       onTap: () {
         ref.read(currentStationIdProvider.notifier).state = station.id;
@@ -175,7 +183,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         icon: Icon(isFavorited ? Icons.star : Icons.star_border, size: 18, color: isFavorited ? Colors.amber : Colors.grey.shade300),
         onPressed: () async {
           await ref.read(tideRepositoryProvider).toggleFavorite(station.id);
-          ref.refresh(favoriteStationsProvider); // 🌟 關鍵：通知 UI 刷新最愛清單
+          ref.refresh(favoriteStationsProvider);
         },
       ),
     );

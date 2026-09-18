@@ -11,7 +11,8 @@ class TideRepositoryImpl implements TideRepository {
 
   @override
   Future<TideStationData> getTideData(String stationId) async {
-    return await _apiService.fetchRealTimeProxy(stationId);
+    // 🌟 修正：對應新的 VIP 雙軌 API 方法名稱
+    return await _apiService.fetchData(stationId);
   }
 
   @override
