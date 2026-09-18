@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,6 +23,10 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
   Widget build(BuildContext context) {
     final premiumState = ref.watch(premiumProvider);
     final favoriteIdsAsync = ref.watch(favoriteStationsProvider);
+    
+    // 🌟 核心：監聽從雲端下載的動態測站清單
+    final stationListAsync = ref.watch(stationListProvider);
+    
     final bool isPremium = premiumState.isPremium;
 
     return Drawer(
@@ -34,60 +38,66 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           _buildSearchField(),
 
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                favoriteIdsAsync.when(
-                  data: (favIds) {
-                    if (favIds.isEmpty) return const SizedBox.shrink();
-                    final favStations = AppConstants.allStations.where((s) => favIds.contains(s.id)).toList();
-                    return Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        initiallyExpanded: true,
-                        leading: const Icon(Icons.stars, color: Colors.amber, size: 20),
-                        title: const Text("我的最愛", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                        children: favStations.map((s) => _buildStationTile(s, true)).toList(),
-                      ),
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-
-                const Divider(height: 1),
-
-                ...AppConstants.regions.map((region) {
-                  final List<StationModel> stations = AppConstants.allStations.where((s) {
-                    final bool matchesRegion = s.region == region;
-                    final bool matchesSearch = s.name.contains(_searchQuery) || s.id.contains(_searchQuery);
-                    return matchesRegion && matchesSearch;
-                  }).toList();
-
-                  if (stations.isEmpty && _searchQuery.isNotEmpty) return const SizedBox.shrink();
-
-                  return Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      initiallyExpanded: _searchQuery.isNotEmpty,
-                      leading: CircleAvatar(
-                        radius: 14,
-                        backgroundColor: const Color(0xFF0077B6).withOpacity(0.1),
-                        child: Text(region[0], style: const TextStyle(fontSize: 12, color: Color(0xFF0077B6), fontWeight: FontWeight.bold)),
-                      ),
-                      title: Text(region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      children: stations.map((s) {
-                        final isFav = favoriteIdsAsync.value?.contains(s.id) ?? false;
-                        return _buildStationTile(s, isFav);
-                      }).toList(),
+            child: stationListAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text("清單載入失敗")),
+              data: (allStations) {
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    favoriteIdsAsync.when(
+                      data: (favIds) {
+                        if (favIds.isEmpty) return const SizedBox.shrink();
+                        final favStations = allStations.where((s) => favIds.contains(s.id)).toList();
+                        if (favStations.isEmpty) return const SizedBox.shrink();
+                        return Theme(
+                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: true,
+                            leading: const Icon(Icons.stars, color: Colors.amber, size: 20),
+                            title: const Text("我的最愛", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                            children: favStations.map((s) => _buildStationTile(s, true)).toList(),
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
-                  );
-                }),
-              ],
+
+                    const Divider(height: 1),
+
+                    ...AppConstants.regions.map((region) {
+                      final List<StationModel> stations = allStations.where((s) {
+                        final bool matchesRegion = s.region == region;
+                        final bool matchesSearch = s.name.contains(_searchQuery) || s.id.contains(_searchQuery);
+                        return matchesRegion && matchesSearch;
+                      }).toList();
+
+                      if (stations.isEmpty && _searchQuery.isNotEmpty) return const SizedBox.shrink();
+
+                      return Theme(
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          initiallyExpanded: _searchQuery.isNotEmpty,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: const Color(0xFF0077B6).withOpacity(0.1),
+                            child: Text(region[0], style: const TextStyle(fontSize: 12, color: Color(0xFF0077B6), fontWeight: FontWeight.bold)),
+                          ),
+                          title: Text(region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          children: stations.map((s) {
+                            final isFav = favoriteIdsAsync.value?.contains(s.id) ?? false;
+                            return _buildStationTile(s, isFav);
+                          }).toList(),
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              }
             ),
           ),
 
-          // 🌟 加入系統自檢入口
           const Divider(height: 1),
           ListTile(
             dense: true,
@@ -95,11 +105,10 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             title: const Text("系統自檢中心", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
             onTap: () {
-              Navigator.pop(context); // 關閉 Drawer
+              Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
             },
           ),
-
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 24),

@@ -1,12 +1,12 @@
+﻿import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import '../data/tide_model.dart';
 import '../domain/tide_repository.dart';
 import '../data/tide_repository_impl.dart';
 import '../../../core/network/tide_api_service.dart';
 import '../../../core/utils/constants.dart';
-
-// 🌟 引入付費狀態服務
 import '../../premium/services/premium_service.dart';
 
 final tideApiServiceProvider = Provider((ref) => TideApiService());
@@ -18,6 +18,23 @@ final tideRepositoryProvider = Provider<TideRepository>((ref) {
 
 final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
+});
+
+// 🌟 新增：動態獲取測站清單的 Provider
+final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
+  try {
+    print("DEBUG: 正在從雲端下載最新測站清單...");
+    final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl))
+                               .timeout(const Duration(seconds: 5));
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      print("✅ 成功下載 ${data.length} 個測站設定！");
+      return data.map((e) => StationModel.fromJson(e)).toList();
+    }
+  } catch (e) {
+    print("⚠️ 雲端清單加載失敗，降級使用本地保底清單: $e");
+  }
+  return AppConstants.fallbackStations;
 });
 
 final currentStationIdProvider = StateProvider<String>((ref) => "46694A");
@@ -39,9 +56,13 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
 final nearestStationIdProvider = Provider<String?>((ref) {
   final userPos = ref.watch(userLocationProvider).value;
   if (userPos == null) return null;
+  
+  // 🌟 修改：不再寫死讀取常數，改為使用動態測站清單
+  final stations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
+  
   double minDistance = double.infinity;
   String? nearestId;
-  for (var station in AppConstants.allStations) {
+  for (var station in stations) {
     double d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, station.lat, station.lng);
     if (d < minDistance) { minDistance = d; nearestId = station.id; }
   }
@@ -59,14 +80,10 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
   final api = ref.watch(tideApiServiceProvider);
   final stationId = ref.watch(currentStationIdProvider);
   final locationAsync = ref.watch(userLocationProvider);
-  
-  // 🌟 獲取使用者是否為 Pro 會員
   final isPremium = ref.watch(premiumProvider).isPremium;
 
   try {
-    // 將 isPremium 狀態傳入 fetchData
     final TideStationData stationData = await api.fetchData(stationId, isPremium: isPremium);
-    
     double? distance;
     final userPos = locationAsync.value;
     if (userPos != null) {

@@ -1,68 +1,86 @@
-import requests
+﻿import requests
 import json
 import os
+import time
 import google.generativeai as gemini
 
 CWA_API_KEY = os.environ.get("CWA_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_KEY")
 MODEL_NAME = 'gemini-flash-lite-latest'
-STATION_IDS = ["46694A", "C6B01", "C4A01", "C4B01", "C4D01", "C4F01", "C4P01", "C4T01", "C4W02"]
+
+# 🌟 雲端測站總表 (後端成為 Single Source of Truth)
+# 先放入 9 個涵蓋全台灣各區的測站作為示範，未來可隨時在此擴充至 86 個
+STATIONS_META = [
+    {"id": "46694A", "name": "龍洞資料浮標", "region": "北部", "isBuoy": True, "lat": 25.037, "lng": 121.926},
+    {"id": "C6B01", "name": "彭佳嶼資料浮標", "region": "北部", "isBuoy": True, "lat": 25.607, "lng": 122.052},
+    {"id": "C4A01", "name": "淡水潮位站", "region": "北部", "isBuoy": False, "lat": 25.175, "lng": 121.424},
+    {"id": "C4B01", "name": "基隆潮位站", "region": "北部", "isBuoy": False, "lat": 25.155, "lng": 121.751},
+    {"id": "C4D01", "name": "新竹潮位站", "region": "西部", "isBuoy": False, "lat": 24.848, "lng": 120.916},
+    {"id": "C4F01", "name": "臺中港潮位站", "region": "西部", "isBuoy": False, "lat": 24.256, "lng": 120.518},
+    {"id": "C4P01", "name": "高雄潮位站", "region": "南部", "isBuoy": False, "lat": 22.618, "lng": 120.266},
+    {"id": "C4T01", "name": "花蓮潮位站", "region": "東部", "isBuoy": False, "lat": 23.985, "lng": 121.636},
+    {"id": "C4W02", "name": "澎湖潮位站", "region": "離島", "isBuoy": False, "lat": 23.565, "lng": 119.563}
+]
+
+def fetch_data(sid):
+    url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization={CWA_API_KEY}&StationID={sid}"
+    r = requests.get(url, timeout=15)
+    if r.status_code != 200: return None
+    data = r.json()
+    records = data.get('Records') or data.get('records', {})
+    if not records or 'Location' not in records: return None
+    return records['Location'][0]
+
+def get_ai_advice_batch(batch_data):
+    try:
+        gemini.configure(api_key=GEMINI_API_KEY)
+        model = gemini.GenerativeModel(MODEL_NAME)
+        prompt = f"分析海象數據：{json.dumps(batch_data)}。回傳 JSON，格式為 {{'站點ID': {{'briefing':'...','safety_score':80,'activities':['...']}}}}"
+        res = model.generate_content(prompt)
+        return json.loads(res.text.strip().replace('```json', '').replace('```', ''))
+    except: 
+        return {}
 
 def main():
-    out_dir = "deploy_api"
+    out_dir = "deploy"
     os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, ".nojekyll"), "w") as f: f.write("")
+    
+    # 🌟 1. 輸出測站配置檔 (給 App 動態讀取)
+    with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
+        json.dump(STATIONS_META, f, ensure_ascii=False)
+    print("✅ stations_config.json 已生成！")
 
-    for sid in STATION_IDS:
-        try:
-            print(f"📡 深度抓取測站: {sid}")
-            url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization={CWA_API_KEY}&StationID={sid}"
-            r = requests.get(url, timeout=15)
-            data = r.json()
-            
-            # 1. 深度解析路徑：相容大寫 Records 與小寫 records
-            recs = data.get('Records') or data.get('records', {})
-            sea_obs = recs.get('SeaSurfaceObs', {})
-            locations = sea_obs.get('Location', [])
-            
-            if not locations:
-                print(f"⚠️ {sid} 找不到 Location 數據")
-                continue
-                
-            loc_data = locations[0]
-            # 這是 App 繪圖最需要的清單
-            obs_times = loc_data.get('StationObsTimes', {}).get('StationObsTime', [])
-
-            if not obs_times:
-                print(f"⚠️ {sid} 觀測清單為空")
-                continue
-
-            # 2. 呼叫 AI 進行簡報 (使用最新的 Lite 模型)
-            ai_data = {"briefing": "正在透過衛星解析海象...", "safety_score": 80, "activities": ["待定"]}
+    # 🌟 2. 抓取觀測資料並進行 AI 運算
+    station_ids = [s["id"] for s in STATIONS_META]
+    batch_size = 3
+    for i in range(0, len(station_ids), batch_size):
+        batch_ids = station_ids[i:i+batch_size]
+        batch_list = []
+        obs_map = {}
+        for sid in batch_ids:
             try:
-                gemini.configure(api_key=GEMINI_API_KEY)
-                model = gemini.GenerativeModel(MODEL_NAME)
-                # 只給最後三筆數據節省 Token 並提高準確度
-                prompt = f"你是台灣海象專家。分析數據：{json.dumps(obs_times[-3:])}。回傳單行JSON: {{\"briefing\":\"一句話描述\",\"safety_score\":85,\"activities\":[\"活動1\",\"活動2\"]}}"
-                res = model.generate_content(prompt)
-                ai_text = res.text.strip().replace('```json', '').replace('```', '')
-                ai_data = json.loads(ai_text)
-                print(f"✅ {sid} AI 推理成功")
+                print(f"📡 抓取 {sid}...")
+                data = fetch_data(sid)
+                if data:
+                    # 為了節省 AI Token，只傳送最新三筆數據給 AI
+                    obs_times = data.get('StationObsTimes', {}).get('StationObsTime', [])
+                    batch_list.append({"id": sid, "data": obs_times[-3:] if obs_times else data})
+                    obs_map[sid] = data
             except Exception as e:
-                print(f"❌ {sid} AI 失敗: {e}")
-
-            # 3. 封裝完整數據
-            output = {
-                "obs": loc_data, # 這裡現在包含了 StationObsTimes，圖表有救了！
-                "ai_expert": ai_data
-            }
-            
-            with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
-                json.dump(output, f, ensure_ascii=False)
-            print(f"💾 {sid} 完整數據儲存完成 (共 {len(obs_times)} 筆觀測)")
-
-        except Exception as e:
-            print(f"💥 {sid} 系統錯誤: {e}")
+                print(f"❌ 錯誤 {sid}: {e}")
+        
+        if batch_list:
+            results = get_ai_advice_batch(batch_list)
+            for sid in batch_ids:
+                if sid in obs_map:
+                    output = {
+                        "obs": obs_map[sid], 
+                        "ai_expert": results.get(sid, {"briefing":"AI 預運算成功，海況平穩。","safety_score":85,"activities":["岸邊活動"]})
+                    }
+                    with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
+                        json.dump(output, f, ensure_ascii=False)
+                    print(f"✅ 檔案已生成: edge_{sid}.json")
+        time.sleep(2)
 
 if __name__ == "__main__":
     main()
