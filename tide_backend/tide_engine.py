@@ -8,8 +8,7 @@ CWA_API_KEY = os.environ.get("CWA_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_KEY")
 MODEL_NAME = 'gemini-flash-lite-latest'
 
-# 🌟 雲端測站總表 (後端成為 Single Source of Truth)
-# 先放入 9 個涵蓋全台灣各區的測站作為示範，未來可隨時在此擴充至 86 個
+# 🌟 雲端測站總表
 STATIONS_META = [
     {"id": "46694A", "name": "龍洞資料浮標", "region": "北部", "isBuoy": True, "lat": 25.037, "lng": 121.926},
     {"id": "C6B01", "name": "彭佳嶼資料浮標", "region": "北部", "isBuoy": True, "lat": 25.607, "lng": 122.052},
@@ -42,15 +41,14 @@ def get_ai_advice_batch(batch_data):
         return {}
 
 def main():
-    out_dir = "deploy"
+    # 🌟🌟🌟 就是這裡！修正為 deploy_api 讓 GitHub Actions 找得到！
+    out_dir = "deploy_api"
     os.makedirs(out_dir, exist_ok=True)
     
-    # 🌟 1. 輸出測站配置檔 (給 App 動態讀取)
     with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
         json.dump(STATIONS_META, f, ensure_ascii=False)
     print("✅ stations_config.json 已生成！")
 
-    # 🌟 2. 抓取觀測資料並進行 AI 運算
     station_ids = [s["id"] for s in STATIONS_META]
     batch_size = 3
     for i in range(0, len(station_ids), batch_size):
@@ -62,7 +60,6 @@ def main():
                 print(f"📡 抓取 {sid}...")
                 data = fetch_data(sid)
                 if data:
-                    # 為了節省 AI Token，只傳送最新三筆數據給 AI
                     obs_times = data.get('StationObsTimes', {}).get('StationObsTime', [])
                     batch_list.append({"id": sid, "data": obs_times[-3:] if obs_times else data})
                     obs_map[sid] = data
@@ -79,7 +76,6 @@ def main():
                     }
                     with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
                         json.dump(output, f, ensure_ascii=False)
-                    print(f"✅ 檔案已生成: edge_{sid}.json")
         time.sleep(2)
 
 if __name__ == "__main__":
