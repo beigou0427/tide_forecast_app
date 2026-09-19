@@ -7,6 +7,7 @@ import '../../providers/tide_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 import '../../../diagnostic/presentation/diagnostic_page.dart';
+import '../station_guide_page.dart';
 
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
@@ -30,7 +31,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       child: Column(
         children: [
           _buildDrawerHeader(premiumState.isFounder),
-          // 🌟 創始天使判定：老用戶展示黃金勳章，新用戶展示促購入口
           _buildPremiumEntry(premiumState),
           _buildSearchField(),
 
@@ -100,6 +100,16 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           const Divider(height: 1),
           ListTile(
             dense: true,
+            leading: const Icon(Icons.menu_book_rounded, color: Color(0xFF0077B6)),
+            title: const Text("85 測站水文指引", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const StationGuidePage()));
+            },
+          ),
+          ListTile(
+            dense: true,
             leading: const Icon(Icons.health_and_safety_outlined, color: Colors.teal),
             title: const Text("系統自檢中心", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
@@ -166,7 +176,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
   }
 
   Widget _buildPremiumEntry(PremiumState state) {
-    // 🌟 核心分流：若是 14 位創始老用戶，渲染尊榮黃金勳章卡
     if (state.isFounder) {
       return Container(
         margin: const EdgeInsets.all(12),
@@ -232,7 +241,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       );
     }
 
-    // 一般用戶：展示促購與方案管理入口
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
       child: Container(
@@ -307,5 +315,3 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 }
-
-

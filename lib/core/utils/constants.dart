@@ -28,7 +28,6 @@ class StationModel {
 class AppConstants {
   static const String officialBaseUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
   
-  // 🌟 十六進位混淆矩陣：完全隱藏 CWA-7B44D117-3255-4D71-9974-B3A93B937D51
   static String get officialApiKey => SecurityUtil.decryptBytes(const [
     0x37, 0x3e, 0x25, 0x48, 0x48, 0x21, 0x5b, 0x59, 0x49, 0x50, 0x5f, 0x53,
     0x52, 0x50, 0x57, 0x5b, 0x41, 0x48, 0x5e, 0x1b, 0x5c, 0x50, 0x4b, 0x5c,
@@ -38,9 +37,20 @@ class AppConstants {
 
   static const String dsObservation = "O-B0075-002";
   static const String dsForecast = "F-A0021-001";
+  
+  // 🌟 完整對齊 App Store In-App Purchase 產品線
+  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";
   static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
   static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
-  static const Set<String> iapProductIds = {iapProMonthly, iapProYearly};
+  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime";
+  
+  static const Set<String> iapProductIds = {
+    iapProWeekly,
+    iapProMonthly,
+    iapProYearly,
+    iapProLifetime,
+  };
+
   static const List<String> regions = ["北部", "西部", "南部", "東部", "離島"];
   static const String remoteStationsUrl = "https://beigou0427.github.io/tide_forecast_app/stations_config.json";
 
@@ -49,4 +59,3 @@ class AppConstants {
     StationModel(id: "C4A01", name: "淡水潮位站", region: "北部", lat: 25.175, lng: 121.424),
   ];
 }
-

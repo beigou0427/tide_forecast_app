@@ -33,7 +33,7 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
+	<string>Tide Pro 需要取得您的所在位置，以便為您自動鎖定距離最近之中央氣象署潮位觀測站並計算離岸距離。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -76,4 +76,5 @@
 	</array>
 </dict>
 </plist>
+
 
