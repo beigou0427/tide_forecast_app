@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "725347285427",
+    "project_id": "tide-forecast-app",
+    "storage_bucket": "tide-forecast-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:725347285427:android:8fedba4d5822725c6c33c6",
+        "android_client_info": {
+          "package_name": "com.beigou.tide_forecast_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzm6tjGbpt-RvGUBOlLHNaKP2TH62zEg0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

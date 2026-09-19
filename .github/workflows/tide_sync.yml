@@ -1,4 +1,4 @@
-name: 每小時 AI 海象同步
+﻿name: 每小時全台 85 測站海象與 AI 自動同步
 on:
   workflow_dispatch:
   schedule:
@@ -13,14 +13,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: 📦 安裝依賴套件
-        run: pip install requests google-generativeai
-      - name: 🚀 執行 AI 引擎
+      - name: 安裝 Python 核心依賴
+        run: pip install requests
+      - name: 執行全台 85 測站數據抓取與邊緣快照生成
         env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
-      - name: 📤 部署至 api-data 分支
+      - name: 發布至 GitHub Pages (api-data 分支)
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -78,7 +78,7 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
               width: 58,
               margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.15),
+                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
                 border: isToday ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5) : null,
                 boxShadow: isSelected ? [const BoxShadow(color: Colors.black26, blurRadius: 4)] : null,
@@ -97,7 +97,7 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
                   if (isToday)
                     Positioned(top: -11, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]), child: const Text("今日", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900))))),
                   if (isLocked)
-                    Positioned(top: 4, right: 4, child: Icon(Icons.lock_outline, size: 10, color: Colors.white.withOpacity(0.7))),
+                    Positioned(top: 4, right: 4, child: Icon(Icons.lock_outline, size: 10, color: Colors.white.withValues(alpha: 0.7))),
                 ],
               ),
             ),
@@ -107,3 +107,4 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
     );
   }
 }
+

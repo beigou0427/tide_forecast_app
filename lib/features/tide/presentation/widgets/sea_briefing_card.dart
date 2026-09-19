@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+﻿import 'package:flutter/material.dart';
 import '../../data/tide_model.dart';
 
 class SeaBriefingCard extends StatelessWidget {
@@ -10,9 +9,7 @@ class SeaBriefingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 取得 AI 推理數據，若無則顯示預設
     final ai = station.aiBriefing;
-    final current = station.observations.isNotEmpty ? station.observations.last : null;
 
     return Container(
       width: double.infinity,
@@ -26,7 +23,7 @@ class SeaBriefingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: _getThemeColors(ai?.safetyScore ?? 80).first.withOpacity(0.3),
+            color: _getThemeColors(ai?.safetyScore ?? 80).first.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           )
@@ -35,7 +32,6 @@ class SeaBriefingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部狀態列
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -49,21 +45,17 @@ class SeaBriefingCard extends StatelessWidget {
                   if (distance != null)
                     Text(
                       "距離您約 ${distance!.toStringAsFixed(1)} km",
-                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
                     ),
                 ],
               ),
-              // 安全分數圓環
               _buildSafetyBadge(ai?.safetyScore ?? 0),
             ],
           ),
-
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16.0),
             child: Divider(color: Colors.white24, height: 1),
           ),
-
-          // 2. 🌟 老船長 AI 簡報文字
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -79,7 +71,7 @@ class SeaBriefingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      ai?.briefing ?? "正在連結衛星獲取 AI 專家分析...",
+                      ai?.briefing ?? "正在連線取得即時 AI 專家分析...",
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500, height: 1.5),
                     ),
                   ],
@@ -87,10 +79,7 @@ class SeaBriefingCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // 3. 推薦活動標籤
           if (ai != null && ai.activities.isNotEmpty)
             Wrap(
               spacing: 8,
@@ -102,11 +91,10 @@ class SeaBriefingCard extends StatelessWidget {
     );
   }
 
-  // 根據安全分數切換顏色 (危險時變紅)
   List<Color> _getThemeColors(int score) {
-    if (score < 50) return [const Color(0xFFD00000), const Color(0xFF9D0208)]; // 警告紅
-    if (score < 75) return [const Color(0xFFF3722C), const Color(0xFFF9433D)]; // 注意橘
-    return [const Color(0xFF0077B6), const Color(0xFF023E8A)]; // 安全藍
+    if (score < 50) return [const Color(0xFFD00000), const Color(0xFF9D0208)];
+    if (score < 75) return [const Color(0xFFF3722C), const Color(0xFFF9433D)];
+    return [const Color(0xFF0077B6), const Color(0xFF023E8A)];
   }
 
   Widget _buildSafetyBadge(int score) {
@@ -117,8 +105,8 @@ class SeaBriefingCard extends StatelessWidget {
           style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
         ),
         Text(
-          "安全指數",
-          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.bold),
+          "安全係數",
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -128,9 +116,9 @@ class SeaBriefingCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Text(
         label,
@@ -139,3 +127,4 @@ class SeaBriefingCard extends StatelessWidget {
     );
   }
 }
+

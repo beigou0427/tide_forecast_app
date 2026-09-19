@@ -1,4 +1,4 @@
-import 'package:shared_preferences/shared_preferences.dart';
+﻿import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/tide_repository.dart';
 import '../data/tide_model.dart';
 import '../../../core/network/tide_api_service.dart';
@@ -34,3 +34,4 @@ class TideRepositoryImpl implements TideRepository {
     await prefs.setStringList(_favKey, favorites);
   }
 }
+

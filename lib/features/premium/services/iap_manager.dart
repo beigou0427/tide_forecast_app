@@ -1,11 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 // 🌟 核心修正：直接引入 StoreKit 底層 Wrapper 檔案以消除紅字
 import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
-import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 
 import '../../../core/utils/constants.dart';
 import 'premium_service.dart';
@@ -131,3 +130,4 @@ class IAPManager {
     _subscription.cancel();
   }
 }
+

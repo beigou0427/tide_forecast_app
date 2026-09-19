@@ -1,4 +1,4 @@
-import 'package:fl_chart/fl_chart.dart';
+﻿import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/tide_model.dart';
@@ -49,7 +49,7 @@ class TideChartSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.blueGrey.withOpacity(0.1),
+                  color: Colors.blueGrey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -72,7 +72,7 @@ class TideChartSheet extends StatelessWidget {
                 drawVerticalLine: false,
                 horizontalInterval: 1,
                 getDrawingHorizontalLine: (value) => FlLine(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   strokeWidth: 1,
                 ),
               ),
@@ -138,8 +138,8 @@ class TideChartSheet extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        const Color(0xFF0077B6).withOpacity(0.3),
-                        const Color(0xFF0077B6).withOpacity(0.0),
+                        const Color(0xFF0077B6).withValues(alpha: 0.3),
+                        const Color(0xFF0077B6).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -149,7 +149,7 @@ class TideChartSheet extends StatelessWidget {
               // 🌟 修改：點擊圖表時顯示詳細日期與時間
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: const Color(0xFF023E8A).withOpacity(0.9),
+                  tooltipBgColor: const Color(0xFF023E8A).withValues(alpha: 0.9),
                   getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                     return touchedBarSpots.map((barSpot) {
                       final obs = observations[barSpot.x.toInt()];

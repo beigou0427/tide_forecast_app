@@ -1,4 +1,4 @@
-import '../data/tide_model.dart';
+﻿import '../data/tide_model.dart';
 
 abstract class TideRepository {
   /// 獲取雲端預運算的邊緣數據
@@ -10,3 +10,4 @@ abstract class TideRepository {
   /// 切換收藏狀態
   Future<void> toggleFavorite(String stationId);
 }
+

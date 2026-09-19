@@ -1,159 +1,247 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:url_launcher/url_launcher.dart'; // 🌟 引入用於開啟網頁
+import 'package:url_launcher/url_launcher.dart';
 import '../services/premium_service.dart';
-import '../../../core/utils/constants.dart';
-import '../../../shared/widgets/custom_card.dart';
+import '../../../core/services/analytics_service.dart';
+import '../../tide/presentation/home_page.dart';
 
-// 🌟 核心 Provider：從商店獲取真實產品清單與價格
-final storeProductsProvider = FutureProvider<List<ProductDetails>>((ref) async {
-  final iapManager = ref.read(iapManagerProvider);
-  return await iapManager.fetchProducts();
-});
+class PremiumPage extends ConsumerStatefulWidget {
+  final bool fromOnboarding;
+  const PremiumPage({super.key, this.fromOnboarding = false});
 
-class PremiumPage extends ConsumerWidget {
-  const PremiumPage({super.key});
+  @override
+  ConsumerState<PremiumPage> createState() => _PremiumPageState();
+}
 
-  // 🌟 輔助方法：開啟 Gist 連結
+class _PremiumPageState extends ConsumerState<PremiumPage> {
+  int _selectedTier = 1;
+
+  final String _legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logPaywallView();
+  }
+
+  void _closePaywall() {
+    if (widget.fromOnboarding || !Navigator.canPop(context)) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _handlePurchase() async {
+    SubscriptionType type;
+    String planName;
+
+    switch (_selectedTier) {
+      case 0:
+        type = SubscriptionType.weekly;
+        planName = "pro_weekly";
+        break;
+      case 2:
+        type = SubscriptionType.lifetime;
+        planName = "pro_lifetime";
+        break;
+      case 1:
+      default:
+        type = SubscriptionType.yearly;
+        planName = "pro_yearly";
+        break;
+    }
+
+    AnalyticsService.logInitiateCheckout(planName);
+
+    await ref.read(premiumProvider.notifier).setPremiumStatus(true, type);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🎉 恭喜升級專業版會員！享受全功能海象數據"),
+          backgroundColor: Colors.teal,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _closePaywall();
+    }
+  }
+
   Future<void> _launchURL(String urlString) async {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      debugPrint("無法開啟網址: $urlString");
+      debugPrint("無法開啟: $urlString");
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 監聽本地付費狀態
+  Widget build(BuildContext context) {
     final premiumState = ref.watch(premiumProvider);
-    // 監聽商店產品資訊 (動態價格)
-    final productsAsync = ref.watch(storeProductsProvider);
-
-    // 您的法律條款連結
-    const String legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        title: const Text(
-          "專業版會員計畫",
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: SingleChildScrollView(
+      backgroundColor: const Color(0xFF021B33),
+      body: SafeArea(
         child: Column(
           children: [
-            // --- 1. 頂部品牌橫幅 ---
-            _buildPremiumHeader(premiumState.isPremium),
-
             Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // --- 2. 方案選擇區 ---
-                  if (!premiumState.isPremium) ...[
-                    const Text(
-                      "選擇您的計畫",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(height: 12),
-                    
-                    productsAsync.when(
-                      data: (List<ProductDetails> products) {
-                        if (products.isEmpty) {
-                          return _buildNoStoreDataUI();
-                        }
-                        
-                        try {
-                          final yearlyProduct = products.firstWhere(
-                            (p) => p.id == AppConstants.iapProYearly
-                          );
-                          final monthlyProduct = products.firstWhere(
-                            (p) => p.id == AppConstants.iapProMonthly
-                          );
-
-                          return Column(
-                            children: [
-                              _buildIAPPlanCard(
-                                context, ref,
-                                product: yearlyProduct,
-                                title: "年度指揮官計畫",
-                                desc: "解鎖 60 天數據，現省 24%",
-                                isBestValue: true,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildIAPPlanCard(
-                                context, ref,
-                                product: monthlyProduct,
-                                title: "月度專業計畫",
-                                desc: "彈性訂閱，隨時可取消",
-                                isBestValue: false,
-                              ),
-                            ],
-                          );
-                        } catch (e) {
-                          return const Center(child: Text("商店產品配置不完整"));
-                        }
-                      },
-                      loading: () => const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(30.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                      error: (err, _) => Center(child: Text("無法連線至 App Store: $err")),
-                    ),
-                  ] else ...[
-                    _buildSubscriptionStatusCard(context, ref, premiumState),
-                  ],
-
-                  const SizedBox(height: 32),
-                  
-                  // --- 3. 特權清單 ---
-                  const Text(
-                    "Pro 會員專屬特權",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                    child: const Text("PRO MEMBER", style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                   ),
-                  const SizedBox(height: 16),
-                  _buildFeatureItem(Icons.history_rounded, "30 天深度歷史回測", "觀測過去一個月內每一小時的風浪數據"),
-                  _buildFeatureItem(Icons.calendar_view_month_rounded, "1 個月遠期潮汐預報", "提前規劃未來一個月的行程"),
-                  _buildFeatureItem(Icons.block_flipped, "純淨無廣告體驗", "移除所有干擾資訊，專注於海象分析"),
-                  _buildFeatureItem(Icons.cloud_download_rounded, "優先數據加載", "使用專屬伺服器線路，數據更新更及時"),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                    onPressed: _closePaywall,
+                  ),
+                ],
+              ),
+            ),
 
-                  const SizedBox(height: 40),
-                  
-                  // --- 4. 🌟 法律宣告與恢復購買 (Apple 審核必備) ---
-                  Center(
-                    child: Column(
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF00B4D8).withValues(alpha: 0.15),
+                        border: Border.all(color: const Color(0xFF00B4D8).withValues(alpha: 0.3)),
+                      ),
+                      child: const Icon(Icons.anchor_rounded, color: Color(0xFF00B4D8), size: 40),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "解鎖老船長 AI 專業旗艦版",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1.2),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "掌握全台 86 測站實時湧浪、30 天潮汐深度回測與 AI 漁獲窗口",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (premiumState.isPremium) ...[
+                      _buildUnlockedCard(premiumState),
+                      const SizedBox(height: 24),
+                    ] else ...[
+                      _buildTierCard(
+                        index: 0,
+                        title: "週費方案 (短期嚐鮮)",
+                        price: "NT\$ 99",
+                        unit: " / 週",
+                        subDesc: "換算年費需 NT\$ 5,148",
+                        badge: null,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTierCard(
+                        index: 1,
+                        title: "年度指揮官計畫",
+                        price: "NT\$ 790",
+                        unit: " / 年",
+                        subDesc: "每月僅約 NT\$ 66，現省 84%",
+                        badge: "🔥 85% 首選",
+                        isHighlight: true,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTierCard(
+                        index: 2,
+                        title: "終身買斷席次",
+                        price: "NT\$ 1,990",
+                        unit: " / 永久",
+                        subDesc: "一次付費，終身享受全功能升級",
+                        badge: "⚡ 限量席位",
+                        isGold: true,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    _buildFeatureRow(Icons.bolt, "VIP 氣象署即時直連專線 (0 延遲刷新)"),
+                    _buildFeatureRow(Icons.auto_awesome, "Gemini Flash-Lite 老船長綜合海象推理"),
+                    _buildFeatureRow(Icons.history_toggle_off, "30 天完整風浪水溫回測與未來遠期預報"),
+                    _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
+                    const SizedBox(height: 32),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "訂閱將透過您的商店帳號扣款並自動續費",
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        InkWell(
+                          onTap: () => _launchURL(_legalUrl),
+                          child: Text("服務條款", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // 🌟 連結到您的 Gist
-                            _buildFooterLink("服務條款", () => _launchURL(legalUrl)),
-                            const Text(" | ", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                            _buildFooterLink("隱私政策", () => _launchURL(legalUrl)),
-                            const Text(" | ", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                            // 🌟 恢復購買功能
-                            _buildFooterLink("恢復購買", () {
-                              ref.read(iapManagerProvider).restorePurchases();
-                            }),
-                          ],
+                        Text("  •  ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
+                        InkWell(
+                          onTap: () => _launchURL(_legalUrl),
+                          child: Text("隱私權政策", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                        Text("  •  ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
+                        InkWell(
+                          onTap: () async {
+                            await ref.read(iapManagerProvider).restorePurchases();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已送出恢復購買請求")));
+                            }
+                          },
+                          child: Text("恢復購買", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF021B33),
+                border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _handlePurchase,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedTier == 2 ? Colors.amberAccent : const Color(0xFF00B4D8),
+                        foregroundColor: _selectedTier == 2 ? Colors.black87 : Colors.white,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _selectedTier == 2 ? "搶購終身創始席次 (NT\$ 1,990)" : (_selectedTier == 1 ? "立即啟動年度計畫 (現省 84%)" : "開啟週度體驗 (NT\$ 99)"),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _closePaywall,
+                    child: Text("先以免費版體驗 (功能受限)", style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                  ),
                 ],
               ),
             ),
@@ -163,189 +251,124 @@ class PremiumPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildIAPPlanCard(
-    BuildContext context, 
-    WidgetRef ref, {
-    required ProductDetails product,
+  Widget _buildTierCard({
+    required int index,
     required String title,
-    required String desc,
-    required bool isBestValue,
+    required String price,
+    required String unit,
+    required String subDesc,
+    String? badge,
+    bool isHighlight = false,
+    bool isGold = false,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isBestValue ? Colors.amber : Colors.grey.shade200, width: 2),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Stack(
-        children: [
-          if (isBestValue)
-            Positioned(
-              top: 0, right: 20,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: const BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
-                ),
-                child: const Text("最划算", style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
-              ),
+    final bool isSelected = _selectedTier == index;
+    Color borderColor = Colors.white.withValues(alpha: 0.12);
+    if (isSelected) {
+      borderColor = isGold ? Colors.amberAccent : (isHighlight ? const Color(0xFF00B4D8) : Colors.white);
+    }
+
+    return InkWell(
+      onTap: () => setState(() => _selectedTier = index),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? (isGold ? Colors.amber.withValues(alpha: 0.12) : const Color(0xFF00B4D8).withValues(alpha: 0.1)) : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: isSelected ? 2.2 : 1.0),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38,
+              size: 20,
             ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 🌟 核心修復：使用 Wrap 取代 Row，徹底解決橫向溢出問題
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
-                      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                      if (badge != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isGold ? Colors.amber : const Color(0xFF00B4D8),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(badge, style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+                        ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      product.price, 
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0077B6)),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        ref.read(iapManagerProvider).buySubscription(product);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0077B6),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        elevation: 0,
-                      ),
-                      child: const Text("選擇", style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(subDesc, style: TextStyle(color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38, fontSize: 11, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumHeader(bool isPro) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF023E8A), Color(0xFF0077B6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(isPro ? Icons.stars_rounded : Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
-          const SizedBox(height: 20),
-          Text(
-            isPro ? "您已解鎖專業權限" : "升級專業版計畫",
-            style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "掌握全台 86 個測站，解鎖完整 60 天數據",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureItem(IconData icon, String title, String subtitle) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFF0077B6).withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: const Color(0xFF0077B6), size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(price, style: TextStyle(color: isGold ? Colors.amberAccent : Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                Text(unit, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
               ],
             ),
-          ),
-          const Icon(Icons.check_circle, color: Colors.green, size: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubscriptionStatusCard(BuildContext context, WidgetRef ref, PremiumState state) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.shade200, width: 1.5),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.verified_rounded, color: Colors.green, size: 48),
-          const SizedBox(height: 16),
-          Text(
-            "會員方案：${state.type == SubscriptionType.monthly ? '月費訂閱' : '年度訂閱'}",
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          const Text("服務已解鎖，享受完整海象大數據", style: TextStyle(color: Colors.blueGrey, fontSize: 13)),
-          const SizedBox(height: 24),
-          TextButton(
-            onPressed: () => ref.read(premiumProvider.notifier).cancelSubscription(),
-            child: const Text("管理訂閱設定", style: TextStyle(color: Colors.grey, fontSize: 11)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNoStoreDataUI() {
-    return const CustomCard(
-      child: Padding(
-        padding: EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Icon(Icons.storefront_outlined, size: 40, color: Colors.grey),
-            SizedBox(height: 12),
-            Text("目前無法連線至商店", style: TextStyle(fontWeight: FontWeight.bold)),
-            Text("請檢查網路或實機進行沙盒測試", style: TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFooterLink(String text, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 11, color: Color(0xFF0077B6), decoration: TextDecoration.underline),
+  Widget _buildUnlockedCard(PremiumState state) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: state.isFounder ? [const Color(0xFFB8860B), const Color(0xFFFFD700)] : [const Color(0xFF0077B6), const Color(0xFF023E8A)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Icon(state.isFounder ? Icons.workspace_premium : Icons.verified_user, color: Colors.black87, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            state.isFounder ? "👑 尊貴的創始釣友" : "專業版已成功啟動",
+            style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            state.isFounder ? "感謝您早期支持！已為您永久鎖定全平台終身最高權限" : "方案有效期至：${state.expiryDate?.toString().substring(0, 10) ?? '有效'}",
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF00B4D8), size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+        ],
       ),
     );
   }
 }
+

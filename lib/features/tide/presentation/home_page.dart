@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../providers/tide_provider.dart';
 import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/share_util.dart';
 import '../../premium/services/premium_service.dart';
 
 import 'tide_chart_sheet.dart';
@@ -14,7 +15,8 @@ import 'widgets/hero_metric_card.dart';
 import 'widgets/metric_grid.dart';
 import 'widgets/safety_alert.dart';
 import 'widgets/sea_briefing_card.dart';
-import 'widgets/date_ribbon.dart'; // 🌟 引入拆分出來的獨立組件
+import 'widgets/date_ribbon.dart';
+import 'widgets/shareable_report_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
 class HomePage extends ConsumerWidget {
@@ -59,13 +61,23 @@ class HomePage extends ConsumerWidget {
             leadingWidth: 100,
             leading: Builder(builder: (context) => _buildRegionButton(context)),
             centerTitle: true,
-            title: Text(isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+            title: Text(
+              isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+            ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.share_rounded, color: Colors.white),
+                tooltip: "產出海象戰報分享",
+                onPressed: tideViewAsync.value == null
+                    ? null
+                    : () => _showShareModal(context, tideViewAsync.value!.stationData),
+              ),
               IconButton(
                 icon: Icon(isFavorited ? Icons.star : Icons.star_border, color: isFavorited ? Colors.amberAccent : Colors.white),
                 onPressed: () async {
                   await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
-                  ref.refresh(favoriteStationsProvider);
+                  ref.invalidate(favoriteStationsProvider);
                 },
               ),
               IconButton(
@@ -126,7 +138,66 @@ class HomePage extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: !isToday ? FloatingActionButton.extended(onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), backgroundColor: modeColor, icon: const Icon(Icons.today, color: Colors.white), label: const Text("返回今日", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))) : null,
+      floatingActionButton: !isToday
+          ? FloatingActionButton.extended(
+              onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
+              backgroundColor: modeColor,
+              icon: const Icon(Icons.today, color: Colors.white),
+              label: const Text("返回今日", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+          : null,
+    );
+  }
+
+  void _showShareModal(BuildContext context, TideStationData station) {
+    final GlobalKey reportKey = GlobalKey();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF021B33),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                child: ShareableReportCard(
+                  boundaryKey: reportKey,
+                  station: station,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00B4D8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.send_rounded, color: Colors.black87),
+                  label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 15)),
+                  onPressed: () async {
+                    await ShareUtil.captureAndShare(reportKey, stationName: station.info.stationName);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -136,43 +207,123 @@ class HomePage extends ConsumerWidget {
       child: InkWell(
         onTap: () => Scaffold.of(context).openDrawer(),
         borderRadius: BorderRadius.circular(20),
-        child: Container(decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.4))), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.map_outlined, color: Colors.white, size: 16), SizedBox(width: 4), Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))])),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.map_outlined, color: Colors.white, size: 16),
+              SizedBox(width: 4),
+              Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withOpacity(0.9)));
+  Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withValues(alpha: 0.9)));
 
   Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
     return CustomCard(
       child: Column(
         children: forecasts.map((f) {
           bool isHigh = f.tideType.contains("滿");
-          return ListTile(dense: true, leading: Icon(isHigh ? Icons.arrow_upward : Icons.arrow_downward, color: isHigh ? Colors.redAccent : Colors.blueAccent, size: 20), title: Text("${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}", style: const TextStyle(fontWeight: FontWeight.w600)), trailing: Text("${f.tideHeight} cm", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)));
+          return ListTile(
+            dense: true,
+            leading: Icon(isHigh ? Icons.arrow_upward : Icons.arrow_downward, color: isHigh ? Colors.redAccent : Colors.blueAccent, size: 20),
+            title: Text("${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}", style: const TextStyle(fontWeight: FontWeight.w600)),
+            trailing: Text("${f.tideHeight} cm", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
+          );
         }).toList(),
       ),
     );
   }
 
   Widget _infoCard(String title, String content) {
-    return CustomCard(child: Row(children: [const Icon(Icons.info_outline, color: Colors.blueGrey), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12))]))]));
+    return CustomCard(
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.blueGrey),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFooter(String desc) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("站點資訊", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 4), Text(desc.isEmpty ? "中央氣象署官方數據。動態配置架構版。" : desc, style: const TextStyle(color: Colors.grey, fontSize: 12)), const SizedBox(height: 40)]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("站點資訊", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        const SizedBox(height: 4),
+        Text(desc.isEmpty ? "中央氣象署官方數據。動態配置架構版。" : desc, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 40),
+      ],
+    );
   }
 
   Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {
     final now = DateTime.now();
-    final DateTime? picked = await showDatePicker(context: context, initialDate: ref.read(selectedDateProvider), firstDate: now.subtract(const Duration(days: 30)), lastDate: now.add(const Duration(days: 30)), helpText: "選擇回測或預報日期");
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: ref.read(selectedDateProvider),
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 30)),
+      helpText: "選擇回測或預報日期",
+    );
     if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
   }
 
   Widget _buildErrorUI(String error, WidgetRef ref) {
-    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.red), const SizedBox(height: 16), const Text("資料加載失敗", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const Padding(padding: EdgeInsets.symmetric(horizontal: 40, vertical: 8), child: Text("請檢查網路連線或稍後再試", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))), TextButton(onPressed: () => ref.refresh(tideViewDataProvider), child: const Text("重試"))]));
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.red),
+          const SizedBox(height: 16),
+          const Text("資料加載失敗", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+            child: Text("請檢查網路連線或稍後再試", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(onPressed: () => ref.refresh(tideViewDataProvider), child: const Text("重試")),
+        ],
+      ),
+    );
   }
 
   Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name) {
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [const SizedBox(height: 100), const Icon(Icons.event_busy, size: 80, color: Colors.grey), const SizedBox(height: 16), Text("$name 無觀測紀錄", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 8), Text("${DateFormat('yyyy/MM/dd').format(date)} 暫無數據存檔", style: const TextStyle(color: Colors.grey)), const SizedBox(height: 24), ElevatedButton(onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), child: const Text("返回今日觀測"))]);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 100),
+        const Icon(Icons.event_busy, size: 80, color: Colors.grey),
+        const SizedBox(height: 16),
+        Text("$name 無觀測紀錄", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        const SizedBox(height: 8),
+        Text("${DateFormat('yyyy/MM/dd').format(date)} 暫無數據存檔", style: const TextStyle(color: Colors.grey)),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
+          child: const Text("返回今日觀測"),
+        ),
+      ],
+    );
   }
 }
+
+

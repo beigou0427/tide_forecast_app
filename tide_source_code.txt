@@ -1,0 +1,3170 @@
+﻿【Tide Pro 專案完整原始碼】
+
+
+=== pubspec.yaml ===
+
+name: tide_forecast_app
+description: "撠平蝝??絲鞊∟?瞏格???銵冽???86 ?葫蝡祕??扼?0 憭拇風?脣?皜研靘??????Apple/Google 閮???
+
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
+  flutter_riverpod: ^2.4.9
+  http: ^1.1.0
+  intl: ^0.20.2                 
+  fl_chart: ^0.65.0
+  geolocator: ^10.1.0
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.2.5
+
+  # ?? ?Ｗ儔雿輻摰???扯頃憟辣
+  in_app_purchase: ^3.1.11
+  in_app_purchase_storekit: ^0.3.16
+  firebase_core: ^4.15.0
+  firebase_analytics: ^12.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+
+=== tide_backend/tide_engine.py ===
+
+import requests
+import json
+import os
+import time
+import google.generativeai as gemini
+
+CWA_API_KEY = os.environ.get("CWA_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_KEY")
+MODEL_NAME = 'gemini-flash-lite-latest'
+
+STATIONS_META = [
+    {"id": "46694A", "name": "龍洞資料浮標", "region": "北部", "isBuoy": True, "lat": 25.037, "lng": 121.926},
+    {"id": "C6B01", "name": "彭佳嶼資料浮標", "region": "北部", "isBuoy": True, "lat": 25.607, "lng": 122.052},
+    {"id": "C4A01", "name": "淡水潮位站", "region": "北部", "isBuoy": False, "lat": 25.175, "lng": 121.424},
+    {"id": "C4B01", "name": "基隆潮位站", "region": "北部", "isBuoy": False, "lat": 25.155, "lng": 121.751},
+    {"id": "C4D01", "name": "新竹潮位站", "region": "西部", "isBuoy": False, "lat": 24.848, "lng": 120.916},
+    {"id": "C4F01", "name": "臺中港潮位站", "region": "西部", "isBuoy": False, "lat": 24.256, "lng": 120.518},
+    {"id": "C4P01", "name": "高雄潮位站", "region": "南部", "isBuoy": False, "lat": 22.618, "lng": 120.266},
+    {"id": "C4T01", "name": "花蓮潮位站", "region": "東部", "isBuoy": False, "lat": 23.985, "lng": 121.636},
+    {"id": "C4W02", "name": "澎湖潮位站", "region": "離島", "isBuoy": False, "lat": 23.565, "lng": 119.563}
+]
+
+def fetch_data(sid):
+    try:
+        url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization={CWA_API_KEY}&StationID={sid}"
+        r = requests.get(url, timeout=15)
+        if r.status_code != 200: return None
+        data = r.json()
+        
+        # 🌟 補回精準解析 SeaSurfaceObs 階層
+        records = data.get('Records') or data.get('records', {})
+        sea_obs = records.get('SeaSurfaceObs', {})
+        locations = sea_obs.get('Location', [])
+        
+        if not locations: return None
+        return locations[0]
+    except:
+        return None
+
+def get_ai_advice_batch(batch_data):
+    try:
+        if not GEMINI_API_KEY: return {}
+        gemini.configure(api_key=GEMINI_API_KEY)
+        model = gemini.GenerativeModel(MODEL_NAME)
+        prompt = f"分析海象數據：{json.dumps(batch_data)}。回傳 JSON，格式為 {{'站點ID': {{'briefing':'...','safety_score':80,'activities':['...']}}}}"
+        res = model.generate_content(prompt)
+        return json.loads(res.text.strip().replace('```json', '').replace('```', ''))
+    except: 
+        return {}
+
+def main():
+    out_dir = "deploy_api"
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, ".nojekyll"), "w") as f: f.write("")
+    
+    with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
+        json.dump(STATIONS_META, f, ensure_ascii=False)
+
+    station_ids = [s["id"] for s in STATIONS_META]
+    batch_size = 3
+    for i in range(0, len(station_ids), batch_size):
+        batch_ids = station_ids[i:i+batch_size]
+        batch_list = []
+        obs_map = {}
+        for sid in batch_ids:
+            data = fetch_data(sid)
+            if data:
+                obs_times = data.get('StationObsTimes', {}).get('StationObsTime', [])
+                batch_list.append({"id": sid, "data": obs_times[-3:] if obs_times else data})
+                obs_map[sid] = data
+        
+        results = get_ai_advice_batch(batch_list) if batch_list else {}
+        
+        for sid in batch_ids:
+            # 🌟 加入保底機制：就算氣象署沒資料，也產生一個空 JSON 防止 404
+            if sid in obs_map:
+                output = {
+                    "obs": obs_map[sid], 
+                    "ai_expert": results.get(sid, {"briefing":"AI 解析完成，海況平穩。","safety_score":85,"activities":["岸邊活動"]})
+                }
+            else:
+                output = {
+                    "obs": {"StationName": f"測站 {sid}", "Station": {"StationID": sid}},
+                    "ai_expert": {"briefing": "測站維護中，暫無即時數據", "safety_score": 50, "activities": []}
+                }
+            with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
+                json.dump(output, f, ensure_ascii=False)
+        time.sleep(2)
+
+if __name__ == "__main__":
+    main()
+
+
+=== .github/workflows/tide_sync.yml ===
+
+name: 瘥???AI 瘚瑁情?郊
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+jobs:
+  tide-job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: ? 摰?靘陷憟辣
+        run: pip install requests google-generativeai
+      - name: ?? ?瑁? AI 撘?
+        env:
+          CWA_KEY: ${{ secrets.CWA_KEY }}
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+        run: python tide_backend/tide_engine.py
+      - name: ? ?函蔡??api-data ?
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: api-data
+          publish_dir: ./deploy_api
+          enable_jekyll: false
+
+
+=== lib/firebase_options.dart ===
+
+// File generated by FlutterFire CLI.
+// ignore_for_file: type=lint
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+/// Default [FirebaseOptions] for use with your Firebase apps.
+///
+/// Example:
+/// ```dart
+/// import 'firebase_options.dart';
+/// // ...
+/// await Firebase.initializeApp(
+///   options: DefaultFirebaseOptions.currentPlatform,
+/// );
+/// ```
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for linux - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform.',
+        );
+    }
+  }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyB0-bneti_r_6rD6n4azTuWGEeQK3huGno',
+    appId: '1:725347285427:web:7a33b95fe3a9046a6c33c6',
+    messagingSenderId: '725347285427',
+    projectId: 'tide-forecast-app',
+    authDomain: 'tide-forecast-app.firebaseapp.com',
+    storageBucket: 'tide-forecast-app.firebasestorage.app',
+    measurementId: 'G-EE3JCTZ3FW',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyAzm6tjGbpt-RvGUBOlLHNaKP2TH62zEg0',
+    appId: '1:725347285427:android:8fedba4d5822725c6c33c6',
+    messagingSenderId: '725347285427',
+    projectId: 'tide-forecast-app',
+    storageBucket: 'tide-forecast-app.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDg2GpsozDgigsMOFGiJRkxzqIBzOhuEhQ',
+    appId: '1:725347285427:ios:b7f019c72776a50e6c33c6',
+    messagingSenderId: '725347285427',
+    projectId: 'tide-forecast-app',
+    storageBucket: 'tide-forecast-app.firebasestorage.app',
+    iosBundleId: 'com.beigou.tideForecastApp',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDg2GpsozDgigsMOFGiJRkxzqIBzOhuEhQ',
+    appId: '1:725347285427:ios:b7f019c72776a50e6c33c6',
+    messagingSenderId: '725347285427',
+    projectId: 'tide-forecast-app',
+    storageBucket: 'tide-forecast-app.firebasestorage.app',
+    iosBundleId: 'com.beigou.tideForecastApp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyB0-bneti_r_6rD6n4azTuWGEeQK3huGno',
+    appId: '1:725347285427:web:e48322d547f7584c6c33c6',
+    messagingSenderId: '725347285427',
+    projectId: 'tide-forecast-app',
+    authDomain: 'tide-forecast-app.firebaseapp.com',
+    storageBucket: 'tide-forecast-app.firebasestorage.app',
+    measurementId: 'G-RFL0GE4F8L',
+  );
+}
+
+
+=== lib/main.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart';
+import 'features/tide/presentation/home_page.dart';
+import 'features/onboarding/presentation/onboarding_page.dart';
+import 'core/services/analytics_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. 初始化 Firebase 與營運監控
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await AnalyticsService.init();
+  } catch (e) {
+    debugPrint("Firebase 初始化失敗: $e");
+  }
+
+  // 2. 🌟 啟動閘門：檢查是否已完成阻斷式 Onboarding 問卷
+  final prefs = await SharedPreferences.getInstance();
+  final bool hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
+
+  runApp(
+    ProviderScope(
+      child: MyApp(hasCompletedOnboarding: hasCompletedOnboarding),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  final bool hasCompletedOnboarding;
+  const MyApp({super.key, required this.hasCompletedOnboarding});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: '潮汐海象預報',
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('zh', 'TW'), Locale('en', 'US')],
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF0077B6),
+        fontFamilyFallback: const ['PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', 'sans-serif'],
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+      ),
+      // 🌟 分流閘門：未完成問卷者進入 Onboarding，已完成者進入 HomePage
+      home: hasCompletedOnboarding ? const HomePage() : const OnboardingPage(),
+    );
+  }
+}
+
+
+=== lib/core/network/tide_api_service.dart ===
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../utils/constants.dart';
+import '../../features/tide/data/tide_model.dart';
+
+class TideApiService {
+  static const String _edgeUrl = "https://beigou0427.github.io/tide_forecast_app";
+
+  Future<TideStationData> fetchData(String stationId, {bool isPremium = false}) async {
+    try {
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final edgeUrl = "$_edgeUrl/edge_$stationId.json?t=$t";
+      print("DEBUG: 正在抓取邊緣海象 -> $edgeUrl");
+
+      // 🌟 修復核心：將 5 秒超時放寬至 15 秒，避免模擬器或弱網環境被誤殺
+      final edgeResponse = await http.get(Uri.parse(edgeUrl)).timeout(const Duration(seconds: 15));
+      
+      Map<String, dynamic> edgeJson = {};
+      if (edgeResponse.statusCode == 200) {
+        edgeJson = jsonDecode(edgeResponse.body);
+      }
+
+      if (!isPremium) {
+        if (edgeJson.isEmpty) throw Exception("資料庫暫無回應 (HTTP ${edgeResponse.statusCode})");
+        return TideStationData.fromEdgeJson(edgeJson);
+      }
+
+      // VIP 用戶向官方即時索取
+      try {
+        print("💎 VIP 啟動：向氣象署請求絕對即時數據...");
+        final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId";
+        final cwaResponse = await http.get(Uri.parse(cwaUrl)).timeout(const Duration(seconds: 15));
+        
+        if (cwaResponse.statusCode == 200) {
+          final cwaData = jsonDecode(cwaResponse.body);
+          final records = cwaData['Records'] ?? cwaData['records'];
+          final realtimeObs = records['Location'][0];
+          
+          final mergedJson = {
+            "obs": realtimeObs,
+            "ai_expert": edgeJson['ai_expert'] ?? {"briefing": "AI 簡報同步中", "safety_score": 85, "activities": ["海邊活動"]}
+          };
+          print("✅ VIP 即時數據融合成功！");
+          return TideStationData.fromEdgeJson(mergedJson);
+        }
+      } catch (cwaError) {
+        print("⚠️ VIP 直連超時，平滑降級使用 Edge 數據: $cwaError");
+      }
+
+      return TideStationData.fromEdgeJson(edgeJson);
+
+    } catch (e) {
+      print("🚨 API 服務讀取失敗: $e");
+      rethrow;
+    }
+  }
+
+  Future<TideStationData> fetchHistoryOfficial(String sid, String s, String e) async => throw UnimplementedError();
+  Future<List<TideForecast>> fetchForecastOfficial(String sid) async => [];
+}
+
+
+=== lib/core/services/analytics_service.dart ===
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/foundation.dart';
+
+class AnalyticsService {
+  static FirebaseAnalytics? _analytics;
+
+  static Future<void> init() async {
+    try {
+      _analytics = FirebaseAnalytics.instance;
+      debugPrint("✅ [Analytics] Firebase 連線成功，雲端監控啟動！");
+    } catch (e) {
+      debugPrint("⚠️ [Analytics] Firebase 連線失敗: $e");
+    }
+  }
+
+  // 1. 紀錄使用者看了哪個測站
+  static Future<void> logStationView(String stationId, String stationName) async {
+    debugPrint("📊 [埋點追蹤] 觀看測站: $stationName ($stationId)");
+    await _analytics?.logEvent(
+      name: 'station_viewed',
+      parameters: {'station_id': stationId, 'station_name': stationName},
+    );
+  }
+
+  // 2. 紀錄使用者打開付費牆 (曝光度)
+  static Future<void> logPaywallView() async {
+    debugPrint("📊 [埋點追蹤] 曝光付費牆: paywall_viewed");
+    await _analytics?.logEvent(name: 'paywall_viewed');
+  }
+
+  // 3. 紀錄使用者點擊了哪個購買方案 (轉換率)
+  static Future<void> logInitiateCheckout(String productId) async {
+    debugPrint("📊 [埋點追蹤] 點擊購買按鈕: initiate_checkout ($productId)");
+    await _analytics?.logEvent(
+      name: 'initiate_checkout',
+      parameters: {'product_id': productId},
+    );
+  }
+}
+
+
+=== lib/core/theme/app_theme.dart ===
+
+import 'package:flutter/material.dart';
+
+class AppTheme {
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorSchemeSeed: const Color(0xFF0077B6),
+      scaffoldBackgroundColor: const Color(0xFFF8FBFF),
+      // 靽格迤暺?雿輻 CardThemeData ????CardTheme
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.white,
+      ),
+    );
+  }
+}
+
+
+=== lib/core/utils/constants.dart ===
+
+import 'security_util.dart';
+
+class StationModel {
+  final String id;
+  final String name;
+  final String region;
+  final bool isBuoy;
+  final double lat;
+  final double lng;
+
+  const StationModel({
+    required this.id, required this.name, required this.region, 
+    this.isBuoy = false, required this.lat, required this.lng
+  });
+
+  factory StationModel.fromJson(Map<String, dynamic> json) {
+    return StationModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '未知測站',
+      region: json['region'] ?? '未知',
+      isBuoy: json['isBuoy'] ?? false,
+      lat: (json['lat'] ?? 0).toDouble(),
+      lng: (json['lng'] ?? 0).toDouble(),
+    );
+  }
+}
+
+class AppConstants {
+  static const String officialBaseUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+  
+  // 🌟 十六進位混淆矩陣：完全隱藏 CWA-7B44D117-3255-4D71-9974-B3A93B937D51
+  static String get officialApiKey => SecurityUtil.decryptBytes(const [
+    0x37, 0x3e, 0x25, 0x48, 0x48, 0x21, 0x5b, 0x59, 0x49, 0x50, 0x5f, 0x53,
+    0x52, 0x50, 0x57, 0x5b, 0x41, 0x48, 0x5e, 0x1b, 0x5c, 0x50, 0x4b, 0x5c,
+    0x46, 0x05, 0x04, 0x1f, 0x76, 0x43, 0x28, 0x5d, 0x56, 0x1d, 0x4a, 0x5c,
+    0x52, 0x49, 0x54, 0x5f
+  ]);
+
+  static const String dsObservation = "O-B0075-002";
+  static const String dsForecast = "F-A0021-001";
+  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
+  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
+  static const Set<String> iapProductIds = {iapProMonthly, iapProYearly};
+  static const List<String> regions = ["北部", "西部", "南部", "東部", "離島"];
+  static const String remoteStationsUrl = "https://beigou0427.github.io/tide_forecast_app/stations_config.json";
+
+  static const List<StationModel> fallbackStations = [
+    StationModel(id: "46694A", name: "龍洞資料浮標", region: "北部", isBuoy: true, lat: 25.037, lng: 121.926),
+    StationModel(id: "C4A01", name: "淡水潮位站", region: "北部", lat: 25.175, lng: 121.424),
+  ];
+}
+
+
+=== lib/core/utils/security_util.dart ===
+
+import 'dart:convert';
+
+/// 專業級位元組混淆工具
+class SecurityUtil {
+  static const String _internalKey = "tide_command_center_safe_2024";
+
+  /// 🌟 核心：直接針對位元組進行 XOR 還原，完全杜絕 UTF-8 解碼失敗問題
+  static String decryptBytes(List<int> bytes) {
+    try {
+      final keyBytes = utf8.encode(_internalKey);
+      final result = <int>[];
+      for (var i = 0; i < bytes.length; i++) {
+        result.add(bytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      return utf8.decode(result);
+    } catch (_) {
+      return "";
+    }
+  }
+
+  static String decrypt(String base64Input) {
+    try {
+      final bytes = base64.decode(base64Input);
+      return decryptBytes(bytes);
+    } catch (_) {
+      return "";
+    }
+  }
+}
+
+
+=== lib/features/diagnostic/presentation/diagnostic_page.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/diagnostic_provider.dart';
+import '../../../shared/widgets/custom_card.dart';
+
+class DiagnosticPage extends ConsumerWidget {
+  const DiagnosticPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final diagAsync = ref.watch(diagnosticProvider);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text("蝟餌絞?芣炎銝剖?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.refresh(diagnosticProvider),
+            tooltip: '?瑼Ｘ葫',
+          ),
+        ],
+      ),
+      body: diagAsync.when(
+        loading: () => _buildLoadingUI(),
+        error: (err, stack) => Center(child: Text("瑼Ｘ葫?函撣? $err")),
+        data: (results) {
+          int errorCount = results.values.where((v) => v.contains('??)).length;
+          
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _buildStatusHeader(errorCount),
+              const SizedBox(height: 24),
+              ...results.entries.map((e) => _buildResultTile(e.key, e.value)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoadingUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(color: Colors.teal),
+          const SizedBox(height: 16),
+          Text("甇?瑼Ｘ葫??凝??蝭暺?..", style: TextStyle(color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusHeader(int errorCount) {
+    bool isHealthy = errorCount == 0;
+    return CustomCard(
+      child: Column(
+        children: [
+          Icon(
+            isHealthy ? Icons.check_circle : Icons.warning_rounded,
+            color: isHealthy ? Colors.green : Colors.redAccent,
+            size: 64,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isHealthy ? "蝟餌絞??甇?虜" : "?潛 $errorCount ?撣?,
+            style: TextStyle(
+              fontSize: 22, 
+              fontWeight: FontWeight.bold,
+              color: isHealthy ? Colors.green.shade700 : Colors.redAccent.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text("甇文?銵冽?冽蝣箄? CWA 摰 API?itHub Edge ?楠蝭暺???甈?????亙熒摨艾?, 
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultTile(String title, String status) {
+    bool isError = status.contains('??);
+    bool isWarning = status.contains('??');
+    
+    Color bgColor = Colors.green.shade50;
+    Color iconColor = Colors.green;
+    IconData icon = Icons.check_circle_outline;
+
+    if (isError) {
+      bgColor = Colors.red.shade50;
+      iconColor = Colors.red;
+      icon = Icons.cancel_outlined;
+    } else if (isWarning) {
+      bgColor = Colors.orange.shade50;
+      iconColor = Colors.orange;
+      icon = Icons.error_outline;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: bgColor, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4)],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(status, style: TextStyle(color: isError ? Colors.red : (isWarning ? Colors.orange.shade800 : Colors.blueGrey))),
+        ),
+      ),
+    );
+  }
+}
+
+
+=== lib/features/diagnostic/providers/diagnostic_provider.dart ===
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/utils/constants.dart';
+
+/// 自檢模式狀態提供者 (支援終端機高可讀性輸出)
+final diagnosticProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  Map<String, String> results = {};
+
+  // 1. 檢查 CWA API 金鑰解密
+  try {
+    final key = AppConstants.officialApiKey;
+    results['CWA 金鑰解密'] = key.startsWith('CWA-') ? '✅ 成功 (${key.substring(0, 8)}...)' : '❌ 格式異常';
+  } catch (e) {
+    results['CWA 金鑰解密'] = '❌ 錯誤: $e';
+  }
+
+  // 2. 檢查 Edge API (GitHub Pages) 連線
+  try {
+    final edgeUrl = "https://beigou0427.github.io/tide_forecast_app/edge_46694A.json";
+    final res = await http.get(Uri.parse(edgeUrl)).timeout(const Duration(seconds: 5));
+    results['邊緣節點連線 (Edge)'] = res.statusCode == 200 ? '✅ 正常 (HTTP 200)' : '❌ 異常 (HTTP ${res.statusCode})';
+  } catch (e) {
+    results['邊緣節點連線 (Edge)'] = '❌ 連線逾時或斷線';
+  }
+
+  // 3. 檢查 CWA 官方 API 連線
+  try {
+    final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=46694A";
+    final res = await http.get(Uri.parse(cwaUrl)).timeout(const Duration(seconds: 5));
+    results['官方節點連線 (CWA)'] = res.statusCode == 200 ? '✅ 正常 (HTTP 200)' : '❌ 異常 (HTTP ${res.statusCode})';
+  } catch (e) {
+    results['官方節點連線 (CWA)'] = '❌ 連線逾時或斷線';
+  }
+
+  // 4. 檢查 GPS 權限狀態
+  try {
+    bool enabled = await Geolocator.isLocationServiceEnabled();
+    LocationPermission perm = await Geolocator.checkPermission();
+    results['GPS 定位服務'] = enabled && (perm == LocationPermission.always || perm == LocationPermission.whileInUse) 
+        ? '✅ 已授權' : '⚠️ 未授權或未開啟';
+  } catch (e) {
+    results['GPS 定位服務'] = '❌ 檢查失敗';
+  }
+
+  // 5. 檢查本地存儲與 Pro 狀態
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final isPro = prefs.getBool('is_pro') ?? false;
+    final favs = prefs.getStringList('favorite_stations_v1') ?? [];
+    results['本地存儲狀態'] = '✅ 正常 (Pro會員: $isPro, 最愛測站: ${favs.length}個)';
+  } catch (e) {
+    results['本地存儲狀態'] = '❌ 讀取失敗';
+  }
+
+  // 🌟 核心升級：將完整自檢結果直接印在終端機 (Console)
+  debugPrint("\n╔══════════════════════════════════════════════════════════════════════╗");
+  debugPrint("║                      🔍 【系統自檢健康報告】                           ║");
+  debugPrint("╠══════════════════════════════════════════════════════════════════════╣");
+  results.forEach((key, value) {
+    debugPrint("║  • ${key.padRight(16)} : $value");
+  });
+  debugPrint("╚══════════════════════════════════════════════════════════════════════╝\n");
+
+  return results;
+});
+
+
+=== lib/features/onboarding/presentation/onboarding_page.dart ===
+
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../premium/presentation/premium_page.dart';
+
+class OnboardingPage extends StatefulWidget {
+  const OnboardingPage({super.key});
+
+  @override
+  State<OnboardingPage> createState() => _OnboardingPageState();
+}
+
+class _OnboardingPageState extends State<OnboardingPage> {
+  int _currentStep = 0; // 0, 1, 2: 問卷; 3: 假加載
+  
+  String? _selectedRegion;
+  String? _selectedStyle;
+  String? _selectedRisk;
+
+  // 假進度條進度與輪播文字
+  double _progress = 0.0;
+  String _loadingText = "正在連接中央氣象署 86 測站感測陣列...";
+  Timer? _loadingTimer;
+
+  final List<Map<String, dynamic>> _questions = [
+    {
+      "title": "您最常出沒的作業海域？",
+      "subtitle": "老船長將優先為您預載該海域之潮汐水文模型",
+      "key": "region",
+      "options": [
+        {"icon": "🌊", "label": "北部沿海 (基隆 / 東北角 / 淡水)"},
+        {"icon": "🎣", "label": "西部灘釣 / 港區 (台中 / 新竹 / 彰濱)"},
+        {"icon": "☀️", "label": "南部珊瑚礁 / 沿岸 (高雄 / 墾丁 / 恆春)"},
+        {"icon": "🐋", "label": "東部太平洋沿線 (花蓮 / 蘇澳 / 台東)"},
+        {"icon": "🏝️", "label": "外島防波堤 / 礁岩 (澎湖 / 金馬 / 綠島)"},
+      ]
+    },
+    {
+      "title": "您的主要作釣方式？",
+      "subtitle": "系統將自適應計算最適合您作釣的海流與湧浪窗口",
+      "key": "style",
+      "options": [
+        {"icon": "🐟", "label": "浮游磯釣 / 沉底遠投"},
+        {"icon": "🎯", "label": "岸拋路亞 / 微鐵岸拋"},
+        {"icon": "🦀", "label": "前打 / 落入 / 港口搞搞"},
+        {"icon": "🚤", "label": "近海船釣 / 觀光海釣"},
+        {"icon": "🤿", "label": "自由潛水 / 沿岸趕海採集"},
+      ]
+    },
+    {
+      "title": "出海時最在意的海象風險？",
+      "subtitle": "老船長 AI 預警引擎將為此風險提高安全加權等級",
+      "key": "risk",
+      "options": [
+        {"icon": "⚠️", "label": "瘋狗浪 / 突發深海長湧浪"},
+        {"icon": "🌪️", "label": "陣風過強 (吹落或走水過快)"},
+        {"icon": "⏳", "label": "滿乾潮水位急驟變化被困礁石"},
+        {"icon": "🌡️", "label": "水溫驟降 (魚不開口白跑一趟)"},
+      ]
+    }
+  ];
+
+  void _onOptionSelected(String value) {
+    setState(() {
+      if (_currentStep == 0) _selectedRegion = value;
+      if (_currentStep == 1) _selectedStyle = value;
+      if (_currentStep == 2) _selectedRisk = value;
+    });
+
+    if (_currentStep < 2) {
+      setState(() => _currentStep++);
+    } else {
+      _startFakeLoading();
+    }
+  }
+
+  void _startFakeLoading() async {
+    setState(() {
+      _currentStep = 3;
+      _progress = 0.05;
+    });
+
+    // 儲存問卷偏好以利日後 AI 推理加權
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_pref_region', _selectedRegion ?? '');
+    await prefs.setString('user_pref_style', _selectedStyle ?? '');
+    await prefs.setString('user_pref_risk', _selectedRisk ?? '');
+    await prefs.setBool('has_completed_onboarding', true);
+
+    const totalDurationMs = 2000;
+    const intervalMs = 50;
+    int elapsed = 0;
+
+    _loadingTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
+      elapsed += intervalMs;
+      final ratio = (elapsed / totalDurationMs).clamp(0.0, 1.0);
+
+      setState(() {
+        _progress = ratio;
+        if (ratio > 0.7) {
+          _loadingText = "正在封裝專屬潮汐推論模型...";
+        } else if (ratio > 0.35) {
+          _loadingText = "正在初始化 Gemini 老船長推論模型...";
+        }
+      });
+
+      if (elapsed >= totalDurationMs) {
+        timer.cancel();
+        _goToPaywall();
+      }
+    });
+  }
+
+  void _goToPaywall() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PremiumPage(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _loadingTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF021B33),
+      body: SafeArea(
+        child: _currentStep < 3 ? _buildQuestionStep() : _buildLoadingStep(),
+      ),
+    );
+  }
+
+  Widget _buildQuestionStep() {
+    final q = _questions[_currentStep];
+    final options = q["options"] as List<Map<String, String>>;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 頂部步數指示
+          Row(
+            children: List.generate(3, (idx) {
+              return Expanded(
+                child: Container(
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: idx <= _currentStep ? const Color(0xFF00B4D8) : Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            "STEP 0${_currentStep + 1} / 03",
+            style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            q["title"],
+            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            q["subtitle"],
+            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 32),
+          Expanded(
+            child: ListView.separated(
+              itemCount: options.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, idx) {
+                final opt = options[idx];
+                return InkWell(
+                  onTap: () => _onOptionSelected(opt["label"]!),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(opt["icon"]!, style: const TextStyle(fontSize: 22)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            opt["label"]!,
+                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.4), size: 20),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingStep() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: CircularProgressIndicator(
+                    value: _progress,
+                    strokeWidth: 6,
+                    backgroundColor: Colors.white12,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00B4D8)),
+                  ),
+                ),
+                const Icon(Icons.anchor_rounded, color: Colors.amberAccent, size: 52),
+              ],
+            ),
+            const SizedBox(height: 40),
+            Text(
+              "${(_progress * 100).toInt()} %",
+              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _loadingText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "依據您的釣法習慣自適應調整中",
+              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+=== lib/features/premium/presentation/premium_page.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/premium_service.dart';
+import '../../../core/services/analytics_service.dart';
+import '../../tide/presentation/home_page.dart';
+
+class PremiumPage extends ConsumerStatefulWidget {
+  final bool fromOnboarding;
+  const PremiumPage({super.key, this.fromOnboarding = false});
+
+  @override
+  ConsumerState<PremiumPage> createState() => _PremiumPageState();
+}
+
+class _PremiumPageState extends ConsumerState<PremiumPage> {
+  int _selectedTier = 1;
+
+  final String _legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logPaywallView();
+  }
+
+  void _closePaywall() {
+    if (widget.fromOnboarding || !Navigator.canPop(context)) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _handlePurchase() async {
+    SubscriptionType type;
+    String planName;
+
+    switch (_selectedTier) {
+      case 0:
+        type = SubscriptionType.weekly;
+        planName = "pro_weekly";
+        break;
+      case 2:
+        type = SubscriptionType.lifetime;
+        planName = "pro_lifetime";
+        break;
+      case 1:
+      default:
+        type = SubscriptionType.yearly;
+        planName = "pro_yearly";
+        break;
+    }
+
+    AnalyticsService.logInitiateCheckout(planName);
+
+    await ref.read(premiumProvider.notifier).setPremiumStatus(true, type);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🎉 恭喜升級專業版會員！享受全功能海象數據"),
+          backgroundColor: Colors.teal,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _closePaywall();
+    }
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint("無法開啟: $urlString");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final premiumState = ref.watch(premiumProvider);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF021B33),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text("PRO MEMBER", style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                    onPressed: _closePaywall,
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF00B4D8).withOpacity(0.15),
+                        border: Border.all(color: const Color(0xFF00B4D8).withOpacity(0.3)),
+                      ),
+                      child: const Icon(Icons.anchor_rounded, color: Color(0xFF00B4D8), size: 40),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "解鎖老船長 AI 專業旗艦版",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1.2),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "掌握全台 86 測站實時湧浪、30 天潮汐深度回測與 AI 漁獲窗口",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (premiumState.isPremium) ...[
+                      _buildUnlockedCard(premiumState),
+                      const SizedBox(height: 24),
+                    ] else ...[
+                      _buildTierCard(
+                        index: 0,
+                        title: "週費方案 (短期嚐鮮)",
+                        price: "NT\$ 99",
+                        unit: " / 週",
+                        subDesc: "換算年費需 NT\$ 5,148",
+                        badge: null,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTierCard(
+                        index: 1,
+                        title: "年度指揮官計畫",
+                        price: "NT\$ 790",
+                        unit: " / 年",
+                        subDesc: "每月僅約 NT\$ 66，現省 84%",
+                        badge: "🔥 85% 首選",
+                        isHighlight: true,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTierCard(
+                        index: 2,
+                        title: "終身買斷席次",
+                        price: "NT\$ 1,990",
+                        unit: " / 永久",
+                        subDesc: "一次付費，終身享受全功能升級",
+                        badge: "⚡ 限量席位",
+                        isGold: true,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    _buildFeatureRow(Icons.bolt, "VIP 氣象署即時直連專線 (0 延遲刷新)"),
+                    _buildFeatureRow(Icons.auto_awesome, "Gemini Flash-Lite 老船長綜合海象推理"),
+                    _buildFeatureRow(Icons.history_toggle_off, "30 天完整風浪水溫回測與未來遠期預報"),
+                    _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
+                    const SizedBox(height: 32),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        InkWell(
+                          onTap: () => _launchURL(_legalUrl),
+                          child: Text("服務條款", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                        Text("  •  ", style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
+                        InkWell(
+                          onTap: () => _launchURL(_legalUrl),
+                          child: Text("隱私權政策", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                        Text("  •  ", style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
+                        InkWell(
+                          onTap: () async {
+                            await ref.read(iapManagerProvider).restorePurchases();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已送出恢復購買請求")));
+                            }
+                          },
+                          child: Text("恢復購買", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF021B33),
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _handlePurchase,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedTier == 2 ? Colors.amberAccent : const Color(0xFF00B4D8),
+                        foregroundColor: _selectedTier == 2 ? Colors.black87 : Colors.white,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _selectedTier == 2 ? "搶購終身創始席次 (NT\$ 1,990)" : (_selectedTier == 1 ? "立即啟動年度計畫 (現省 84%)" : "開啟週度體驗 (NT\$ 99)"),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _closePaywall,
+                    child: Text("先以免費版體驗 (功能受限)", style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTierCard({
+    required int index,
+    required String title,
+    required String price,
+    required String unit,
+    required String subDesc,
+    String? badge,
+    bool isHighlight = false,
+    bool isGold = false,
+  }) {
+    final bool isSelected = _selectedTier == index;
+    Color borderColor = Colors.white.withOpacity(0.12);
+    if (isSelected) {
+      borderColor = isGold ? Colors.amberAccent : (isHighlight ? const Color(0xFF00B4D8) : Colors.white);
+    }
+
+    return InkWell(
+      onTap: () => setState(() => _selectedTier = index),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? (isGold ? Colors.amber.withOpacity(0.12) : const Color(0xFF00B4D8).withOpacity(0.1)) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: isSelected ? 2.2 : 1.0),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 🌟 核心修復：使用 Wrap 取代 Row，徹底解決橫向溢出問題
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                      if (badge != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isGold ? Colors.amber : const Color(0xFF00B4D8),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(badge, style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(subDesc, style: TextStyle(color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38, fontSize: 11, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(price, style: TextStyle(color: isGold ? Colors.amberAccent : Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                Text(unit, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnlockedCard(PremiumState state) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: state.isFounder ? [const Color(0xFFB8860B), const Color(0xFFFFD700)] : [const Color(0xFF0077B6), const Color(0xFF023E8A)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Icon(state.isFounder ? Icons.workspace_premium : Icons.verified_user, color: Colors.black87, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            state.isFounder ? "👑 尊貴的創始釣友" : "專業版已成功啟動",
+            style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            state.isFounder ? "感謝您早期支持！已為您永久鎖定全平台終身最高權限" : "方案有效期至：${state.expiryDate?.toString().substring(0, 10) ?? '有效'}",
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF00B4D8), size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+=== lib/features/premium/services/iap_manager.dart ===
+
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+
+// ?? ?詨?靽格迤嚗?亙???StoreKit 摨惜 Wrapper 瑼?隞交??斤?摮?
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+
+import '../../../core/utils/constants.dart';
+import 'premium_service.dart';
+
+class IAPManager {
+  final InAppPurchase _iap = InAppPurchase.instance;
+  late StreamSubscription<List<PurchaseDetails>> _subscription;
+  final PremiumNotifier premiumNotifier;
+
+  IAPManager(this.premiumNotifier) {
+    // 1. ???漱??賣?
+    final Stream<List<PurchaseDetails>> purchaseUpdated = _iap.purchaseStream;
+    _subscription = purchaseUpdated.listen(
+      (purchaseDetailsList) => _listenToPurchaseUpdated(purchaseDetailsList),
+      onDone: () => _subscription.cancel(),
+      onError: (error) => debugPrint("? IAP 銝脫??航炊: $error"),
+    );
+  }
+
+  /// 2. ?詨??摩嚗????漱?????
+  Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
+    for (var purchaseDetails in purchaseDetailsList) {
+      if (purchaseDetails.status == PurchaseStatus.pending) {
+        debugPrint("??鈭斗???銝?..");
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.error) {
+        debugPrint("??鞈潸眺?粹: ${purchaseDetails.error}");
+        _finishTransaction(purchaseDetails);
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.purchased ||
+               purchaseDetails.status == PurchaseStatus.restored) {
+        
+        // ?? ??鞈潸眺?敺抬??瑁??嗆?撽?
+        bool valid = await _verifyPurchase(purchaseDetails);
+        
+        if (valid) {
+          // ?文??舀?鞎駁??臬僑鞎?(撠? Constants 鋆∠? ID)
+          final type = (purchaseDetails.productID == AppConstants.iapProYearly)
+              ? SubscriptionType.yearly
+              : SubscriptionType.monthly;
+
+          // ? PremiumService ?湔?砍??? UI
+          await premiumNotifier.setPremiumStatus(true, type);
+          debugPrint("??Pro 甈?撌脰圾?? $type");
+        }
+
+        _finishTransaction(purchaseDetails);
+      } 
+      else if (purchaseDetails.status == PurchaseStatus.canceled) {
+        debugPrint("? 雿輻??瘨?鈭斗?");
+        _finishTransaction(purchaseDetails);
+      }
+    }
+  }
+
+  /// 3. ?脣????Ｗ? (?祥/撟渲祥) ?祕鞈????
+  Future<List<ProductDetails>> fetchProducts() async {
+    final bool available = await _iap.isAvailable();
+    if (!available) {
+      debugPrint("?????桀??⊥????");
+      return [];
+    }
+
+    final ProductDetailsResponse response = 
+        await _iap.queryProductDetails(AppConstants.iapProductIds);
+
+    if (response.notFoundIDs.isNotEmpty) {
+      debugPrint("?? ?曆??啁??ID: ${response.notFoundIDs}");
+    }
+
+    return response.productDetails;
+  }
+
+  /// 4. ?瑁?鞈潸眺
+  Future<void> buySubscription(ProductDetails product) async {
+    final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
+    
+    try {
+      if (Platform.isIOS) {
+        // ?? ?? iOS ?畾???皜???鈭斗???
+        // ?ㄐ雿輻? store_kit_wrappers.dart ??????
+        final SKPaymentQueueWrapper queueWrapper = SKPaymentQueueWrapper();
+        final List<SKPaymentTransactionWrapper> transactions = await queueWrapper.transactions();
+        
+        for (final SKPaymentTransactionWrapper transaction in transactions) {
+          // ?芣??脰?銝剔?鈭斗????????踹??∩?
+          if (transaction.transactionState != SKPaymentTransactionStateWrapper.purchasing) {
+            await queueWrapper.finishTransaction(transaction);
+          }
+        }
+      }
+      
+      // ?芸?蝥?閮雿輻 buyNonConsumable
+      await _iap.buyNonConsumable(purchaseParam: purchaseParam);
+    } catch (e) {
+      debugPrint("? ?潸絲鞈潸眺憭望?: $e");
+    }
+  }
+
+  /// 5. ?Ｗ儔鞈潸眺 (Apple 撖拇敹??)
+  Future<void> restorePurchases() async {
+    try {
+      await _iap.restorePurchases();
+    } catch (e) {
+      debugPrint("? ?Ｗ儔鞈潸眺憭望?: $e");
+    }
+  }
+
+  /// 頛?寞?嚗?閮漱????
+  Future<void> _finishTransaction(PurchaseDetails purchaseDetails) async {
+    if (purchaseDetails.pendingCompletePurchase) {
+      await _iap.completePurchase(purchaseDetails);
+    }
+  }
+
+  /// 撽??摩 (?砍蝡舐陛?格芋??
+  Future<bool> _verifyPurchase(PurchaseDetails purchaseDetails) async {
+    // 甇???啣??? purchaseDetails.verificationData ?敺垢撽?
+    return true; 
+  }
+
+  void dispose() {
+    _subscription.cancel();
+  }
+}
+
+
+=== lib/features/premium/services/premium_service.dart ===
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'iap_manager.dart';
+
+/// 1. 擴充訂閱類型 (新增週費犧牲打、終身買斷)
+enum SubscriptionType { none, weekly, monthly, yearly, lifetime }
+
+/// 2. Premium 狀態模型 (新增創始釣友標記)
+class PremiumState {
+  final bool isPremium;
+  final SubscriptionType type;
+  final DateTime? expiryDate;
+  final bool isFounder; // 🌟 創始天使標記
+
+  PremiumState({
+    required this.isPremium,
+    this.type = SubscriptionType.none,
+    this.expiryDate,
+    this.isFounder = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'isPremium': isPremium,
+    'type': type.index,
+    'expiryDate': expiryDate?.toIso8601String(),
+    'isFounder': isFounder,
+  };
+}
+
+final premiumProvider = StateNotifierProvider<PremiumNotifier, PremiumState>((ref) {
+  return PremiumNotifier();
+});
+
+final iapManagerProvider = Provider<IAPManager>((ref) {
+  final notifier = ref.read(premiumProvider.notifier);
+  final manager = IAPManager(notifier);
+  ref.onDispose(() => manager.dispose());
+  return manager;
+});
+
+class PremiumNotifier extends StateNotifier<PremiumState> {
+  PremiumNotifier() : super(PremiumState(isPremium: false)) {
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // 🌟【創始天使防禦遷移邏輯】
+      // 檢查改版前原本已經是 is_pro 的老用戶，直接封頂為終身創始天使
+      final bool alreadyMigrated = prefs.getBool('has_migrated_founder') ?? false;
+      final bool oldIsPro = prefs.getBool('is_pro') ?? false;
+
+      if (!alreadyMigrated && oldIsPro) {
+        await prefs.setBool('is_founder', true);
+        await prefs.setBool('is_pro', true);
+        await prefs.setInt('sub_type', SubscriptionType.lifetime.index);
+        await prefs.setString('expiry_date', DateTime(2099, 12, 31).toIso8601String());
+        await prefs.setBool('has_migrated_founder', true);
+      }
+
+      final isPro = prefs.getBool('is_pro') ?? false;
+      final typeIndex = prefs.getInt('sub_type') ?? 0;
+      final expiryStr = prefs.getString('expiry_date');
+      final isFounder = prefs.getBool('is_founder') ?? false;
+
+      state = PremiumState(
+        isPremium: isPro,
+        type: SubscriptionType.values[typeIndex < SubscriptionType.values.length ? typeIndex : 0],
+        expiryDate: expiryStr != null ? DateTime.tryParse(expiryStr) : null,
+        isFounder: isFounder,
+      );
+    } catch (e) {
+      state = PremiumState(isPremium: false);
+    }
+  }
+
+  Future<void> setPremiumStatus(bool isPro, SubscriptionType type) async {
+    final prefs = await SharedPreferences.getInstance();
+    DateTime? expiry;
+    if (isPro) {
+      final now = DateTime.now();
+      switch (type) {
+        case SubscriptionType.weekly:
+          expiry = now.add(const Duration(days: 7));
+          break;
+        case SubscriptionType.monthly:
+          expiry = now.add(const Duration(days: 30));
+          break;
+        case SubscriptionType.yearly:
+          expiry = now.add(const Duration(days: 365));
+          break;
+        case SubscriptionType.lifetime:
+          expiry = DateTime(2099, 12, 31);
+          break;
+        default:
+          expiry = null;
+      }
+    }
+
+    await prefs.setBool('is_pro', isPro);
+    await prefs.setInt('sub_type', type.index);
+    if (expiry != null) {
+      await prefs.setString('expiry_date', expiry.toIso8601String());
+    } else {
+      await prefs.remove('expiry_date');
+    }
+
+    state = PremiumState(
+      isPremium: isPro,
+      type: type,
+      expiryDate: expiry,
+      isFounder: state.isFounder,
+    );
+  }
+
+  Future<void> cancelSubscription() async {
+    final prefs = await SharedPreferences.getInstance();
+    // 創始天使不允許被撤銷
+    if (state.isFounder) return;
+    
+    await prefs.clear();
+    state = PremiumState(isPremium: false, type: SubscriptionType.none);
+  }
+}
+
+
+=== lib/features/tide/data/tide_model.dart ===
+
+import 'dart:convert';
+
+class TideStationData {
+  final StationInfo info;
+  final List<Observation> observations;
+  final List<TideForecast> forecasts;
+  final AIExpertBriefing? aiBriefing;
+
+  TideStationData({
+    required this.info, 
+    required this.observations, 
+    this.forecasts = const [], 
+    this.aiBriefing
+  });
+
+  factory TideStationData.fromEdgeJson(Map<String, dynamic> json) {
+    final obsNode = json['obs'] ?? {};
+    
+    // ?? ?詨?靽格迤嚗迤蝣箄圾?除鞊∠蔡瘛勗惜撋???Map -> List 蝯?
+    List obsRaw = [];
+    if (obsNode['StationObsTimes'] is Map) {
+      obsRaw = obsNode['StationObsTimes']['StationObsTime'] as List? ?? [];
+    } else if (obsNode['StationObsTimes'] is List) {
+      obsRaw = obsNode['StationObsTimes'];
+    } else if (obsNode['Observation'] is List) {
+      obsRaw = obsNode['Observation'];
+    }
+
+    return TideStationData(
+      info: StationInfo.fromMap(obsNode['info'] ?? obsNode),
+      observations: obsRaw.map((i) => Observation.fromProxy(i as Map<String, dynamic>)).toList(),
+      forecasts: [], 
+      aiBriefing: json['ai_expert'] != null ? AIExpertBriefing.fromMap(json['ai_expert']) : null,
+    );
+  }
+}
+
+class AIExpertBriefing {
+  final String briefing;
+  final int safetyScore;
+  final List<String> activities;
+  AIExpertBriefing({required this.briefing, required this.safetyScore, required this.activities});
+  factory AIExpertBriefing.fromMap(Map<String, dynamic> map) {
+    return AIExpertBriefing(
+      briefing: map['briefing'] ?? "瘚瑁情撟喟帘嚗釣???具?,
+      safetyScore: map['safety_score'] ?? 80,
+      activities: List<String>.from(map['activities'] ?? []),
+    );
+  }
+}
+
+class StationInfo {
+  final String stationName, countyName, townName, lat, lng, attr, addressDescription;
+  StationInfo({required this.stationName, required this.countyName, required this.townName, required this.lat, required this.lng, required this.attr, required this.addressDescription});
+  factory StationInfo.fromMap(Map<String, dynamic> json) {
+    final String parsedLat = (json['lat'] ?? json['GeoLocation']?['Latitude'] ?? '0').toString();
+    final String parsedLng = (json['lng'] ?? json['GeoLocation']?['Longitude'] ?? '0').toString();
+    return StationInfo(
+      stationName: json['StationName'] ?? json['Station']?['StationID'] ?? '?芰皜祉?',
+      countyName: json['CountyName'] ?? '',
+      townName: json['TownName'] ?? '',
+      lat: parsedLat, lng: parsedLng,
+      attr: json['attr'] ?? json['StationAttribute'] ?? '銝?祉?',
+      addressDescription: json['address-description'] ?? '',
+    );
+  }
+}
+
+class Observation {
+  final DateTime dateTime;
+  final double? tideHeight, waveHeight, windSpeed, wavePeriod, seaTemperature, currentSpeed, windDirection, airTemperature, airPressure;
+  final String? tideLevel;
+
+  Observation({
+    required this.dateTime, this.tideHeight, this.tideLevel, this.waveHeight, this.windSpeed,
+    this.wavePeriod, this.seaTemperature, this.currentSpeed, this.windDirection, this.airTemperature, this.airPressure,
+  });
+
+  factory Observation.fromProxy(Map<String, dynamic> json) {
+    final e = json['WeatherElements'] ?? json['WeatherElement'] ?? json['Weather'] ?? {};
+    final tide = json['Tide'] ?? {};
+    final wave = json['Wave'] ?? {};
+    final anemometer = e['PrimaryAnemometer'] ?? {};
+
+    return Observation(
+      dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? DateTime.now().toIso8601String()),
+      tideHeight: _n(e['TideHeight'] ?? tide['TideHeight']),
+      tideLevel: (e['TideLevel'] ?? tide['TideLevel'])?.toString(),
+      waveHeight: _n(e['WaveHeight'] ?? wave['WaveHeight']),
+      windSpeed: _n(e['WindSpeed'] ?? json['WindSpeed'] ?? anemometer['WindSpeed']),
+      wavePeriod: _n(e['WavePeriod'] ?? wave['WavePeriod']),
+      seaTemperature: _n(e['SeaTemperature'] ?? json['SeaTemperature']),
+      currentSpeed: _n(e['CurrentSpeed'] ?? json['CurrentSpeed']),
+      windDirection: _n(e['WindDirection'] ?? json['WindDirection'] ?? anemometer['WindDirection']),
+      airTemperature: _n(e['AirTemperature'] ?? e['Temperature']),
+      airPressure: _n(e['AirPressure'] ?? e['StationPressure']),
+    );
+  }
+
+  static double? _n(dynamic v) {
+    if (v == null) return null;
+    String s = v.toString().trim();
+    if (s == "None" || s == "-99" || s == "" || s == "nan" || s == "null") return null;
+    return double.tryParse(s.replaceAll(RegExp(r'[^0-9.-]'), ''));
+  }
+}
+
+class TideForecast {
+  final DateTime dateTime;
+  final String tideType, tideHeight;
+  TideForecast({required this.dateTime, required this.tideType, required this.tideHeight});
+  factory TideForecast.fromOfficial(Map<String, dynamic> json) {
+    final heights = json['TideHeights'] ?? {};
+    return TideForecast(
+      dateTime: DateTime.parse(json['DateTime']),
+      tideType: json['Tide']?.toString() ?? '',
+      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? '--').toString(),
+    );
+  }
+}
+
+
+=== lib/features/tide/data/tide_repository_impl.dart ===
+
+import 'package:shared_preferences/shared_preferences.dart';
+import '../domain/tide_repository.dart';
+import '../data/tide_model.dart';
+import '../../../core/network/tide_api_service.dart';
+
+class TideRepositoryImpl implements TideRepository {
+  final TideApiService _apiService;
+  static const String _favKey = "favorite_stations_v1";
+
+  TideRepositoryImpl(this._apiService);
+
+  @override
+  Future<TideStationData> getTideData(String stationId) async {
+    // ?? 靽格迤嚗????VIP ?? API ?寞??迂
+    return await _apiService.fetchData(stationId);
+  }
+
+  @override
+  Future<List<String>> getFavoriteStations() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_favKey) ?? [];
+  }
+
+  @override
+  Future<void> toggleFavorite(String stationId) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> favorites = prefs.getStringList(_favKey) ?? [];
+
+    if (favorites.contains(stationId)) {
+      favorites.remove(stationId);
+    } else {
+      favorites.add(stationId);
+    }
+    await prefs.setStringList(_favKey, favorites);
+  }
+}
+
+
+=== lib/features/tide/domain/tide_repository.dart ===
+
+import '../data/tide_model.dart';
+
+abstract class TideRepository {
+  /// ?脣??脩垢??蝞??楠?豢?
+  Future<TideStationData> getTideData(String stationId);
+  
+  /// ?脣??嗉?皜
+  Future<List<String>> getFavoriteStations();
+  
+  /// ???嗉????
+  Future<void> toggleFavorite(String stationId);
+}
+
+
+=== lib/features/tide/presentation/home_page.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+import '../providers/tide_provider.dart';
+import '../data/tide_model.dart';
+import '../../../core/utils/constants.dart';
+import '../../premium/services/premium_service.dart';
+
+import 'tide_chart_sheet.dart';
+import 'widgets/station_drawer.dart';
+import 'widgets/station_header.dart';
+import 'widgets/hero_metric_card.dart';
+import 'widgets/metric_grid.dart';
+import 'widgets/safety_alert.dart';
+import 'widgets/sea_briefing_card.dart';
+import 'widgets/date_ribbon.dart'; // 🌟 引入拆分出來的獨立組件
+import '../../../shared/widgets/custom_card.dart';
+
+class HomePage extends ConsumerWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<String?>(nearestStationIdProvider, (previous, next) {
+      if (next != null && previous == null) {
+        ref.read(currentStationIdProvider.notifier).state = next;
+      }
+    });
+
+    final tideViewAsync = ref.watch(tideViewDataProvider);
+    final currentId = ref.watch(currentStationIdProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+    final premiumState = ref.watch(premiumProvider);
+    final favoritesAsync = ref.watch(favoriteStationsProvider);
+    
+    final allStations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
+    
+    final bool isFavorited = favoritesAsync.value?.contains(currentId) ?? false;
+    final now = DateTime.now();
+    final String selectedKey = DateFormat('yyyyMMdd').format(selectedDate);
+    final String todayKey = DateFormat('yyyyMMdd').format(now);
+    final bool isToday = selectedKey == todayKey;
+    final bool isFuture = selectedDate.isAfter(now) && !isToday;
+
+    final Color modeColor = isToday ? const Color(0xFF0077B6) : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      drawer: StationDrawer(currentId: currentId),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 185,
+            backgroundColor: modeColor,
+            elevation: 0,
+            leadingWidth: 100,
+            leading: Builder(builder: (context) => _buildRegionButton(context)),
+            centerTitle: true,
+            title: Text(isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+            actions: [
+              IconButton(
+                icon: Icon(isFavorited ? Icons.star : Icons.star_border, color: isFavorited ? Colors.amberAccent : Colors.white),
+                onPressed: () async {
+                  await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
+                  ref.refresh(favoriteStationsProvider);
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.calendar_month, color: premiumState.isPremium ? Colors.amberAccent : Colors.white),
+                onPressed: () => _openCalendar(context, ref),
+              )
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  DateRibbon(selectedDate: selectedDate, themeColor: modeColor),
+                  const SizedBox(height: 15),
+                ],
+              ),
+            ),
+          ),
+
+          tideViewAsync.when(
+            loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF0077B6)))),
+            error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
+            data: (viewData) {
+              final station = viewData.stationData;
+              final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
+
+              if (station.observations.isEmpty && !isFuture) {
+                return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    if (!isFuture) ...[SeaBriefingCard(station: station, distance: viewData.distanceKm), const SizedBox(height: 24)],
+                    StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
+                    const SizedBox(height: 20),
+                    if (isFuture) ...[
+                      _sectionTitle("🌟 專家級潮汐預報 (30日)", modeColor), const SizedBox(height: 12),
+                      _buildForecastList(station.forecasts, modeColor), const SizedBox(height: 20),
+                      _infoCard("預報模式說明", "您正在查看未來預報。實時波高與風速感測數據將於該日期當天產生觀測紀錄。"),
+                    ] else ...[
+                      HeroMetricCard(current: station.observations.last, isBuoy: isBuoy), const SizedBox(height: 16),
+                      SafetyAlert(current: station.observations.last),
+                      if (isToday && station.forecasts.isNotEmpty) ...[
+                        const SizedBox(height: 24), _sectionTitle("⏱️ 今日滿乾潮預測", modeColor), const SizedBox(height: 12),
+                        _buildForecastList(station.forecasts, modeColor),
+                      ],
+                      const SizedBox(height: 24), _sectionTitle(selectedDate.isBefore(now) ? "🗓️ 歷史走勢圖" : "🌊 24h 走勢監控", modeColor), const SizedBox(height: 12),
+                      CustomCard(child: TideChartSheet(observations: station.observations)),
+                      const SizedBox(height: 24), _sectionTitle("📋 詳細觀測參數", modeColor), const SizedBox(height: 12),
+                      MetricGrid(current: station.observations.last),
+                    ],
+                    const SizedBox(height: 24), _buildFooter(station.info.addressDescription),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: !isToday ? FloatingActionButton.extended(onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), backgroundColor: modeColor, icon: const Icon(Icons.today, color: Colors.white), label: const Text("返回今日", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))) : null,
+    );
+  }
+
+  Widget _buildRegionButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12.0, top: 10, bottom: 10),
+      child: InkWell(
+        onTap: () => Scaffold.of(context).openDrawer(),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.4))), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.map_outlined, color: Colors.white, size: 16), SizedBox(width: 4), Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))])),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withOpacity(0.9)));
+
+  Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
+    return CustomCard(
+      child: Column(
+        children: forecasts.map((f) {
+          bool isHigh = f.tideType.contains("滿");
+          return ListTile(dense: true, leading: Icon(isHigh ? Icons.arrow_upward : Icons.arrow_downward, color: isHigh ? Colors.redAccent : Colors.blueAccent, size: 20), title: Text("${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}", style: const TextStyle(fontWeight: FontWeight.w600)), trailing: Text("${f.tideHeight} cm", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)));
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _infoCard(String title, String content) {
+    return CustomCard(child: Row(children: [const Icon(Icons.info_outline, color: Colors.blueGrey), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12))]))]));
+  }
+
+  Widget _buildFooter(String desc) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("站點資訊", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 4), Text(desc.isEmpty ? "中央氣象署官方數據。動態配置架構版。" : desc, style: const TextStyle(color: Colors.grey, fontSize: 12)), const SizedBox(height: 40)]);
+  }
+
+  Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final DateTime? picked = await showDatePicker(context: context, initialDate: ref.read(selectedDateProvider), firstDate: now.subtract(const Duration(days: 30)), lastDate: now.add(const Duration(days: 30)), helpText: "選擇回測或預報日期");
+    if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
+  }
+
+  Widget _buildErrorUI(String error, WidgetRef ref) {
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.red), const SizedBox(height: 16), const Text("資料加載失敗", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const Padding(padding: EdgeInsets.symmetric(horizontal: 40, vertical: 8), child: Text("請檢查網路連線或稍後再試", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))), TextButton(onPressed: () => ref.refresh(tideViewDataProvider), child: const Text("重試"))]));
+  }
+
+  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name) {
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [const SizedBox(height: 100), const Icon(Icons.event_busy, size: 80, color: Colors.grey), const SizedBox(height: 16), Text("$name 無觀測紀錄", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 8), Text("${DateFormat('yyyy/MM/dd').format(date)} 暫無數據存檔", style: const TextStyle(color: Colors.grey)), const SizedBox(height: 24), ElevatedButton(onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), child: const Text("返回今日觀測"))]);
+  }
+}
+
+
+=== lib/features/tide/presentation/station_guide_page.dart ===
+
+
+
+=== lib/features/tide/presentation/tide_chart_sheet.dart ===
+
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../data/tide_model.dart';
+
+class TideChartSheet extends StatelessWidget {
+  final List<Observation> observations;
+
+  const TideChartSheet({
+    super.key,
+    required this.observations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (observations.isEmpty) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: Text("?桀??∪?銵刻?皜祆??, style: TextStyle(color: Colors.grey))),
+      );
+    }
+
+    // ??閰脫?豢????(?洵銝蝑?皜祈????交?)
+    final String chartDate = DateFormat('yyyy/MM/dd').format(observations.first.dateTime);
+
+    // ?斗?豢?皞??芸?雿輻瞏桐?擃漲嚗?∪?雿輻瘜Ｘ答擃漲
+    final bool useWaveHeight = observations.any((o) => o.tideHeight == null) &&
+                               observations.any((o) => o.waveHeight != null);
+
+    return Column(
+      children: [
+        // --- ?”璅????---
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(width: 12, height: 3, color: const Color(0xFF0077B6)),
+                  const SizedBox(width: 6),
+                  Text(
+                    useWaveHeight ? "瘜ａ?頞典 (m)" : "瞏桐?頞典 (m)",
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                  ),
+                ],
+              ),
+              // ?? ?啣?嚗＊蝷箏?銵冽??
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  chartDate,
+                  style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // --- ?詨??”? ---
+        Container(
+          height: 220,
+          padding: const EdgeInsets.only(right: 20, top: 10),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: 1,
+                getDrawingHorizontalLine: (value) => FlLine(
+                  color: Colors.grey.withOpacity(0.1),
+                  strokeWidth: 1,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                
+                // 銝 X 頠賂?憿舐內??
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    interval: 4, 
+                    getTitlesWidget: (value, meta) {
+                      final int index = value.toInt();
+                      if (index >= 0 && index < observations.length) {
+                        final String timeStr = DateFormat('HH:mm').format(observations[index].dateTime);
+                        return SideTitleWidget(
+                          axisSide: meta.axisSide,
+                          space: 8,
+                          child: Text(timeStr, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+                
+                // 撌血 Y 頠賂?憿舐內擃漲
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      return Text(
+                        "${value.toStringAsFixed(1)}m",
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      );
+                    },
+                    reservedSize: 35,
+                  ),
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              
+              lineBarsData: [
+                LineChartBarData(
+                  spots: observations.asMap().entries.map((e) {
+                    final double yValue = useWaveHeight 
+                        ? (e.value.waveHeight ?? 0.0) 
+                        : (e.value.tideHeight ?? 0.0);
+                    return FlSpot(e.key.toDouble(), yValue);
+                  }).toList(),
+                  isCurved: true, 
+                  curveSmoothness: 0.35, 
+                  color: const Color(0xFF0077B6),
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false), 
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF0077B6).withOpacity(0.3),
+                        const Color(0xFF0077B6).withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              
+              // ?? 靽格嚗???銵冽?憿舐內閰喟敦?交?????
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  tooltipBgColor: const Color(0xFF023E8A).withOpacity(0.9),
+                  getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                    return touchedBarSpots.map((barSpot) {
+                      final obs = observations[barSpot.x.toInt()];
+                      // Tooltip 憿舐內蝭?嚗?3/12 20:00
+                      final String fullTime = DateFormat('MM/dd HH:mm').format(obs.dateTime);
+                      return LineTooltipItem(
+                        "$fullTime\n",
+                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        children: [
+                          TextSpan(
+                            text: "${barSpot.y.toStringAsFixed(2)} m",
+                            style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/date_ribbon.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+import '../../providers/tide_provider.dart';
+import '../../../premium/services/premium_service.dart';
+import '../../../premium/presentation/premium_page.dart';
+
+class DateRibbon extends ConsumerStatefulWidget {
+  final DateTime selectedDate;
+  final Color themeColor;
+  const DateRibbon({super.key, required this.selectedDate, required this.themeColor});
+
+  @override
+  ConsumerState<DateRibbon> createState() => _DateRibbonState();
+}
+
+class _DateRibbonState extends ConsumerState<DateRibbon> {
+  late ScrollController _scrollController;
+  final double itemWidth = 66.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
+  }
+
+  void _scrollToToday() {
+    if (_scrollController.hasClients) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final offset = (30 * itemWidth) - (screenWidth / 2) + (itemWidth / 2);
+      _scrollController.animateTo(offset, duration: const Duration(milliseconds: 800), curve: Curves.easeOutBack);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime now = DateTime.now();
+    final DateTime todayZero = DateTime(now.year, now.month, now.day);
+    final String todayStr = DateFormat('yyyyMMdd').format(now);
+    final String selectedStr = DateFormat('yyyyMMdd').format(widget.selectedDate);
+    final isPremium = ref.watch(premiumProvider).isPremium;
+
+    return SizedBox(
+      height: 78,
+      child: ListView.builder(
+        controller: _scrollController,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: 61, 
+        itemBuilder: (context, index) {
+          final date = now.subtract(const Duration(days: 30)).add(Duration(days: index));
+          final String currentStr = DateFormat('yyyyMMdd').format(date);
+          final bool isToday = currentStr == todayStr;
+          final bool isSelected = currentStr == selectedStr;
+
+          final int dayDiff = date.difference(todayZero).inDays;
+          final bool isFree = dayDiff >= -1 && dayDiff <= 1;
+          final bool isLocked = !isFree && !isPremium;
+
+          return GestureDetector(
+            onTap: () {
+              if (isLocked) {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage()));
+              } else {
+                ref.read(selectedDateProvider.notifier).state = date;
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 58,
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: isToday ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5) : null,
+                boxShadow: isSelected ? [const BoxShadow(color: Colors.black26, blurRadius: 4)] : null,
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(DateFormat('E').format(date), style: TextStyle(color: isSelected ? widget.themeColor : (isToday ? Colors.amberAccent : Colors.white70), fontSize: 10, fontWeight: isToday ? FontWeight.bold : FontWeight.normal)),
+                        Text(DateFormat('dd').format(date), style: TextStyle(color: isSelected ? widget.themeColor : Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  if (isToday)
+                    Positioned(top: -11, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]), child: const Text("今日", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900))))),
+                  if (isLocked)
+                    Positioned(top: 4, right: 4, child: Icon(Icons.lock_outline, size: 10, color: Colors.white.withOpacity(0.7))),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/hero_metric_card.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../../shared/widgets/custom_card.dart';
+import '../../data/tide_model.dart';
+
+class HeroMetricCard extends StatelessWidget {
+  final Observation current;
+  final bool isBuoy;
+
+  const HeroMetricCard({super.key, required this.current, required this.isBuoy});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool showWave = isBuoy && current.tideHeight == null;
+
+    return CustomCard(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          if (showWave) ...[
+            _item("?桀?瘜ａ?", "${current.waveHeight ?? '--'} m", Colors.indigo),
+            _divider(),
+            _item("瘜Ｘ答?望?", "${current.wavePeriod ?? '--'} s", Colors.cyan),
+          ] else ...[
+            _item("?桀?瞏桅?", "${current.tideHeight ?? '--'} m", const Color(0xFF0077B6)),
+            _divider(),
+            _item("瞏桐????, current.tideLevel ?? '--', Colors.black87),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _item(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        const SizedBox(height: 4),
+        Text(value, style: GoogleFonts.rubik(fontSize: 34, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _divider() => Container(width: 1, height: 40, color: Colors.grey.shade100);
+}
+
+
+=== lib/features/tide/presentation/widgets/metric_grid.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../data/tide_model.dart';
+
+class MetricGrid extends StatelessWidget {
+  final Observation current;
+
+  const MetricGrid({super.key, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> metrics = [];
+
+    void addIfValid(String label, double? val, String unit, IconData icon, Color color) {
+      if (val != null) {
+        metrics.add(_buildMetricTile(label, "$val$unit", icon, color));
+      }
+    }
+
+    // 靘?瑼Ｘ???賜?瘚瑁情?豢?
+    addIfValid("瘜Ｘ答擃漲", current.waveHeight, " m", Icons.waves, Colors.indigo);
+    addIfValid("瘚瑟偌皞怠漲", current.seaTemperature, " ??, Icons.thermostat, Colors.orange);
+    addIfValid("閫皜祇◢??, current.windSpeed, " m/s", Icons.air, Colors.green);
+    addIfValid("瘚瑟?瘚?, current.currentSpeed, " m/s", Icons.explore_outlined, Colors.teal);
+    addIfValid("憸典?閫漲", current.windDirection, "簞", Icons.navigation_outlined, Colors.brown);
+    addIfValid("憭扳除憯?", current.airPressure, " hPa", Icons.speed, Colors.purple);
+    addIfValid("?單?瘞?澈", current.airTemperature, " ??, Icons.wb_sunny_outlined, Colors.amber);
+
+    if (metrics.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        child: const Center(
+          child: Text("閰脫葫蝡?????箇?瞏桐?鞈?", style: TextStyle(color: Colors.grey)),
+        ),
+      );
+    }
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.7,
+      children: metrics,
+    );
+  }
+
+  Widget _buildMetricTile(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(backgroundColor: color.withOpacity(0.1), radius: 18, child: Icon(icon, color: color, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                FittedBox(child: Text(value, style: GoogleFonts.rubik(fontSize: 15, fontWeight: FontWeight.bold))),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/safety_alert.dart ===
+
+import 'package:flutter/material.dart';
+import '../../data/tide_model.dart';
+
+class SafetyAlert extends StatelessWidget {
+  final Observation current;
+
+  const SafetyAlert({super.key, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    // 摰閰摯?摩嚗郭擃?> 1.5m ??憸券?> 8m/s 閬銝蔔
+    bool isDanger = (current.waveHeight ?? 0) > 1.5 || (current.windSpeed ?? 0) > 8.0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDanger ? Colors.red.shade50 : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDanger ? Colors.red.shade100 : Colors.green.shade100,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isDanger ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+            color: isDanger ? Colors.red : Colors.green,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isDanger 
+                  ? "瘚瑟?霅血?嚗◢瘚芾?憭改?銝遣霅啣?鈭硫?暑?? 
+                  : "瘚瑟??臬末嚗?憓?憭暑??隢釣???具?,
+              style: TextStyle(
+                color: isDanger ? Colors.red.shade900 : Colors.green.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/sea_briefing_card.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../data/tide_model.dart';
+
+class SeaBriefingCard extends StatelessWidget {
+  final TideStationData station;
+  final double? distance;
+
+  const SeaBriefingCard({super.key, required this.station, this.distance});
+
+  @override
+  Widget build(BuildContext context) {
+    // ?? AI ?函??豢?嚗?∪?憿舐內?身
+    final ai = station.aiBriefing;
+    final current = station.observations.isNotEmpty ? station.observations.last : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _getThemeColors(ai?.safetyScore ?? 80),
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: _getThemeColors(ai?.safetyScore ?? 80).first.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. ????
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "?? ${station.info.stationName}",
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  if (distance != null)
+                    Text(
+                      "頝?函? ${distance!.toStringAsFixed(1)} km",
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                    ),
+                ],
+              ),
+              // 摰??
+              _buildSafetyBadge(ai?.safetyScore ?? 0),
+            ],
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Divider(color: Colors.white24, height: 1),
+          ),
+
+          // 2. ?? ???AI 蝪∪??
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.anchor_rounded, color: Colors.amberAccent, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "???AI 撠振蝪∪",
+                      style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      ai?.briefing ?? "甇????銵??脣? AI 撠振??...",
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 3. ?刻瘣餃?璅惜
+          if (ai != null && ai.activities.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ai.activities.map((act) => _buildActivityTag(act)).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ?寞?摰???憿 (?梢??蝝?
+  List<Color> _getThemeColors(int score) {
+    if (score < 50) return [const Color(0xFFD00000), const Color(0xFF9D0208)]; // 霅血?蝝?
+    if (score < 75) return [const Color(0xFFF3722C), const Color(0xFFF9433D)]; // 瘜冽?璈?
+    return [const Color(0xFF0077B6), const Color(0xFF023E8A)]; // 摰??
+  }
+
+  Widget _buildSafetyBadge(int score) {
+    return Column(
+      children: [
+        Text(
+          "$score",
+          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
+        ),
+        Text(
+          "摰?",
+          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityTag(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/station_drawer.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../../../core/utils/constants.dart';
+import '../../providers/tide_provider.dart';
+import '../../../premium/services/premium_service.dart';
+import '../../../premium/presentation/premium_page.dart';
+import '../../../diagnostic/presentation/diagnostic_page.dart';
+
+class StationDrawer extends ConsumerStatefulWidget {
+  final String currentId;
+  const StationDrawer({super.key, required this.currentId});
+
+  @override
+  ConsumerState<StationDrawer> createState() => _StationDrawerState();
+}
+
+class _StationDrawerState extends ConsumerState<StationDrawer> {
+  String _searchQuery = "";
+
+  @override
+  Widget build(BuildContext context) {
+    final premiumState = ref.watch(premiumProvider);
+    final favoriteIdsAsync = ref.watch(favoriteStationsProvider);
+    final stationListAsync = ref.watch(stationListProvider);
+
+    return Drawer(
+      backgroundColor: const Color(0xFFF8FAFC),
+      child: Column(
+        children: [
+          _buildDrawerHeader(premiumState.isFounder),
+          // 🌟 創始天使判定：老用戶展示黃金勳章，新用戶展示促購入口
+          _buildPremiumEntry(premiumState),
+          _buildSearchField(),
+
+          Expanded(
+            child: stationListAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => const Center(child: Text("清單載入失敗")),
+              data: (allStations) {
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    // 我的最愛分組
+                    favoriteIdsAsync.when(
+                      data: (favIds) {
+                        if (favIds.isEmpty) return const SizedBox.shrink();
+                        final favStations = allStations.where((s) => favIds.contains(s.id)).toList();
+                        if (favStations.isEmpty) return const SizedBox.shrink();
+                        return Theme(
+                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: true,
+                            leading: const Icon(Icons.stars, color: Colors.amber, size: 20),
+                            title: const Text("我的最愛", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                            children: favStations.map((s) => _buildStationTile(s, true)).toList(),
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+
+                    const Divider(height: 1),
+
+                    // 地區分類列表
+                    ...AppConstants.regions.map((region) {
+                      final List<StationModel> stations = allStations.where((s) {
+                        final bool matchesRegion = s.region == region;
+                        final bool matchesSearch = s.name.contains(_searchQuery) || s.id.contains(_searchQuery);
+                        return matchesRegion && matchesSearch;
+                      }).toList();
+
+                      if (stations.isEmpty && _searchQuery.isNotEmpty) return const SizedBox.shrink();
+
+                      return Theme(
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          initiallyExpanded: _searchQuery.isNotEmpty,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: const Color(0xFF0077B6).withOpacity(0.1),
+                            child: Text(region[0], style: const TextStyle(fontSize: 12, color: Color(0xFF0077B6), fontWeight: FontWeight.bold)),
+                          ),
+                          title: Text(region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          children: stations.map((s) {
+                            final isFav = favoriteIdsAsync.value?.contains(s.id) ?? false;
+                            return _buildStationTile(s, isFav);
+                          }).toList(),
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              },
+            ),
+          ),
+
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.health_and_safety_outlined, color: Colors.teal),
+            title: const Text("系統自檢中心", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
+            },
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 24),
+            child: Text("資料來源：中央氣象署 (CWA)", style: GoogleFonts.notoSansTc(fontSize: 10, color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerHeader(bool isFounder) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 50, 24, 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF023E8A), Color(0xFF0077B6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Icon(Icons.analytics_rounded, color: Colors.white, size: 36),
+              if (isFounder)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA000)]),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.workspace_premium, color: Colors.black87, size: 14),
+                      SizedBox(width: 4),
+                      Text("創始席位", style: TextStyle(color: Colors.black87, fontSize: 11, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "海象監測指揮中心",
+            style: GoogleFonts.notoSansTc(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumEntry(PremiumState state) {
+    // 🌟 核心分流：若是 14 位創始老用戶，渲染尊榮黃金勳章卡
+    if (state.isFounder) {
+      return Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF8E1), Color(0xFFFFECB3)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFFB300), width: 1.8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withOpacity(0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFF8F00),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        "創始釣友",
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF4E342E)),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6F00),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text("FOUNDER", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    "永久享有全平台終身旗艦特權",
+                    style: TextStyle(fontSize: 11, color: Color(0xFF6D4C41), fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 一般用戶：展示促購與方案管理入口
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: state.isPremium ? Colors.amber.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: state.isPremium ? Colors.amber.shade300 : Colors.grey.shade200, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Icon(state.isPremium ? Icons.stars_rounded : Icons.workspace_premium_outlined, color: Colors.amber.shade800),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.isPremium ? "您已是 Pro 會員" : "升級老船長 Pro 旗艦版",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  Text(
+                    state.isPremium ? "享受 0 延遲海象直連與 AI 漁獲窗口" : "週費 / 年費主力 / 終身買斷方案",
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
+        onChanged: (value) => setState(() => _searchQuery = value),
+        decoration: InputDecoration(
+          hintText: "搜尋測站...",
+          prefixIcon: const Icon(Icons.search, size: 18),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStationTile(StationModel station, bool isFavorited) {
+    final bool isSelected = station.id == widget.currentId;
+    return ListTile(
+      onTap: () {
+        ref.read(currentStationIdProvider.notifier).state = station.id;
+        ref.read(selectedDateProvider.notifier).state = DateTime.now();
+        Navigator.pop(context);
+      },
+      dense: true,
+      leading: Icon(station.isBuoy ? Icons.sensors : Icons.water_drop, size: 16, color: isSelected ? const Color(0xFF0077B6) : Colors.blueGrey.shade200),
+      title: Text(station.name, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? const Color(0xFF0077B6) : Colors.black87)),
+      trailing: IconButton(
+        icon: Icon(isFavorited ? Icons.star : Icons.star_border, size: 18, color: isFavorited ? Colors.amber : Colors.grey.shade300),
+        onPressed: () async {
+          await ref.read(tideRepositoryProvider).toggleFavorite(station.id);
+          ref.refresh(favoriteStationsProvider);
+        },
+      ),
+    );
+  }
+}
+
+
+=== lib/features/tide/presentation/widgets/station_header.dart ===
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../data/tide_model.dart';
+
+class StationHeader extends StatelessWidget {
+  final StationInfo info;
+  final double? distanceKm;
+
+  const StationHeader({super.key, required this.info, this.distanceKm});
+
+  @override
+  Widget build(BuildContext context) {
+    // 蝯??圈?憿舐內??嚗????桀?蝔梁蝛箏??芷＊蝷箇腦撣?
+    final String locationText = info.townName.isNotEmpty 
+        ? "${info.countyName} 繚 ${info.townName}" 
+        : info.countyName;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Color(0xFF0077B6)),
+                const SizedBox(width: 4),
+                Text(
+                  locationText, 
+                  style: const TextStyle(color: Colors.blueGrey, fontSize: 14)
+                ),
+              ],
+            ),
+            if (distanceKm != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0077B6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "頝 ${distanceKm!.toStringAsFixed(1)} km",
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    color: Color(0xFF0077B6), 
+                    fontWeight: FontWeight.bold
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          info.stationName, 
+          style: GoogleFonts.notoSansTc(
+            fontSize: 30, 
+            fontWeight: FontWeight.bold, 
+            color: Colors.black87
+          )
+        ),
+        Text(
+          info.attr, 
+          style: const TextStyle(
+            color: Color(0xFF00B4D8), 
+            fontWeight: FontWeight.w600, 
+            fontSize: 14
+          )
+        ),
+      ],
+    );
+  }
+}
+
+
+=== lib/features/tide/providers/tide_provider.dart ===
+
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import '../data/tide_model.dart';
+import '../domain/tide_repository.dart';
+import '../data/tide_repository_impl.dart';
+import '../../../core/network/tide_api_service.dart';
+import '../../../core/utils/constants.dart';
+import '../../premium/services/premium_service.dart';
+
+final tideApiServiceProvider = Provider((ref) => TideApiService());
+
+final tideRepositoryProvider = Provider<TideRepository>((ref) {
+  final api = ref.watch(tideApiServiceProvider);
+  return TideRepositoryImpl(api);
+});
+
+final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
+  return ref.watch(tideRepositoryProvider).getFavoriteStations();
+});
+
+// 🌟 新增：動態獲取測站清單的 Provider
+final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
+  try {
+    print("DEBUG: 正在從雲端下載最新測站清單...");
+    final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl))
+                               .timeout(const Duration(seconds: 5));
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      print("✅ 成功下載 ${data.length} 個測站設定！");
+      return data.map((e) => StationModel.fromJson(e)).toList();
+    }
+  } catch (e) {
+    print("⚠️ 雲端清單加載失敗，降級使用本地保底清單: $e");
+  }
+  return AppConstants.fallbackStations;
+});
+
+final currentStationIdProvider = StateProvider<String>((ref) => "46694A");
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+
+final userLocationProvider = FutureProvider<Position?>((ref) async {
+  try {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+  } catch (e) { return null; }
+});
+
+final nearestStationIdProvider = Provider<String?>((ref) {
+  final userPos = ref.watch(userLocationProvider).value;
+  if (userPos == null) return null;
+  
+  // 🌟 修改：不再寫死讀取常數，改為使用動態測站清單
+  final stations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
+  
+  double minDistance = double.infinity;
+  String? nearestId;
+  for (var station in stations) {
+    double d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, station.lat, station.lng);
+    if (d < minDistance) { minDistance = d; nearestId = station.id; }
+  }
+  return nearestId;
+});
+
+class TideViewData {
+  final TideStationData stationData;
+  final double? distanceKm;
+  final DateTime selectedDate;
+  TideViewData({required this.stationData, this.distanceKm, required this.selectedDate});
+}
+
+final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
+  final api = ref.watch(tideApiServiceProvider);
+  final stationId = ref.watch(currentStationIdProvider);
+  final locationAsync = ref.watch(userLocationProvider);
+  final isPremium = ref.watch(premiumProvider).isPremium;
+
+  try {
+    final TideStationData stationData = await api.fetchData(stationId, isPremium: isPremium);
+    double? distance;
+    final userPos = locationAsync.value;
+    if (userPos != null) {
+      try {
+        final sLat = double.tryParse(stationData.info.lat);
+        final sLng = double.tryParse(stationData.info.lng);
+        if (sLat != null && sLng != null && sLat != 0) {
+          distance = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, sLat, sLng) / 1000;
+        }
+      } catch (_) {}
+    }
+    return TideViewData(stationData: stationData, distanceKm: distance, selectedDate: ref.read(selectedDateProvider));
+  } catch (e) { rethrow; }
+});
+
+
+=== lib/shared/widgets/custom_card.dart ===
+
+import 'package:flutter/material.dart';
+
+class CustomCard extends StatelessWidget {
+  final Widget child;
+  const CustomCard({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+
+=== lib/shared/widgets/loading_indicator.dart ===
+

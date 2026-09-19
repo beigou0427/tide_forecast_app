@@ -1,10 +1,11 @@
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/utils/constants.dart';
 
-/// 自檢模式狀態提供者
+/// 自檢模式狀態提供者 (支援終端機高可讀性輸出)
 final diagnosticProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   Map<String, String> results = {};
 
@@ -18,20 +19,20 @@ final diagnosticProvider = FutureProvider.autoDispose<Map<String, String>>((ref)
 
   // 2. 檢查 Edge API (GitHub Pages) 連線
   try {
-    final edgeUrl = "https://beigou0427.github.io/tide_forecast_app/edge_46694A.json";
+    const edgeUrl = "https://beigou0427.github.io/tide_forecast_app/edge_46694A.json";
     final res = await http.get(Uri.parse(edgeUrl)).timeout(const Duration(seconds: 5));
-    results['邊緣節點連線 (Edge)'] = res.statusCode == 200 ? '✅ 正常 (200)' : '❌ 異常 (${res.statusCode})';
+    results['邊緣節點連線 (Edge)'] = res.statusCode == 200 ? '✅ 正常 (HTTP 200)' : '❌ 異常 (HTTP ${res.statusCode})';
   } catch (e) {
-    results['邊緣節點連線 (Edge)'] = '❌ 逾時或斷線';
+    results['邊緣節點連線 (Edge)'] = '❌ 連線逾時或斷線';
   }
 
   // 3. 檢查 CWA 官方 API 連線
   try {
     final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=46694A";
     final res = await http.get(Uri.parse(cwaUrl)).timeout(const Duration(seconds: 5));
-    results['官方節點連線 (CWA)'] = res.statusCode == 200 ? '✅ 正常 (200)' : '❌ 異常 (${res.statusCode})';
+    results['官方節點連線 (CWA)'] = res.statusCode == 200 ? '✅ 正常 (HTTP 200)' : '❌ 異常 (HTTP ${res.statusCode})';
   } catch (e) {
-    results['官方節點連線 (CWA)'] = '❌ 逾時或斷線';
+    results['官方節點連線 (CWA)'] = '❌ 連線逾時或斷線';
   }
 
   // 4. 檢查 GPS 權限狀態
@@ -49,10 +50,22 @@ final diagnosticProvider = FutureProvider.autoDispose<Map<String, String>>((ref)
     final prefs = await SharedPreferences.getInstance();
     final isPro = prefs.getBool('is_pro') ?? false;
     final favs = prefs.getStringList('favorite_stations_v1') ?? [];
-    results['本地存儲狀態'] = '✅ 正常 (Pro: $isPro, 最愛: ${favs.length}筆)';
+    results['本地存儲狀態'] = '✅ 正常 (Pro會員: $isPro, 最愛測站: ${favs.length}個)';
   } catch (e) {
     results['本地存儲狀態'] = '❌ 讀取失敗';
   }
 
+  // 🌟 核心升級：將完整自檢結果直接印在終端機 (Console)
+  debugPrint("\n╔══════════════════════════════════════════════════════════════════════╗");
+  debugPrint("║                      🔍 【系統自檢健康報告】                           ║");
+  debugPrint("╠══════════════════════════════════════════════════════════════════════╣");
+  results.forEach((key, value) {
+    debugPrint("║  • ${key.padRight(16)} : $value");
+  });
+  debugPrint("╚══════════════════════════════════════════════════════════════════════╝\n");
+
   return results;
 });
+
+
+

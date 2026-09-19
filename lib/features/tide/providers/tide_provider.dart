@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+﻿import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +8,8 @@ import '../domain/tide_repository.dart';
 import '../data/tide_repository_impl.dart';
 import '../../../core/network/tide_api_service.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/services/review_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../premium/services/premium_service.dart';
 
 final tideApiServiceProvider = Provider((ref) => TideApiService());
@@ -20,19 +23,18 @@ final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
 
-// 🌟 新增：動態獲取測站清單的 Provider
 final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   try {
-    print("DEBUG: 正在從雲端下載最新測站清單...");
+    debugPrint("DEBUG: 正在從雲端下載最新測站清單...");
     final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl))
                                .timeout(const Duration(seconds: 5));
     if (response.statusCode == 200) {
       final List data = jsonDecode(response.body);
-      print("✅ 成功下載 ${data.length} 個測站設定！");
+      debugPrint("✅ 成功下載 ${data.length} 個測站設定！");
       return data.map((e) => StationModel.fromJson(e)).toList();
     }
   } catch (e) {
-    print("⚠️ 雲端清單加載失敗，降級使用本地保底清單: $e");
+    debugPrint("⚠️ 雲端清單加載失敗，降級使用本地保底清單: $e");
   }
   return AppConstants.fallbackStations;
 });
@@ -57,7 +59,6 @@ final nearestStationIdProvider = Provider<String?>((ref) {
   final userPos = ref.watch(userLocationProvider).value;
   if (userPos == null) return null;
   
-  // 🌟 修改：不再寫死讀取常數，改為使用動態測站清單
   final stations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
   
   double minDistance = double.infinity;
@@ -95,6 +96,23 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
         }
       } catch (_) {}
     }
+
+    // 🌟 深度體驗達成埋點：檢驗評分時機
+    ReviewService.checkAndTriggerReview();
+
+    // 🌟 主動安全防線：偵測今日即將到來的下一次滿潮，設定 30 分鐘前推播預警
+    final now = DateTime.now();
+    for (final f in stationData.forecasts) {
+      if (f.tideType.contains('滿') && f.dateTime.isAfter(now)) {
+        NotificationService.scheduleTideSurgeAlert(
+          highTideTime: f.dateTime,
+          stationName: stationData.info.stationName,
+        );
+        break;
+      }
+    }
+
     return TideViewData(stationData: stationData, distanceKm: distance, selectedDate: ref.read(selectedDateProvider));
   } catch (e) { rethrow; }
 });
+
