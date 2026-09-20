@@ -21,12 +21,14 @@ class StationDrawer extends ConsumerStatefulWidget {
 
 class _StationDrawerState extends ConsumerState<StationDrawer> {
   String _searchQuery = "";
+  String _selectedFilter = "全部"; // 全部 | 👑 VIP專屬 | 🌊 資料浮標 | ⏱️ 潮位站 | 🆓 免費體驗
 
   @override
   Widget build(BuildContext context) {
     final premiumState = ref.watch(premiumProvider);
     final favoriteIdsAsync = ref.watch(favoriteStationsProvider);
     final stationListAsync = ref.watch(stationListProvider);
+    final bool isPro = premiumState.isPremium || premiumState.isFounder;
 
     return Drawer(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -35,6 +37,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           _buildDrawerHeader(premiumState.isFounder),
           _buildPremiumEntry(premiumState),
           _buildSearchField(),
+          _buildFilterChips(),
 
           Expanded(
             child: stationListAsync.when(
@@ -44,6 +47,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                 return ListView(
                   padding: EdgeInsets.zero,
                   children: [
+                    // 我的最愛分組
                     favoriteIdsAsync.when(
                       data: (favIds) {
                         if (favIds.isEmpty) return const SizedBox.shrink();
@@ -55,7 +59,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                             initiallyExpanded: true,
                             leading: const Icon(Icons.stars, color: Colors.amber, size: 20),
                             title: const Text("我的最愛", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                            children: favStations.map((s) => _buildStationTile(s, true)).toList(),
+                            children: favStations.map((s) => _buildStationTile(s, true, isPro)).toList(),
                           ),
                         );
                       },
@@ -65,28 +69,50 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                     const Divider(height: 1),
 
+                    // 地區分類列表 (連動水文型態與 PRO 篩選)
                     ...AppConstants.regions.map((region) {
                       final List<StationModel> stations = allStations.where((s) {
                         final bool matchesRegion = s.region == region;
                         final bool matchesSearch = s.name.contains(_searchQuery) || s.id.contains(_searchQuery);
-                        return matchesRegion && matchesSearch;
+                        
+                        // 多維度篩選邏輯
+                        bool matchesFilter = true;
+                        if (_selectedFilter == "👑 VIP專屬") {
+                          matchesFilter = s.isProOnly;
+                        } else if (_selectedFilter == "🆓 免費體驗") {
+                          matchesFilter = !s.isProOnly;
+                        } else if (_selectedFilter == "🌊 資料浮標") {
+                          matchesFilter = s.isBuoy;
+                        } else if (_selectedFilter == "⏱️ 潮位站") {
+                          matchesFilter = !s.isBuoy;
+                        }
+
+                        return matchesRegion && matchesSearch && matchesFilter;
                       }).toList();
 
-                      if (stations.isEmpty && _searchQuery.isNotEmpty) return const SizedBox.shrink();
+                      if (stations.isEmpty && (_searchQuery.isNotEmpty || _selectedFilter != "全部")) {
+                        return const SizedBox.shrink();
+                      }
 
                       return Theme(
                         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
-                          initiallyExpanded: _searchQuery.isNotEmpty,
+                          initiallyExpanded: _searchQuery.isNotEmpty || _selectedFilter != "全部",
                           leading: CircleAvatar(
                             radius: 14,
                             backgroundColor: const Color(0xFF0077B6).withValues(alpha: 0.1),
                             child: Text(region[0], style: const TextStyle(fontSize: 12, color: Color(0xFF0077B6), fontWeight: FontWeight.bold)),
                           ),
-                          title: Text(region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          title: Row(
+                            children: [
+                              Text(region, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const SizedBox(width: 8),
+                              Text("(${stations.length})", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
+                          ),
                           children: stations.map((s) {
                             final isFav = favoriteIdsAsync.value?.contains(s.id) ?? false;
-                            return _buildStationTile(s, isFav);
+                            return _buildStationTile(s, isFav, isPro);
                           }).toList(),
                         ),
                       );
@@ -186,7 +212,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
   }
 
   Widget _buildPremiumEntry(PremiumState state) {
-    // 🌟 核心情緒價值分流：已是 VIP / 創始釣友時，點擊直接進入「老船長 VIP 旗艦指揮中心」
     if (state.isFounder || state.isPremium) {
       return InkWell(
         onTap: () {
@@ -261,7 +286,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       );
     }
 
-    // 一般未付費用戶：展示促購與方案管理入口
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
       child: Container(
@@ -298,7 +322,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       child: TextField(
         onChanged: (value) => setState(() => _searchQuery = value),
         decoration: InputDecoration(
-          hintText: "搜尋測站...",
+          hintText: "搜尋測站或地名 (如: 石門 / 龍洞)...",
           prefixIcon: const Icon(Icons.search, size: 18),
           filled: true,
           fillColor: Colors.white,
@@ -309,19 +333,115 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  Widget _buildStationTile(StationModel station, bool isFavorited) {
+  Widget _buildFilterChips() {
+    final filters = ["全部", "👑 VIP專屬", "🌊 資料浮標", "⏱️ 潮位站", "🆓 免費體驗"];
+    return Container(
+      height: 38,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        scrollDirection: Axis.horizontal,
+        itemCount: filters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, idx) {
+          final f = filters[idx];
+          final isSelected = _selectedFilter == f;
+          return ChoiceChip(
+            label: Text(f, style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? const Color(0xFF0077B6) : Colors.blueGrey)),
+            selected: isSelected,
+            selectedColor: const Color(0xFF0077B6).withValues(alpha: 0.15),
+            backgroundColor: Colors.white,
+            side: BorderSide(color: isSelected ? const Color(0xFF0077B6) : Colors.grey.shade200),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (_) => setState(() => _selectedFilter = f),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStationTile(StationModel station, bool isFavorited, bool isPro) {
     final bool isSelected = station.id == widget.currentId;
+    final bool isLocked = station.isProOnly && !isPro;
+
     return ListTile(
       onTap: () {
-        ref.read(currentStationIdProvider.notifier).state = station.id;
-        ref.read(selectedDateProvider.notifier).state = DateTime.now();
-        Navigator.pop(context);
+        // 🌟 商業變現阻斷閘門：未付費用戶點擊 VIP 測站，自動彈出付費牆
+        if (isLocked) {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("🔒 [${station.name}] 為老船長 PRO 專屬外礁/浮標水文模型，請解鎖啟用！"),
+              backgroundColor: const Color(0xFF0077B6),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ref.read(currentStationIdProvider.notifier).state = station.id;
+          ref.read(selectedDateProvider.notifier).state = DateTime.now();
+          Navigator.pop(context);
+        }
       },
       dense: true,
-      leading: Icon(station.isBuoy ? Icons.sensors : Icons.water_drop, size: 16, color: isSelected ? const Color(0xFF0077B6) : Colors.blueGrey.shade200),
-      title: Text(station.name, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? const Color(0xFF0077B6) : Colors.black87)),
+      leading: CircleAvatar(
+        radius: 12,
+        backgroundColor: station.isBuoy ? Colors.indigo.shade50 : const Color(0xFF0077B6).withValues(alpha: 0.1),
+        child: Icon(
+          station.isBuoy ? Icons.sensors : Icons.water_drop,
+          size: 13,
+          color: station.isBuoy ? Colors.indigo : const Color(0xFF0077B6),
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              station.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? const Color(0xFF0077B6) : Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+
+          // 🌟 水文與權限徽章
+          if (station.isProOnly)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.amber.shade400, width: 0.8),
+              ),
+              child: const Text("👑 PRO", style: TextStyle(color: Color(0xFF795548), fontSize: 9, fontWeight: FontWeight.w900)),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text("免費", style: TextStyle(color: Colors.green, fontSize: 9, fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        "${station.stationType} • ${station.agency} (${station.id})",
+        style: const TextStyle(fontSize: 10, color: Colors.grey),
+      ),
       trailing: IconButton(
-        icon: Icon(isFavorited ? Icons.star : Icons.star_border, size: 18, color: isFavorited ? Colors.amber : Colors.grey.shade300),
+        icon: Icon(
+          isFavorited ? Icons.star : Icons.star_border,
+          size: 18,
+          color: isFavorited ? Colors.amber : Colors.grey.shade300,
+        ),
         onPressed: () async {
           await ref.read(tideRepositoryProvider).toggleFavorite(station.id);
           ref.invalidate(favoriteStationsProvider);
