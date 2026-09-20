@@ -1,15 +1,18 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/services/tts_service.dart';
 import '../../data/tide_model.dart';
 
-class SeaBriefingCard extends StatelessWidget {
+class SeaBriefingCard extends ConsumerWidget {
   final TideStationData station;
   final double? distance;
 
   const SeaBriefingCard({super.key, required this.station, this.distance});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ai = station.aiBriefing;
+    final isSpeaking = ref.watch(ttsProvider);
 
     return Container(
       width: double.infinity,
@@ -32,6 +35,7 @@ class SeaBriefingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 頂部站點標題與語音晨報按鈕
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -49,13 +53,55 @@ class SeaBriefingCard extends StatelessWidget {
                     ),
                 ],
               ),
-              _buildSafetyBadge(ai?.safetyScore ?? 0),
+
+              // 🔊 老船長語音開關
+              InkWell(
+                onTap: () => ref.read(ttsProvider.notifier).toggleBriefing(station),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSpeaking ? Colors.amberAccent : Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSpeaking ? Colors.amber : Colors.white.withValues(alpha: 0.3),
+                      width: 1.2,
+                    ),
+                    boxShadow: isSpeaking
+                        ? [BoxShadow(color: Colors.amberAccent.withValues(alpha: 0.4), blurRadius: 8)]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isSpeaking ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                        color: isSpeaking ? Colors.black87 : Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isSpeaking ? "播報中" : "語音晨報",
+                        style: TextStyle(
+                          color: isSpeaking ? Colors.black87 : Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
+
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16.0),
+            padding: EdgeInsets.symmetric(vertical: 14.0),
             child: Divider(color: Colors.white24, height: 1),
           ),
+
+          // 2. AI 核心簡報
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -65,21 +111,37 @@ class SeaBriefingCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "老船長 AI 專家簡報",
-                      style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    Row(
+                      children: [
+                        const Text(
+                          "老船長 AI 專家簡報",
+                          style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text("安全係數 ${ai?.safetyScore ?? 80}分", style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       ai?.briefing ?? "正在連線取得即時 AI 專家分析...",
-                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500, height: 1.5),
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500, height: 1.45),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+
+          const SizedBox(height: 16),
+
+          // 3. 建議活動標籤
           if (ai != null && ai.activities.isNotEmpty)
             Wrap(
               spacing: 8,
@@ -97,24 +159,9 @@ class SeaBriefingCard extends StatelessWidget {
     return [const Color(0xFF0077B6), const Color(0xFF023E8A)];
   }
 
-  Widget _buildSafetyBadge(int score) {
-    return Column(
-      children: [
-        Text(
-          "$score",
-          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-        ),
-        Text(
-          "安全係數",
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
   Widget _buildActivityTag(String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(30),
@@ -127,4 +174,3 @@ class SeaBriefingCard extends StatelessWidget {
     );
   }
 }
-
