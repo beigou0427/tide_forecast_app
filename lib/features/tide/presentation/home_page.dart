@@ -17,6 +17,7 @@ import 'widgets/safety_alert.dart';
 import 'widgets/sea_briefing_card.dart';
 import 'widgets/date_ribbon.dart';
 import 'widgets/shareable_report_card.dart';
+import 'widgets/solunar_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
 class HomePage extends ConsumerWidget {
@@ -103,16 +104,13 @@ class HomePage extends ConsumerWidget {
               final station = viewData.stationData;
               final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
 
-              // 1. 預報數據按所選日期過濾
               final dayForecasts = station.forecasts.where((f) =>
                   DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
 
-              // 2. 🌟 歷史回測數據精準時間軸切片
               final dayObservations = isToday
                   ? station.observations
                   : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
-              // 3. 超出歷史感測窗口處理 (非預報模式且該歷史日無資料)
               if (!isFuture && dayObservations.isEmpty) {
                 return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
               }
@@ -128,7 +126,12 @@ class HomePage extends ConsumerWidget {
                       const SizedBox(height: 24),
                     ],
                     StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
+                    const SizedBox(height: 16),
+                    
+                    // 🌟 核心升級：月相・大潮小潮與咬度指針卡片
+                    SolunarCard(selectedDate: selectedDate),
                     const SizedBox(height: 20),
+
                     if (isFuture) ...[
                       _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", modeColor),
                       const SizedBox(height: 12),
