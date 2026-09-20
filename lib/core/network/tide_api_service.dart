@@ -24,14 +24,12 @@ class TideApiService {
         edgeJson = jsonDecode(edgeResponse.body);
       }
 
-      // 一般用戶直接使用邊緣快照
       if (!isPremium) {
         if (edgeJson.isEmpty) throw Exception("資料庫暫無回應 (HTTP ${edgeResponse.statusCode})");
         await prefs.setString('$_cachePrefix$stationId', jsonEncode(edgeJson));
         return TideStationData.fromEdgeJson(edgeJson);
       }
 
-      // 💎 VIP 旗艦用戶：直連氣象署 85 測站專線取得 0 延遲數據
       try {
         debugPrint("💎 VIP 啟動：向氣象署專線請求站點 $stationId 即時數據...");
         final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId";
@@ -47,6 +45,7 @@ class TideApiService {
             final realtimeObs = locations[0];
             final mergedJson = {
               "obs": realtimeObs,
+              "forecasts": edgeJson['forecasts'] ?? [],
               "ai_expert": edgeJson['ai_expert'] ?? {
                 "briefing": "AI 實時簡報同步完成，海況平穩。",
                 "safety_score": 85,

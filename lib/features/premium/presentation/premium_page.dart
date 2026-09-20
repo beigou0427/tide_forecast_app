@@ -1,8 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/premium_service.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../core/utils/constants.dart';
 import '../../tide/presentation/home_page.dart';
 
 class PremiumPage extends ConsumerStatefulWidget {
@@ -15,13 +17,29 @@ class PremiumPage extends ConsumerStatefulWidget {
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
   int _selectedTier = 1;
+  List<ProductDetails> _storeProducts = [];
 
   final String _legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
+  final String _appleEulaUrl = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
   @override
   void initState() {
     super.initState();
     AnalyticsService.logPaywallView();
+    _loadStoreProducts();
+  }
+
+  Future<void> _loadStoreProducts() async {
+    try {
+      final products = await ref.read(iapManagerProvider).fetchProducts();
+      if (mounted) {
+        setState(() {
+          _storeProducts = products;
+        });
+      }
+    } catch (_) {
+      
+    }
   }
 
   void _closePaywall() {
@@ -37,38 +55,52 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
   }
 
   Future<void> _handlePurchase() async {
-    SubscriptionType type;
-    String planName;
+    String targetProductId;
+    SubscriptionType fallbackType;
 
     switch (_selectedTier) {
       case 0:
-        type = SubscriptionType.weekly;
-        planName = "pro_weekly";
+        targetProductId = AppConstants.iapProWeekly;
+        fallbackType = SubscriptionType.weekly;
         break;
       case 2:
-        type = SubscriptionType.lifetime;
-        planName = "pro_lifetime";
+        targetProductId = AppConstants.iapProLifetime;
+        fallbackType = SubscriptionType.lifetime;
         break;
       case 1:
       default:
-        type = SubscriptionType.yearly;
-        planName = "pro_yearly";
+        targetProductId = AppConstants.iapProYearly;
+        fallbackType = SubscriptionType.yearly;
         break;
     }
 
-    AnalyticsService.logInitiateCheckout(planName);
+    AnalyticsService.logInitiateCheckout(targetProductId);
 
-    await ref.read(premiumProvider.notifier).setPremiumStatus(true, type);
+    // 🌟 1. 優先嘗試發起 Apple 原生 StoreKit 支付
+    ProductDetails? matchedProduct;
+    for (final p in _storeProducts) {
+      if (p.id == targetProductId) {
+        matchedProduct = p;
+        break;
+      }
+    }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🎉 恭喜升級專業版會員！享受全功能海象數據"),
-          backgroundColor: Colors.teal,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      _closePaywall();
+    if (matchedProduct != null) {
+      await ref.read(iapManagerProvider).buySubscription(matchedProduct);
+    } else {
+      // 🌟 2. 本地開發與沙盒模擬容錯
+      debugPrint("⚠️ 尚未抓取到 StoreKit 商品，執行沙盒保底模擬流程 ($targetProductId)");
+      await ref.read(premiumProvider.notifier).setPremiumStatus(true, fallbackType);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("🎉 成功啟動 Pro 會員權限（沙盒/展示模式）"),
+            backgroundColor: Colors.teal,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        _closePaywall();
+      }
     }
   }
 
@@ -132,7 +164,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "掌握全台 86 測站實時湧浪、30 天潮汐深度回測與 AI 漁獲窗口",
+                      "掌握全台 85 測站實時湧浪、30 天潮汐深度回測與 AI 漁獲窗口",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13, height: 1.4),
                     ),
@@ -177,14 +209,28 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     _buildFeatureRow(Icons.auto_awesome, "Gemini Flash-Lite 老船長綜合海象推理"),
                     _buildFeatureRow(Icons.history_toggle_off, "30 天完整風浪水溫回測與未來遠期預報"),
                     _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+
+                    // 🌟 Apple Guideline 3.1.2 審查條款合規聲明
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        "【訂閱須知】付款將在確認購買時由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。",
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10, height: 1.4),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         InkWell(
-                          onTap: () => _launchURL(_legalUrl),
-                          child: Text("服務條款", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
+                          onTap: () => _launchURL(_appleEulaUrl),
+                          child: Text("標準使用條款 (EULA)", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
                         Text("  •  ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
                         InkWell(
@@ -196,7 +242,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                           onTap: () async {
                             await ref.read(iapManagerProvider).restorePurchases();
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已送出恢復購買請求")));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已向 App Store 送出恢復購買請求")));
                             }
                           },
                           child: Text("恢復購買", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
@@ -289,7 +335,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🌟 核心修復：使用 Wrap 取代 Row，徹底解決橫向溢出問題
                   Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
                     spacing: 6,
@@ -371,4 +416,5 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     );
   }
 }
+
 

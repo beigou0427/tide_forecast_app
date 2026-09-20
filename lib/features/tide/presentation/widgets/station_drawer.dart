@@ -8,6 +8,7 @@ import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 import '../../../diagnostic/presentation/diagnostic_page.dart';
 import '../station_guide_page.dart';
+import '../../../catch_log/presentation/catch_log_page.dart';
 
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
@@ -42,7 +43,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                 return ListView(
                   padding: EdgeInsets.zero,
                   children: [
-                    // 我的最愛分組
                     favoriteIdsAsync.when(
                       data: (favIds) {
                         if (favIds.isEmpty) return const SizedBox.shrink();
@@ -64,7 +64,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                     const Divider(height: 1),
 
-                    // 地區分類列表
                     ...AppConstants.regions.map((region) {
                       final List<StationModel> stations = allStations.where((s) {
                         final bool matchesRegion = s.region == region;
@@ -98,6 +97,16 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           ),
 
           const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.phishing_rounded, color: Colors.indigo),
+            title: const Text("潮汐漁獲日誌", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const CatchLogPage()));
+            },
+          ),
           ListTile(
             dense: true,
             leading: const Icon(Icons.menu_book_rounded, color: Color(0xFF0077B6)),

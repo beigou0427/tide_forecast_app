@@ -10,7 +10,6 @@ except ImportError:
 
 CWA_API_KEY = os.environ.get("CWA_KEY", "CWA-7B44D117-3255-4D71-9974-B3A93B937D51")
 GEMINI_API_KEY = os.environ.get("GEMINI_KEY")
-MODEL_NAME = 'gemini-flash-lite-latest'
 
 def safe_float(v, default=0.0):
     if v is None: return default
@@ -42,28 +41,85 @@ def determine_region(county, name, lat, lng):
     if lng >= 121.3: return "東部"
     return "西部"
 
-def fetch_all_cwa_stations():
+def fetch_all_cwa_observations():
     try:
         url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization={CWA_API_KEY}"
-        print("📡 正在向中央氣象署請求全台海象感測陣列全量數據...")
+        print("📡 正在抓取全台 85 測站實時海象觀測 (O-B0075-001)...")
         r = requests.get(url, timeout=25)
-        if r.status_code != 200:
-            print(f"🚨 CWA API 回應異常: HTTP {r.status_code}")
-            return []
-        data = r.json()
-        records = data.get('Records') or data.get('records', {})
-        sea_obs = records.get('SeaSurfaceObs', {})
-        locations = sea_obs.get('Location', [])
-        print(f"✅ 成功獲取 {len(locations)} 個測站即時回傳！")
+        if r.status_code != 200: return []
+        records = r.json().get('Records') or r.json().get('records', {})
+        locations = records.get('SeaSurfaceObs', {}).get('Location', [])
+        print(f"✅ 實時觀測抓取完成: {len(locations)} 站")
         return locations
     except Exception as e:
-        print(f"🚨 連線 CWA 發生錯誤: {e}")
+        print(f"🚨 實時觀測抓取失敗: {e}")
         return []
+
+def extract_locations_recursively(node):
+    """自適應穿透 List / Dict 嵌套，尋找所有 Location 預報點"""
+    locations = []
+    if isinstance(node, dict):
+        if 'Location' in node:
+            loc = node['Location']
+            if isinstance(loc, list): locations.extend(loc)
+            elif isinstance(loc, dict): locations.append(loc)
+        for k, v in node.items():
+            if isinstance(v, (dict, list)):
+                locations.extend(extract_locations_recursively(v))
+    elif isinstance(node, list):
+        for item in node:
+            locations.extend(extract_locations_recursively(item))
+    return locations
+
+def fetch_all_cwa_forecasts():
+    try:
+        url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-A0021-001?Authorization={CWA_API_KEY}"
+        print("📡 正在抓取全台未來一個月 30 天潮汐預報 (F-A0021-001)...")
+        r = requests.get(url, timeout=30)
+        if r.status_code != 200: return []
+        data = r.json()
+        locations = extract_locations_recursively(data.get('Records') or data.get('records') or data)
+        print(f"✅ 30天潮汐預報解析成功: 共找到 {len(locations)} 個沿海鄉鎮預報點")
+        return locations
+    except Exception as e:
+        print(f"🚨 30天潮汐預報抓取失敗: {e}")
+        return []
+
+def parse_forecast_times(fl):
+    results = []
+    tp = fl.get('TimePeriods', {})
+    daily_list = []
+    if isinstance(tp, dict):
+        daily_list = tp.get('Daily', [])
+    elif isinstance(tp, list):
+        for p in tp:
+            if isinstance(p, dict):
+                daily_list.extend(p.get('Daily', []))
+                
+    if isinstance(daily_list, dict):
+        daily_list = [daily_list]
+
+    for d in daily_list:
+        if not isinstance(d, dict): continue
+        times = d.get('Time', [])
+        if isinstance(times, dict):
+            times = [times]
+        for t in times:
+            if not isinstance(t, dict): continue
+            dt = t.get('DateTime')
+            tide_type = t.get('Tide', '')
+            heights = t.get('TideHeights', {})
+            if dt and tide_type:
+                results.append({
+                    "DateTime": dt,
+                    "Tide": tide_type,
+                    "TideHeights": heights
+                })
+    return results
 
 def analyze_safety_heuristic(obs_item):
     we = obs_item.get('WeatherElements') or obs_item.get('WeatherElement') or {}
     wave = obs_item.get('Wave') or {}
-    
     raw_wave = we.get('WaveHeight') if we.get('WaveHeight') is not None else wave.get('WaveHeight')
     wave_h = safe_float(raw_wave, 0.8)
     wind_s = safe_float(we.get('WindSpeed'), 5.0)
@@ -89,10 +145,26 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, ".nojekyll"), "w") as f: f.write("")
 
-    raw_locations = fetch_all_cwa_stations()
+    obs_locations = fetch_all_cwa_observations()
+    forecast_locations = fetch_all_cwa_forecasts()
+
+    parsed_forecasts = []
+    for fl in forecast_locations:
+        try:
+            f_lat = safe_float(fl.get('Latitude'))
+            f_lng = safe_float(fl.get('Longitude'))
+            f_name = fl.get('LocationName', '')
+            times = parse_forecast_times(fl)
+            if times and f_lat != 0 and f_lng != 0:
+                parsed_forecasts.append({"lat": f_lat, "lng": f_lng, "name": f_name, "times": times})
+        except:
+            continue
+
+    print(f"📊 已成功建立 {len(parsed_forecasts)} 個 30 天潮汐空間坐標索引！")
+
     stations_config = []
     
-    for loc in raw_locations:
+    for loc in obs_locations:
         st = loc.get('Station', {})
         sid = st.get('StationID') or loc.get('StationID') or ""
         if not sid: continue
@@ -118,12 +190,19 @@ def main():
             "attr": attr
         })
         
+        # 🌟 空間拓撲匹配：為此測站綁定最近的 30 天潮汐預報
+        station_forecasts = []
+        if parsed_forecasts and lat != 0 and lng != 0:
+            best_match = min(parsed_forecasts, key=lambda f: (f['lat'] - lat)**2 + (f['lng'] - lng)**2)
+            station_forecasts = best_match['times']
+        
         obs_times = loc.get('StationObsTimes', {}).get('StationObsTime', [])
         latest_obs = obs_times[-1] if obs_times else {}
         ai_advice = analyze_safety_heuristic(latest_obs)
         
         station_snapshot = {
             "obs": loc,
+            "forecasts": station_forecasts,
             "ai_expert": ai_advice
         }
         
@@ -133,7 +212,7 @@ def main():
     with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
         json.dump(stations_config, f, ensure_ascii=False)
 
-    print(f"🎉 處理完成！已成功同步並生成 {len(stations_config)} 個全台灣測站之邊緣 API 節點！")
+    print(f"🎉 大功告成！全台 {len(stations_config)} 個測站皆已完成【實時海象 + 30天滿乾潮預報】雙軌融合！")
 
 if __name__ == "__main__":
     main()

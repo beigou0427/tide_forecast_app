@@ -1,5 +1,4 @@
-﻿
-class TideStationData {
+﻿class TideStationData {
   final StationInfo info;
   final List<Observation> observations;
   final List<TideForecast> forecasts;
@@ -15,7 +14,6 @@ class TideStationData {
   factory TideStationData.fromEdgeJson(Map<String, dynamic> json) {
     final obsNode = json['obs'] ?? {};
     
-    // 🌟 核心修正：正確解析氣象署深層嵌套的 Map -> List 結構
     List obsRaw = [];
     if (obsNode['StationObsTimes'] is Map) {
       obsRaw = obsNode['StationObsTimes']['StationObsTime'] as List? ?? [];
@@ -25,10 +23,13 @@ class TideStationData {
       obsRaw = obsNode['Observation'];
     }
 
+    // 🌟 啟用真實預報陣列解析：從 edge JSON 或 obs 節點中抓取 30 天滿乾潮
+    final List forecastRaw = json['forecasts'] as List? ?? obsNode['forecasts'] as List? ?? [];
+
     return TideStationData(
       info: StationInfo.fromMap(obsNode['info'] ?? obsNode),
       observations: obsRaw.map((i) => Observation.fromProxy(i as Map<String, dynamic>)).toList(),
-      forecasts: [], 
+      forecasts: forecastRaw.map((f) => TideForecast.fromOfficial(f as Map<String, dynamic>)).toList(), 
       aiBriefing: json['ai_expert'] != null ? AIExpertBriefing.fromMap(json['ai_expert']) : null,
     );
   }
@@ -41,7 +42,7 @@ class AIExpertBriefing {
   AIExpertBriefing({required this.briefing, required this.safetyScore, required this.activities});
   factory AIExpertBriefing.fromMap(Map<String, dynamic> map) {
     return AIExpertBriefing(
-      briefing: map['briefing'] ?? "海象平穩，注意安全。",
+      briefing: map['briefing'] ?? "海象平穩，注意防曬與補水。",
       safetyScore: map['safety_score'] ?? 80,
       activities: List<String>.from(map['activities'] ?? []),
     );
@@ -59,7 +60,7 @@ class StationInfo {
       countyName: json['CountyName'] ?? '',
       townName: json['TownName'] ?? '',
       lat: parsedLat, lng: parsedLng,
-      attr: json['attr'] ?? json['StationAttribute'] ?? '一般站',
+      attr: json['attr'] ?? json['StationAttribute'] ?? '一般測站',
       addressDescription: json['address-description'] ?? '',
     );
   }
@@ -111,10 +112,9 @@ class TideForecast {
   factory TideForecast.fromOfficial(Map<String, dynamic> json) {
     final heights = json['TideHeights'] ?? {};
     return TideForecast(
-      dateTime: DateTime.parse(json['DateTime']),
-      tideType: json['Tide']?.toString() ?? '',
-      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? '--').toString(),
+      dateTime: DateTime.parse(json['DateTime'] ?? json['dateTime'] ?? DateTime.now().toIso8601String()),
+      tideType: json['Tide']?.toString() ?? json['tideType']?.toString() ?? '',
+      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? json['tideHeight'] ?? '--').toString(),
     );
   }
 }
-

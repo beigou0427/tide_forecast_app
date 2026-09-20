@@ -103,34 +103,59 @@ class HomePage extends ConsumerWidget {
               final station = viewData.stationData;
               final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
 
-              if (station.observations.isEmpty && !isFuture) {
+              // 1. 預報數據按所選日期過濾
+              final dayForecasts = station.forecasts.where((f) =>
+                  DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
+
+              // 2. 🌟 歷史回測數據精準時間軸切片
+              final dayObservations = isToday
+                  ? station.observations
+                  : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
+
+              // 3. 超出歷史感測窗口處理 (非預報模式且該歷史日無資料)
+              if (!isFuture && dayObservations.isEmpty) {
                 return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
               }
+
+              final Observation activeObservation = dayObservations.last;
 
               return SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    if (!isFuture) ...[SeaBriefingCard(station: station, distance: viewData.distanceKm), const SizedBox(height: 24)],
+                    if (isToday) ...[
+                      SeaBriefingCard(station: station, distance: viewData.distanceKm),
+                      const SizedBox(height: 24),
+                    ],
                     StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                     const SizedBox(height: 20),
                     if (isFuture) ...[
-                      _sectionTitle("🌟 專家級潮汐預報 (30日)", modeColor), const SizedBox(height: 12),
-                      _buildForecastList(station.forecasts, modeColor), const SizedBox(height: 20),
-                      _infoCard("預報模式說明", "您正在查看未來預報。實時波高與風速感測數據將於該日期當天產生觀測紀錄。"),
+                      _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", modeColor),
+                      const SizedBox(height: 12),
+                      _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
+                      const SizedBox(height: 20),
+                      _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署模型完成推算。"),
                     ] else ...[
-                      HeroMetricCard(current: station.observations.last, isBuoy: isBuoy), const SizedBox(height: 16),
-                      SafetyAlert(current: station.observations.last),
-                      if (isToday && station.forecasts.isNotEmpty) ...[
-                        const SizedBox(height: 24), _sectionTitle("⏱️ 今日滿乾潮預測", modeColor), const SizedBox(height: 12),
-                        _buildForecastList(station.forecasts, modeColor),
+                      HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
+                      const SizedBox(height: 16),
+                      SafetyAlert(current: activeObservation),
+                      if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _sectionTitle(isToday ? "⏱️ 今日滿乾潮預測" : "⏱️ 當日滿乾潮預測", modeColor),
+                        const SizedBox(height: 12),
+                        _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
                       ],
-                      const SizedBox(height: 24), _sectionTitle(selectedDate.isBefore(now) ? "🗓️ 歷史走勢圖" : "🌊 24h 走勢監控", modeColor), const SizedBox(height: 12),
-                      CustomCard(child: TideChartSheet(observations: station.observations)),
-                      const SizedBox(height: 24), _sectionTitle("📋 詳細觀測參數", modeColor), const SizedBox(height: 12),
-                      MetricGrid(current: station.observations.last),
+                      const SizedBox(height: 24),
+                      _sectionTitle(isToday ? "🌊 24h 走勢監控" : "🗓️ ${DateFormat('MM/dd').format(selectedDate)} 歷史走勢圖", modeColor),
+                      const SizedBox(height: 12),
+                      CustomCard(child: TideChartSheet(observations: dayObservations)),
+                      const SizedBox(height: 24),
+                      _sectionTitle("📋 ${isToday ? '詳細觀測參數' : '歷史時空記錄參數'}", modeColor),
+                      const SizedBox(height: 12),
+                      MetricGrid(current: activeObservation),
                     ],
-                    const SizedBox(height: 24), _buildFooter(station.info.addressDescription),
+                    const SizedBox(height: 24),
+                    _buildFooter(station.info.addressDescription),
                   ]),
                 ),
               );
@@ -229,6 +254,16 @@ class HomePage extends ConsumerWidget {
   Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withValues(alpha: 0.9)));
 
   Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
+    if (forecasts.isEmpty) {
+      return const CustomCard(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Text("該日期暫無潮位轉向紀錄", style: TextStyle(color: Colors.grey)),
+          ),
+        ),
+      );
+    }
     return CustomCard(
       child: Column(
         children: forecasts.map((f) {
@@ -313,9 +348,9 @@ class HomePage extends ConsumerWidget {
         const SizedBox(height: 100),
         const Icon(Icons.event_busy, size: 80, color: Colors.grey),
         const SizedBox(height: 16),
-        Text("$name 無觀測紀錄", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        Text("$name 歷史觀測存檔", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         const SizedBox(height: 8),
-        Text("${DateFormat('yyyy/MM/dd').format(date)} 暫無數據存檔", style: const TextStyle(color: Colors.grey)),
+        Text("氣象署實測資料僅即時保留近 48 小時`n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, height: 1.4)),
         const SizedBox(height: 24),
         ElevatedButton(
           onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
@@ -325,5 +360,3 @@ class HomePage extends ConsumerWidget {
     );
   }
 }
-
-
