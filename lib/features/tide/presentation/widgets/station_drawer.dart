@@ -6,6 +6,7 @@ import '../../../../core/utils/constants.dart';
 import '../../providers/tide_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
+import '../../../premium/presentation/vip_center_page.dart';
 import '../../../diagnostic/presentation/diagnostic_page.dart';
 import '../station_guide_page.dart';
 import '../../../catch_log/presentation/catch_log_page.dart';
@@ -185,101 +186,106 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
   }
 
   Widget _buildPremiumEntry(PremiumState state) {
-    if (state.isFounder) {
-      return Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFF8E1), Color(0xFFFFECB3)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    // 🌟 核心情緒價值分流：已是 VIP / 創始釣友時，點擊直接進入「老船長 VIP 旗艦指揮中心」
+    if (state.isFounder || state.isPremium) {
+      return InkWell(
+        onTap: () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const VipCenterPage()));
+        },
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: state.isFounder 
+                  ? [const Color(0xFFFFF8E1), const Color(0xFFFFECB3)]
+                  : [const Color(0xFFE0F7FA), const Color(0xFFB2EBF2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: state.isFounder ? const Color(0xFFFFB300) : const Color(0xFF00ACC1), width: 1.8),
+            boxShadow: [
+              BoxShadow(
+                color: (state.isFounder ? Colors.amber : Colors.cyan).withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              )
+            ],
           ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFFB300), width: 1.8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.amber.withValues(alpha: 0.25),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFF8F00),
-                shape: BoxShape.circle,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: state.isFounder ? const Color(0xFFFF8F00) : const Color(0xFF0097A7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
               ),
-              child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        "創始釣友",
-                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF4E342E)),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF6F00),
-                          borderRadius: BorderRadius.circular(6),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          state.isFounder ? "創始釣友" : "VIP 指揮官",
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: state.isFounder ? const Color(0xFF4E342E) : const Color(0xFF004D40)),
                         ),
-                        child: const Text("FOUNDER", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  const Text(
-                    "永久享有全平台終身旗艦特權",
-                    style: TextStyle(fontSize: 11, color: Color(0xFF6D4C41), fontWeight: FontWeight.w500),
-                  ),
-                ],
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: state.isFounder ? const Color(0xFFFF6F00) : const Color(0xFF00838F),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(state.isFounder ? "FOUNDER" : "ACTIVE", style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      state.isFounder ? "點擊檢視專屬身分卡與特權" : "氣象署專線運作中 • 點擊進入中心",
+                      style: TextStyle(fontSize: 11, color: state.isFounder ? const Color(0xFF6D4C41) : const Color(0xFF00695C), fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const Icon(Icons.chevron_right, size: 18, color: Colors.blueGrey),
+            ],
+          ),
         ),
       );
     }
 
+    // 一般未付費用戶：展示促購與方案管理入口
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
       child: Container(
         margin: const EdgeInsets.all(12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: state.isPremium ? Colors.amber.shade50 : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: state.isPremium ? Colors.amber.shade300 : Colors.grey.shade200, width: 1.5),
+          border: Border.all(color: Colors.grey.shade200, width: 1.5),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            Icon(state.isPremium ? Icons.stars_rounded : Icons.workspace_premium_outlined, color: Colors.amber.shade800),
-            const SizedBox(width: 12),
+            Icon(Icons.workspace_premium_outlined, color: Colors.amber),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    state.isPremium ? "您已是 Pro 會員" : "升級老船長 Pro 旗艦版",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  Text(
-                    state.isPremium ? "享受 0 延遲海象直連與 AI 漁獲窗口" : "週費 / 年費主力 / 終身買斷方案",
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
+                  Text("升級老船長 Pro 旗艦版", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text("週費 / 年費主力 / 終身買斷方案", style: TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+            Icon(Icons.chevron_right, size: 18, color: Colors.grey),
           ],
         ),
       ),

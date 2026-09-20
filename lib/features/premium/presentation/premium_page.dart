@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'vip_center_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -391,10 +392,22 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
             style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
-          Text(
+                    Text(
             state.isFounder ? "感謝您早期支持！已為您永久鎖定全平台終身最高權限" : "方案有效期至：${state.expiryDate?.toString().substring(0, 10) ?? '有效'}",
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.shield_rounded, color: Colors.amber, size: 18),
+            label: const Text("進入 VIP 航海指揮中心", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VipCenterPage())),
           ),
         ],
       ),
@@ -416,5 +429,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     );
   }
 }
+
 
 
