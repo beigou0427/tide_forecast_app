@@ -22,15 +22,12 @@ class ShareUtil {
       final file = await File('${tempDir.path}/tide_report_${DateTime.now().millisecondsSinceEpoch}.png').create();
       await file.writeAsBytes(pngBytes);
 
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: "🌊 老船長海象實時情報｜$stationName 站點數據，分享自 Tide Pro App",
-        ),
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: "🌊 老船長海象實時情報｜$stationName 站點數據，分享自 Tide Pro App",
       );
     } catch (e) {
       debugPrint("戰報分享失敗: $e");
     }
   }
 }
-

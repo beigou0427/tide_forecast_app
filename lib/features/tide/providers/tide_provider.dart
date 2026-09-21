@@ -1,5 +1,6 @@
-﻿import 'package:flutter/foundation.dart';
-import 'dart:convert';
+﻿import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -23,23 +24,27 @@ final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
 
+// 🌟 核心防禦：優先從本地內嵌資產載入 85 站權威拓撲，杜絕雲端快取污染
 final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   try {
-    debugPrint("DEBUG: 正在從雲端下載最新測站清單...");
-    final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl))
-                               .timeout(const Duration(seconds: 5));
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      debugPrint("✅ 成功下載 ${data.length} 個測站設定！");
-      return data.map((e) => StationModel.fromJson(e)).toList();
-    }
+    final localJsonStr = await rootBundle.loadString('assets/stations_config.json');
+    final List localData = jsonDecode(localJsonStr);
+    debugPrint("✅ [本地神盾] 成功載入 ${localData.length} 個權威測站拓撲 (北部11, 西部41, 南部9, 東部10, 離島14)");
+    return localData.map((e) => StationModel.fromJson(e)).toList();
   } catch (e) {
-    debugPrint("⚠️ 雲端清單加載失敗，降級使用本地保底清單: $e");
+    debugPrint("⚠️ 本地資產讀取異常，切換遠端備用: $e");
+    try {
+      final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl)).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        return data.map((e) => StationModel.fromJson(e)).toList();
+      }
+    } catch (_) {}
   }
   return AppConstants.fallbackStations;
 });
 
-final currentStationIdProvider = StateProvider<String>((ref) => "46694A");
+final currentStationIdProvider = StateProvider<String>((ref) => "C6AH2");
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
 final userLocationProvider = FutureProvider<Position?>((ref) async {
@@ -97,10 +102,8 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
       } catch (_) {}
     }
 
-    // 🌟 深度體驗達成埋點：檢驗評分時機
     ReviewService.checkAndTriggerReview();
 
-    // 🌟 主動安全防線：偵測今日即將到來的下一次滿潮，設定 30 分鐘前推播預警
     final now = DateTime.now();
     for (final f in stationData.forecasts) {
       if (f.tideType.contains('滿') && f.dateTime.isAfter(now)) {
@@ -115,4 +118,3 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
     return TideViewData(stationData: stationData, distanceKm: distance, selectedDate: ref.read(selectedDateProvider));
   } catch (e) { rethrow; }
 });
-

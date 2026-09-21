@@ -26,7 +26,7 @@ class NotificationService {
       );
 
       await _notificationsPlugin.initialize(
-        settings: initSettings,
+        initSettings,
         onDidReceiveNotificationResponse: (details) {
           debugPrint("點擊推播進入 App: ${details.payload}");
         },
@@ -63,12 +63,14 @@ class NotificationService {
       tz.TZDateTime scheduledDate = _nextInstanceOfFriday18();
 
       await _notificationsPlugin.zonedSchedule(
-        id: 1001,
-        title: '🚢 老船長週末海象情報已出爐！',
-        body: '全台測站最新風浪、水溫與咬度模型已更新，立即規劃週末出海窗口。',
-        scheduledDate: scheduledDate,
-        notificationDetails: platformDetails,
+        1001,
+        '🚢 老船長週末海象情報已出爐！',
+        '全台測站最新風浪、水溫與咬度模型已更新，立即規劃週末出海窗口。',
+        scheduledDate,
+        platformDetails,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
       debugPrint("⏰ [Notification] 週末決策推播已排程至: $scheduledDate");
@@ -97,15 +99,17 @@ class NotificationService {
       );
 
       await _notificationsPlugin.zonedSchedule(
-        id: 2001,
-        title: '⚠️ 潮位安全預警：滿潮水位即將逼近！',
-        body: '[$stationName] 將於 30 分鐘後達到今日滿潮水位，請密切注意身後退路並提早撤離外礁！',
-        scheduledDate: tzAlertTime,
-        notificationDetails: const NotificationDetails(
+        2001,
+        '⚠️ 潮位安全預警：滿潮水位即將逼近！',
+        '[$stationName] 將於 30 分鐘後達到今日滿潮水位，請密切注意身後退路並提早撤離外礁！',
+        tzAlertTime,
+        const NotificationDetails(
           android: androidDetails,
           iOS: DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
       debugPrint("🚨 [Notification] 滿潮預警推播已設定: $tzAlertTime");
     } catch (e) {

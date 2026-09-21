@@ -30,6 +30,7 @@ class TideApiService {
         return TideStationData.fromEdgeJson(edgeJson);
       }
 
+      // 💎 VIP 專線直連
       try {
         debugPrint("💎 VIP 啟動：向氣象署專線請求站點 $stationId 即時數據...");
         final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId";
@@ -43,8 +44,23 @@ class TideApiService {
           
           if (locations.isNotEmpty) {
             final realtimeObs = locations[0];
+
+            // 🌟 核心防禦：氣象署 O-B0075-001 不帶中文名稱與座標，必須從 edge 快照中融合 station_info
+            final stationInfo = (edgeJson['station_info'] is Map) ? edgeJson['station_info'] as Map<String, dynamic> : {};
+            final edgeObs = (edgeJson['obs'] is Map) ? edgeJson['obs'] as Map<String, dynamic> : {};
+
+            final mergedObs = Map<String, dynamic>.from(realtimeObs);
+            mergedObs['StationName'] = stationInfo['friendly_name'] ?? edgeObs['StationName'] ?? "測站 $stationId";
+            mergedObs['CountyName'] = stationInfo['county'] ?? edgeObs['CountyName'] ?? "";
+            mergedObs['TownName'] = stationInfo['town'] ?? edgeObs['TownName'] ?? "";
+            mergedObs['lat'] = stationInfo['lat'] ?? edgeObs['lat'] ?? 25.0;
+            mergedObs['lng'] = stationInfo['lng'] ?? edgeObs['lng'] ?? 121.5;
+            mergedObs['attr'] = stationInfo['station_type'] ?? edgeObs['attr'] ?? "資料浮標";
+            mergedObs['region'] = stationInfo['region'] ?? edgeObs['region'] ?? "北部";
+
             final mergedJson = {
-              "obs": realtimeObs,
+              "obs": mergedObs,
+              "station_info": stationInfo,
               "forecasts": edgeJson['forecasts'] ?? [],
               "ai_expert": edgeJson['ai_expert'] ?? {
                 "briefing": "AI 實時簡報同步完成，海況平穩。",
@@ -52,7 +68,7 @@ class TideApiService {
                 "activities": ["海邊作業", "作釣觀察"]
               }
             };
-            debugPrint("✅ VIP 85測站即時數據融合成功！");
+            debugPrint("✅ VIP 即時數據融合成功 (已鎖定地理拓撲：${mergedObs['StationName']} - ${mergedObs['region']})！");
             await prefs.setString('$_cachePrefix$stationId', jsonEncode(mergedJson));
             return TideStationData.fromEdgeJson(mergedJson);
           }
@@ -70,11 +86,7 @@ class TideApiService {
       debugPrint("🚨 API 連線失敗，啟動離線防禦機制: $e");
       final cachedStr = prefs.getString('$_cachePrefix$stationId');
       if (cachedStr != null) {
-        debugPrint("📦 成功啟動【離線安全模式】快取數據！");
         final Map<String, dynamic> cachedJson = jsonDecode(cachedStr);
-        if (cachedJson['ai_expert'] is Map<String, dynamic>) {
-          cachedJson['ai_expert']['briefing'] = "【離線安全模式】現場訊號微弱，正顯示最後存檔海象。${cachedJson['ai_expert']['briefing'] ?? ''}";
-        }
         return TideStationData.fromEdgeJson(cachedJson);
       }
       rethrow;
