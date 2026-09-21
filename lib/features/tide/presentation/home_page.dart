@@ -19,6 +19,7 @@ import 'widgets/date_ribbon.dart';
 import 'widgets/shareable_report_card.dart';
 import 'widgets/solunar_card.dart';
 import 'widgets/wind_compass_card.dart';
+import 'widgets/ugc_radar_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
 class HomePage extends ConsumerWidget {
@@ -129,6 +130,12 @@ class HomePage extends ConsumerWidget {
                     StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                     const SizedBox(height: 16),
                     
+                    // 🌟 核心護城河：釣魚版 Waze 現場即時海況雷達
+                    if (isToday) ...[
+                      UgcRadarCard(stationId: currentId, stationName: station.info.stationName),
+                      const SizedBox(height: 16),
+                    ],
+
                     // 月相・大潮小潮與咬度指針卡片
                     SolunarCard(selectedDate: selectedDate),
                     const SizedBox(height: 20),
@@ -145,7 +152,7 @@ class HomePage extends ConsumerWidget {
                       SafetyAlert(current: activeObservation),
                       const SizedBox(height: 16),
                       
-                      // 🌟 360° 風浪動態作戰羅盤
+                      // 360° 風浪動態作戰羅盤
                       WindCompassCard(current: activeObservation),
 
                       if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
