@@ -1,0 +1,25 @@
+﻿name: 雲端 iOS 發布包編譯 (Build iOS Release)
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - name: 安裝專案依賴
+        run: flutter pub get
+      - name: 編譯 iOS Release 原生產物
+        run: flutter build ios --release --no-codesign
+      - name: 打包上傳 iOS 產物供 App Store 提審
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-build
+          path: build/ios/iphoneos

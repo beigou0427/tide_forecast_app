@@ -20,6 +20,7 @@ import 'widgets/shareable_report_card.dart';
 import 'widgets/solunar_card.dart';
 import 'widgets/wind_compass_card.dart';
 import 'widgets/ugc_radar_card.dart';
+import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
 class HomePage extends ConsumerWidget {
@@ -40,7 +41,8 @@ class HomePage extends ConsumerWidget {
     final favoritesAsync = ref.watch(favoriteStationsProvider);
     
     final allStations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
-    
+    final currentStation = allStations.firstWhere((s) => s.id == currentId, orElse: () => allStations.first);
+
     final bool isFavorited = favoritesAsync.value?.contains(currentId) ?? false;
     final now = DateTime.now();
     final String selectedKey = DateFormat('yyyyMMdd').format(selectedDate);
@@ -130,9 +132,14 @@ class HomePage extends ConsumerWidget {
                     StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                     const SizedBox(height: 16),
                     
-                    // 🌟 核心護城河：釣魚版 Waze 現場即時海況雷達
+                    // Waze 現場海況情報雷達
                     if (isToday) ...[
-                      UgcRadarCard(stationId: currentId, stationName: station.info.stationName),
+                      UgcRadarCard(
+                        stationId: currentId,
+                        stationName: station.info.stationName,
+                        waveHeight: activeObservation.waveHeight,
+                        windSpeed: activeObservation.windSpeed,
+                      ),
                       const SizedBox(height: 16),
                     ],
 
@@ -171,6 +178,14 @@ class HomePage extends ConsumerWidget {
                       MetricGrid(current: activeObservation),
                     ],
                     const SizedBox(height: 24),
+
+                    // 🌟 核心破局：B2B 特約釣具與船班數位立牌
+                    LocalMerchantCard(
+                      stationName: station.info.stationName,
+                      region: currentStation.region,
+                    ),
+                    const SizedBox(height: 24),
+
                     _buildFooter(station.info.addressDescription),
                   ]),
                 ),
