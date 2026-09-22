@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,35 +9,36 @@ import 'features/onboarding/presentation/onboarding_page.dart';
 import 'core/services/analytics_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/global_error_trap.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. 初始化 Firebase 核心與營運埋點監控
+  // 🌟 真實全域崩潰與渲染異常看門狗
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    GlobalErrorTrap.record("${details.exception}");
+  };
+
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     await AnalyticsService.init();
   } catch (e) {
     debugPrint("Firebase 初始化失敗: $e");
   }
 
-  // 2. 初始化本地推播引擎 (每週五 18:00 本地定時與滿潮防困礁主動警報)
   try {
     await NotificationService.init();
   } catch (e) {
     debugPrint("本地推播服務初始化失敗: $e");
   }
 
-  // 3. 🌟 初始化 FCM 雲端推播引擎 (跨裝置即時出海週報與後台喚醒)
   try {
     await FcmService.init();
   } catch (e) {
     debugPrint("FCM 雲端推播初始化失敗: $e");
   }
 
-  // 4. 啟動閘門：檢查是否已完成阻斷式 Onboarding 問卷
   final prefs = await SharedPreferences.getInstance();
   final bool hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
 

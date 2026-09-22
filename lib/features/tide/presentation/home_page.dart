@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -115,11 +115,15 @@ class HomePage extends ConsumerWidget {
                   ? station.observations
                   : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
+              // 非預報模式且該日實測為空時安全返回
               if (!isFuture && dayObservations.isEmpty) {
                 return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
               }
 
-              final Observation activeObservation = dayObservations.last;
+              // 🌟 徹底消滅 Bad state: No element！安全提取最新實測（永不在空陣列調用 .last）
+              final Observation? activeObservation = dayObservations.isNotEmpty
+                  ? dayObservations.last
+                  : (station.observations.isNotEmpty ? station.observations.last : null);
 
               return SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
@@ -132,18 +136,16 @@ class HomePage extends ConsumerWidget {
                     StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                     const SizedBox(height: 16),
                     
-                    // Waze 現場海況情報雷達
                     if (isToday) ...[
                       UgcRadarCard(
                         stationId: currentId,
                         stationName: station.info.stationName,
-                        waveHeight: activeObservation.waveHeight,
-                        windSpeed: activeObservation.windSpeed,
+                        waveHeight: activeObservation?.waveHeight,
+                        windSpeed: activeObservation?.windSpeed,
                       ),
                       const SizedBox(height: 16),
                     ],
 
-                    // 月相・大潮小潮與咬度指針卡片
                     SolunarCard(selectedDate: selectedDate),
                     const SizedBox(height: 20),
 
@@ -153,13 +155,12 @@ class HomePage extends ConsumerWidget {
                       _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
                       const SizedBox(height: 20),
                       _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署模型完成推算。"),
-                    ] else ...[
+                    ] else if (activeObservation != null) ...[
                       HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                       const SizedBox(height: 16),
                       SafetyAlert(current: activeObservation),
                       const SizedBox(height: 16),
                       
-                      // 360° 風浪動態作戰羅盤
                       WindCompassCard(current: activeObservation),
 
                       if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
@@ -179,7 +180,6 @@ class HomePage extends ConsumerWidget {
                     ],
                     const SizedBox(height: 24),
 
-                    // 🌟 核心破局：B2B 特約釣具與船班數位立牌
                     LocalMerchantCard(
                       stationName: station.info.stationName,
                       region: currentStation.region,
@@ -381,7 +381,7 @@ class HomePage extends ConsumerWidget {
         const SizedBox(height: 16),
         Text("$name 歷史觀測存檔", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         const SizedBox(height: 8),
-        Text("氣象署實測資料僅即時保留近 48 小時`n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, height: 1.4)),
+        Text("氣象署實測資料僅即時保留近 48 小時\n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, height: 1.4)),
         const SizedBox(height: 24),
         ElevatedButton(
           onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),

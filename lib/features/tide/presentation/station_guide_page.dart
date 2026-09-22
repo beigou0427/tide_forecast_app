@@ -1,6 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../providers/tide_provider.dart';
 import '../../../core/utils/constants.dart';
 import '../../../shared/widgets/custom_card.dart';
@@ -45,7 +44,6 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
               ),
             ),
           ),
-
           stationsAsync.when(
             loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),
             error: (err, _) => SliverFillRemaining(child: Center(child: Text("測站加載失敗: $err"))),
@@ -68,10 +66,7 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final s = filtered[index];
-                      return _buildStationItem(s);
-                    },
+                    (context, index) => _buildStationItem(filtered[index]),
                     childCount: filtered.length,
                   ),
                 ),
@@ -125,7 +120,7 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
     return TextField(
       onChanged: (val) => setState(() => _searchQuery = val),
       decoration: InputDecoration(
-        hintText: "搜尋站點名稱或代號 (如: 龍洞 / 46694A)...",
+        hintText: "搜尋站點名稱或代號 (如: 富貴角 / C6AH2)...",
         prefixIcon: const Icon(Icons.search, size: 20),
         filled: true,
         fillColor: Colors.white,
@@ -167,41 +162,50 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
   Widget _buildStationItem(StationModel station) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6)],
-      ),
-      child: ListTile(
-        onTap: () {
-          ref.read(currentStationIdProvider.notifier).state = station.id;
-          ref.read(selectedDateProvider.notifier).state = DateTime.now();
-          Navigator.pop(context);
-        },
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: CircleAvatar(
-          backgroundColor: station.isBuoy ? Colors.indigo.shade50 : const Color(0xFF0077B6).withValues(alpha: 0.1),
-          child: Icon(station.isBuoy ? Icons.sensors : Icons.water_drop, color: station.isBuoy ? Colors.indigo : const Color(0xFF0077B6), size: 18),
-        ),
-        title: Row(
-          children: [
-            Text(station.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: station.isBuoy ? Colors.indigo.shade50 : Colors.teal.shade50,
-                borderRadius: BorderRadius.circular(6),
+        elevation: 0.5,
+        shadowColor: Colors.black.withValues(alpha: 0.04),
+        child: ListTile(
+          onTap: () {
+            ref.read(currentStationIdProvider.notifier).state = station.id;
+            ref.read(selectedDateProvider.notifier).state = DateTime.now();
+            Navigator.pop(context);
+          },
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          leading: CircleAvatar(
+            backgroundColor: station.isBuoy ? Colors.indigo.shade50 : const Color(0xFF0077B6).withValues(alpha: 0.1),
+            child: Icon(station.isBuoy ? Icons.sensors : Icons.water_drop, color: station.isBuoy ? Colors.indigo : const Color(0xFF0077B6), size: 18),
+          ),
+          // 🌟 徹底修復 RenderFlex 50px 溢出：使用 Expanded 約束長站名
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  station.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
               ),
-              child: Text(
-                station.isBuoy ? "資料浮標" : "潮位站",
-                style: TextStyle(fontSize: 10, color: station.isBuoy ? Colors.indigo : Colors.teal, fontWeight: FontWeight.bold),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: station.isBuoy ? Colors.indigo.shade50 : Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  station.stationType,
+                  style: TextStyle(fontSize: 10, color: station.isBuoy ? Colors.indigo : Colors.teal, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+          subtitle: Text("${station.agency} (${station.id}) • ${station.region}海域", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 13, color: Colors.grey),
         ),
-        subtitle: Text("測站代碼: ${station.id} • ${station.region}海域", style: const TextStyle(color: Colors.grey, fontSize: 11)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
       ),
     );
   }
