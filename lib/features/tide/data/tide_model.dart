@@ -23,7 +23,6 @@
       obsRaw = obsNode['Observation'];
     }
 
-    // 🌟 啟用真實預報陣列解析：從 edge JSON 或 obs 節點中抓取 30 天滿乾潮
     final List forecastRaw = json['forecasts'] as List? ?? obsNode['forecasts'] as List? ?? [];
 
     return TideStationData(
@@ -97,11 +96,16 @@ class Observation {
     );
   }
 
+  // 🌟 核心過濾防護：強制攔截 None / nan / null 以及所有以 -99 開頭之氣象署故障碼 (-99, -999, -99.0)
   static double? _n(dynamic v) {
     if (v == null) return null;
     String s = v.toString().trim();
-    if (s == "None" || s == "-99" || s == "" || s == "nan" || s == "null") return null;
-    return double.tryParse(s.replaceAll(RegExp(r'[^0-9.-]'), ''));
+    if (s == "None" || s == "" || s == "nan" || s == "null" || s.startsWith("-99")) return null;
+    final cleaned = s.replaceAll(RegExp(r'[^0-9.-]'), '');
+    if (cleaned.isEmpty || cleaned == '-' || cleaned == '.') return null;
+    final parsed = double.tryParse(cleaned);
+    if (parsed == null || parsed <= -90.0) return null;
+    return parsed;
   }
 }
 

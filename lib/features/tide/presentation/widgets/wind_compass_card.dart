@@ -154,8 +154,9 @@ class WindCompassCard extends StatelessWidget {
       "南風", "南南西", "西南風", "西南西",
       "西風", "西北西", "西北風", "北北西"
     ];
-    final int idx = ((deg + 11.25) % 360 / 22.5).floor();
-    return directions[idx % 16];
+    final double normalized = (deg % 360 + 360) % 360;
+    final int idx = ((normalized + 11.25) / 22.5).floor() % 16;
+    return directions[idx];
   }
 
   static String _getBeaufortScale(double speed) {
@@ -180,3 +181,4 @@ class WindCompassCard extends StatelessWidget {
     }
   }
 }
+
