@@ -10,7 +10,8 @@ class CatchLogItem {
   final double? seaTemperature;
   final String notes;
   final int rating;
-  final String? imagePath;
+  final String? imagePath; // 本地沙盒相片路徑 (離線優先)
+  final String? imageUrl;  // 🌟 雲端 Firebase Storage 相片網址
 
   CatchLogItem({
     required this.id,
@@ -23,6 +24,7 @@ class CatchLogItem {
     this.notes = "",
     this.rating = 5,
     this.imagePath,
+    this.imageUrl,
   });
 
   Map<String, dynamic> toMap() {
@@ -37,6 +39,7 @@ class CatchLogItem {
       'notes': notes,
       'rating': rating,
       'imagePath': imagePath,
+      'imageUrl': imageUrl, // 🌟 寫入雲端網址快取
     };
   }
 
@@ -52,6 +55,7 @@ class CatchLogItem {
       notes: map['notes'] ?? '',
       rating: map['rating']?.toInt() ?? 5,
       imagePath: map['imagePath'],
+      imageUrl: map['imageUrl'], // 🌟 讀取雲端網址快取
     );
   }
 

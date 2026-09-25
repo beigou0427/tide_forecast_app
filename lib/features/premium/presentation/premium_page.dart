@@ -268,7 +268,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         fit: BoxFit.scaleDown,
                         child: Text(
                           _selectedTier == 2 
-                              ? "搶購終身創始席次 (NT$ 2,990)" 
+                              ? "搶購終身創始席次 (NT\$ 2,990)" // 🌟 精準修復跳脫字元
                               : "開啟 7 天免費試用",
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),

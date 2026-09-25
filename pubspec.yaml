@@ -34,6 +34,11 @@ dependencies:
   flutter_tts: ^4.2.2
   firebase_messaging: ^16.7.0
   image_picker: ^1.1.2
+  cloud_firestore: ^6.10.0
+  
+  # 🌟 依賴衝突解決：升級至 13.6.0 完美對齊 Firebase 底層
+  firebase_storage: ^13.6.0
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

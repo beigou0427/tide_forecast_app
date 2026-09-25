@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../providers/catch_log_provider.dart';
 import '../data/catch_log_model.dart';
@@ -46,7 +47,7 @@ class CatchLogPage extends ConsumerWidget {
             const SizedBox(height: 16),
             const Text("尚未建立任何作釣日誌", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             const SizedBox(height: 8),
-            Text("拍攝戰利品，每筆日誌將自動疊加當下測站之浪高、潮位與水溫，為您累積專屬的咬度藏寶庫！",
+            Text("拍攝戰利品，每筆日誌將自動疊加當下測站之浪高、潮位與水溫，並自動備份至雲端金庫！",
                 textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontSize: 13, height: 1.4)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -95,25 +96,30 @@ class CatchLogPage extends ConsumerWidget {
                           Text(item.stationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0077B6))),
                         ],
                       ),
-                      Text(timeStr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      Row(
+                        children: [
+                          if (item.imageUrl != null) const Icon(Icons.cloud_done_outlined, size: 12, color: Colors.teal),
+                          if (item.imageUrl != null) const SizedBox(width: 4),
+                          Text(timeStr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        ],
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   
-                  if (item.imagePath != null && item.imagePath!.isNotEmpty) ...[
+                  // 🌟 智慧判斷影像來源 (本地沙盒 優先 -> 失敗則降級為 雲端快取)
+                  if (item.imagePath != null || item.imageUrl != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(item.imagePath!),
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, stack) => Container(
-                          height: 100,
-                          color: Colors.grey.shade100,
-                          child: Center(child: Icon(Icons.broken_image_rounded, color: Colors.grey.shade400, size: 36)),
-                        ),
-                      ),
+                      child: item.imagePath != null
+                          ? Image.file(
+                              File(item.imagePath!),
+                              height: 180,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, stack) => _buildCloudImage(item.imageUrl),
+                            )
+                          : _buildCloudImage(item.imageUrl),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -158,14 +164,34 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
+  // 🌟 雲端圖片智慧快取載入器
+  Widget _buildCloudImage(String? url) {
+    if (url == null || url.isEmpty) {
+      return Container(
+        height: 100, color: Colors.grey.shade100,
+        child: Center(child: Icon(Icons.broken_image_rounded, color: Colors.grey.shade400, size: 36)),
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      height: 180,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        height: 180, color: Colors.grey.shade100,
+        child: const Center(child: CircularProgressIndicator(color: Color(0xFF0077B6))),
+      ),
+      errorWidget: (context, url, error) => Container(
+        height: 100, color: Colors.grey.shade100,
+        child: Center(child: Icon(Icons.cloud_off_rounded, color: Colors.grey.shade400, size: 36)),
+      ),
+    );
+  }
+
   Widget _buildMetricBadge(String label, String val, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Text("$label $val", style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
     );
   }
@@ -240,13 +266,7 @@ class CatchLogPage extends ConsumerWidget {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () async {
-                                // 🌟 硬核優化：強制限制長寬與畫質，10MB 照片秒變 200KB，徹底杜絕 OOM 閃退！
-                                final img = await picker.pickImage(
-                                  source: ImageSource.camera, 
-                                  imageQuality: 60,
-                                  maxWidth: 1200,
-                                  maxHeight: 1200,
-                                );
+                                final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
                               icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF0077B6)),
@@ -262,13 +282,7 @@ class CatchLogPage extends ConsumerWidget {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () async {
-                                // 🌟 硬核優化：強制壓縮
-                                final img = await picker.pickImage(
-                                  source: ImageSource.gallery, 
-                                  imageQuality: 60,
-                                  maxWidth: 1200,
-                                  maxHeight: 1200,
-                                );
+                                final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
                               icon: const Icon(Icons.photo_library_rounded, color: Color(0xFF0077B6)),
