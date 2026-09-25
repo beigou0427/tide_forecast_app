@@ -1,4 +1,3 @@
-﻿import 'vip_center_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -7,6 +6,7 @@ import '../services/premium_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/utils/constants.dart';
 import '../../tide/presentation/home_page.dart';
+import 'vip_center_page.dart';
 
 class PremiumPage extends ConsumerStatefulWidget {
   final bool fromOnboarding;
@@ -17,7 +17,7 @@ class PremiumPage extends ConsumerStatefulWidget {
 }
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
-  int _selectedTier = 1;
+  int _selectedTier = 1; // 預設主推「年度方案」
   List<ProductDetails> _storeProducts = [];
 
   final String _legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
@@ -38,9 +38,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
           _storeProducts = products;
         });
       }
-    } catch (_) {
-      
-    }
+    } catch (_) {}
   }
 
   void _closePaywall() {
@@ -61,8 +59,8 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
     switch (_selectedTier) {
       case 0:
-        targetProductId = AppConstants.iapProWeekly;
-        fallbackType = SubscriptionType.weekly;
+        targetProductId = AppConstants.iapProMonthly;
+        fallbackType = SubscriptionType.monthly;
         break;
       case 2:
         targetProductId = AppConstants.iapProLifetime;
@@ -77,7 +75,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
     AnalyticsService.logInitiateCheckout(targetProductId);
 
-    // 🌟 1. 優先嘗試發起 Apple 原生 StoreKit 支付
     ProductDetails? matchedProduct;
     for (final p in _storeProducts) {
       if (p.id == targetProductId) {
@@ -89,7 +86,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     if (matchedProduct != null) {
       await ref.read(iapManagerProvider).buySubscription(matchedProduct);
     } else {
-      // 🌟 2. 本地開發與沙盒模擬容錯
       debugPrint("⚠️ 尚未抓取到 StoreKit 商品，執行沙盒保底模擬流程 ($targetProductId)");
       await ref.read(premiumProvider.notifier).setPremiumStatus(true, fallbackType);
       if (mounted) {
@@ -132,7 +128,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text("PRO MEMBER", style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    child: const Text("TIDE PRO", style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white70),
@@ -177,27 +173,27 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     ] else ...[
                       _buildTierCard(
                         index: 0,
-                        title: "週費方案 (短期嚐鮮)",
-                        price: "NT\$ 99",
-                        unit: " / 週",
-                        subDesc: "換算年費需 NT\$ 5,148",
-                        badge: null,
+                        title: "月度航海員",
+                        price: "NT\$ 150",
+                        unit: " / 月",
+                        subDesc: "首 7 日免費體驗，隨時可取消",
+                        badge: "7天免費試用",
                       ),
                       const SizedBox(height: 12),
                       _buildTierCard(
                         index: 1,
                         title: "年度指揮官計畫",
-                        price: "NT\$ 790",
+                        price: "NT\$ 990",
                         unit: " / 年",
-                        subDesc: "每月僅約 NT\$ 66，現省 84%",
-                        badge: "🔥 85% 首選",
+                        subDesc: "每月僅約 NT\$ 82，現省 45%",
+                        badge: "🔥 首 7 日免費",
                         isHighlight: true,
                       ),
                       const SizedBox(height: 12),
                       _buildTierCard(
                         index: 2,
                         title: "終身買斷席次",
-                        price: "NT\$ 1,990",
+                        price: "NT\$ 2,990",
                         unit: " / 永久",
                         subDesc: "一次付費，終身享受全功能升級",
                         badge: "⚡ 限量席位",
@@ -212,7 +208,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
                     const SizedBox(height: 24),
 
-                    // 🌟 Apple Guideline 3.1.2 審查條款合規聲明
+                    // 🌟 Apple Guideline 3.1.2 嚴格合規聲明區塊
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -220,7 +216,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        "【訂閱須知】付款將在確認購買時由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。",
+                        "【訂閱與免費試用須知】\n我們提供 7 天免費試用期（僅限年度與月度方案）。付款將在確認購買或試用期結束時，由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10, height: 1.4),
                       ),
                     ),
@@ -278,7 +274,10 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          _selectedTier == 2 ? "搶購終身創始席次 (NT\$ 1,990)" : (_selectedTier == 1 ? "立即啟動年度計畫 (現省 84%)" : "開啟週度體驗 (NT\$ 99)"),
+                          // 🌟 按鈕文案依據是否包含 7 天免費試用作切換，蘋果審查最愛看這個
+                          _selectedTier == 2 
+                              ? "搶購終身創始席次 (NT$ 2,990)" 
+                              : "開啟 7 天免費試用",
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -392,7 +391,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
             style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
-                    Text(
+          Text(
             state.isFounder ? "感謝您早期支持！已為您永久鎖定全平台終身最高權限" : "方案有效期至：${state.expiryDate?.toString().substring(0, 10) ?? '有效'}",
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.black54, fontSize: 12),
@@ -429,6 +428,3 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     );
   }
 }
-
-
-

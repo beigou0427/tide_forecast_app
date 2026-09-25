@@ -1,4 +1,4 @@
-﻿import 'security_util.dart';
+import 'security_util.dart';
 
 class StationModel {
   final String id;
@@ -47,10 +47,12 @@ class AppConstants {
   static const String dsObservation = "O-B0075-002";
   static const String dsForecast = "F-A0021-001";
   
-  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";
-  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
-  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
-  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime";
+  // 🌟 App Store Connect 商品 ID 對齊
+  // (請在蘋果後台為 Monthly 與 Yearly 加上「推介優惠：7 天免費試用」)
+  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";     // 內部福利發送專用
+  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";   // 月度航海員 (含7天試用)
+  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";     // 年度指揮官 (含7天試用)
+  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime"; // 終身創始席次 (買斷無試用)
   
   static const Set<String> iapProductIds = {
     iapProWeekly,
@@ -79,5 +81,3 @@ class AppConstants {
     StationModel(id: "C4A01", name: "新北淡水 淡水潮位站 (C4A01)", region: "北部", lat: 25.175, lng: 121.424, stationType: "潮位站"),
   ];
 }
-
-
