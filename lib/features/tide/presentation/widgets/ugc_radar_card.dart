@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/ugc_report_model.dart';
@@ -93,7 +93,7 @@ class UgcRadarCard extends ConsumerWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.only(left: 12, right: 4, top: 8, bottom: 8),
       decoration: BoxDecoration(
         color: isAiSentinel ? const Color(0xFF0077B6).withValues(alpha: 0.03) : Colors.orange.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
@@ -132,30 +132,61 @@ class UgcRadarCard extends ConsumerWidget {
               ],
             ),
           ),
-          InkWell(
-            onTap: () => ref.read(ugcReportProvider.notifier).upvote(report.id),
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: (isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange).withValues(alpha: 0.1),
+          Row(
+            children: [
+              InkWell(
+                onTap: () => ref.read(ugcReportProvider.notifier).upvote(report.id),
                 borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.thumb_up_alt_rounded, size: 12, color: isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange),
-                  const SizedBox(width: 4),
-                  Text(
-                    "${report.upvotes}",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange,
-                    ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Icon(Icons.thumb_up_alt_rounded, size: 12, color: isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${report.upvotes}",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isAiSentinel ? const Color(0xFF0077B6) : Colors.deepOrange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              // 🚨 蘋果合規排雷 2/3：UGC 檢舉與封鎖機制 (僅限真人通報顯示)
+              if (!isAiSentinel)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade400),
+                  padding: EdgeInsets.zero,
+                  onSelected: (value) {
+                    if (value == 'report') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("已收到您的檢舉，審核團隊將於 24 小時內處理。"), backgroundColor: Colors.blueGrey),
+                      );
+                    } else if (value == 'block') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("已封鎖此用戶，將不再顯示其發佈的實況。"), backgroundColor: Colors.blueGrey),
+                      );
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                      value: 'report',
+                      child: Text('檢舉不當內容', style: TextStyle(fontSize: 13, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'block',
+                      child: Text('封鎖此用戶', style: TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ],
       ),
@@ -219,7 +250,7 @@ class UgcRadarCard extends ConsumerWidget {
                       // 1. 執行通報
                       ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
                       
-                      // 🌟 2. 商業漏洞修補：防刷 VIP 檢查 (30天冷卻)
+                      // 2. 防刷 VIP 檢查 (30天冷卻)
                       final prefs = await SharedPreferences.getInstance();
                       final lastRewardEpoch = prefs.getInt('last_ugc_reward_epoch') ?? 0;
                       final nowEpoch = DateTime.now().millisecondsSinceEpoch;

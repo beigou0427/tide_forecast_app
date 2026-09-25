@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -7,6 +7,8 @@ import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/share_util.dart';
 import '../../premium/services/premium_service.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/services/fcm_service.dart';
 
 import 'tide_chart_sheet.dart';
 import 'widgets/station_drawer.dart';
@@ -23,11 +25,31 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+
+  @override
+  void initState() {
+    super.initState();
+    // 🌟 蘋果合規：延遲 3 秒後再請求推播權限，先讓用戶看見 App 首頁的價值
+    Future.delayed(const Duration(seconds: 3), () async {
+      try {
+        await NotificationService.init();
+        await FcmService.init();
+      } catch (e) {
+        debugPrint("推播服務延遲初始化失敗: $e");
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.listen<String?>(nearestStationIdProvider, (previous, next) {
       if (next != null && previous == null) {
         ref.read(currentStationIdProvider.notifier).state = next;
@@ -55,12 +77,10 @@ class HomePage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       drawer: StationDrawer(currentId: currentId),
-      // 🌟 加入 RefreshIndicator 實作下拉更新機制
       body: RefreshIndicator(
         color: const Color(0xFF0077B6),
         backgroundColor: Colors.white,
         onRefresh: () async {
-          // 強制廢棄並重新抓取雲端資料，以提供流暢直覺的即時體驗
           return await ref.refresh(tideViewDataProvider.future);
         },
         child: CustomScrollView(
@@ -123,12 +143,10 @@ class HomePage extends ConsumerWidget {
                     ? station.observations
                     : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
-                // 非預報模式且該日實測為空時安全返回
                 if (!isFuture && dayObservations.isEmpty) {
                   return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
                 }
 
-                // 🌟 徹底消滅 Bad state: No element！安全提取最新實測（永不在空陣列調用 .last）
                 final Observation? activeObservation = dayObservations.isNotEmpty
                     ? dayObservations.last
                     : (station.observations.isNotEmpty ? station.observations.last : null);
@@ -221,36 +239,21 @@ class HomePage extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF021B33),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-              ),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              SingleChildScrollView(
-                child: ShareableReportCard(
-                  boundaryKey: reportKey,
-                  station: station,
-                ),
-              ),
+              SingleChildScrollView(child: ShareableReportCard(boundaryKey: reportKey, station: station)),
               const SizedBox(height: 20),
               SizedBox(
-                width: double.infinity,
-                height: 48,
+                width: double.infinity, height: 48,
                 child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00B4D8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B4D8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   icon: const Icon(Icons.send_rounded, color: Colors.black87),
                   label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 15)),
                   onPressed: () async {
@@ -273,18 +276,10 @@ class HomePage extends ConsumerWidget {
         onTap: () => Scaffold.of(context).openDrawer(),
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-          ),
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.4))),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.map_outlined, color: Colors.white, size: 16),
-              SizedBox(width: 4),
-              Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-            ],
+            children: [Icon(Icons.map_outlined, color: Colors.white, size: 16), SizedBox(width: 4), Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))],
           ),
         ),
       ),
@@ -294,16 +289,7 @@ class HomePage extends ConsumerWidget {
   Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withValues(alpha: 0.9)));
 
   Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
-    if (forecasts.isEmpty) {
-      return const CustomCard(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text("該日期暫無潮位轉向紀錄", style: TextStyle(color: Colors.grey)),
-          ),
-        ),
-      );
-    }
+    if (forecasts.isEmpty) return const CustomCard(child: Center(child: Padding(padding: EdgeInsets.all(12.0), child: Text("該日期暫無潮位轉向紀錄", style: TextStyle(color: Colors.grey)))));
     return CustomCard(
       child: Column(
         children: forecasts.map((f) {
@@ -325,15 +311,7 @@ class HomePage extends ConsumerWidget {
         children: [
           const Icon(Icons.info_outline, color: Colors.blueGrey),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-          ),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12))])),
         ],
       ),
     );
@@ -392,10 +370,7 @@ class HomePage extends ConsumerWidget {
         const SizedBox(height: 8),
         Text("氣象署實測資料僅即時保留近 48 小時\n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, height: 1.4)),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
-          child: const Text("返回今日觀測"),
-        ),
+        ElevatedButton(onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(), child: const Text("返回今日觀測")),
       ],
     );
   }

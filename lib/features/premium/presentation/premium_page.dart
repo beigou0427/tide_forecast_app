@@ -55,21 +55,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
   Future<void> _handlePurchase() async {
     String targetProductId;
-    SubscriptionType fallbackType;
 
     switch (_selectedTier) {
       case 0:
         targetProductId = AppConstants.iapProMonthly;
-        fallbackType = SubscriptionType.monthly;
         break;
       case 2:
         targetProductId = AppConstants.iapProLifetime;
-        fallbackType = SubscriptionType.lifetime;
         break;
       case 1:
       default:
         targetProductId = AppConstants.iapProYearly;
-        fallbackType = SubscriptionType.yearly;
         break;
     }
 
@@ -86,17 +82,15 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     if (matchedProduct != null) {
       await ref.read(iapManagerProvider).buySubscription(matchedProduct);
     } else {
-      debugPrint("⚠️ 尚未抓取到 StoreKit 商品，執行沙盒保底模擬流程 ($targetProductId)");
-      await ref.read(premiumProvider.notifier).setPremiumStatus(true, fallbackType);
+      // 🚨 蘋果合規排雷 1/3：徹底拔除測試沙盒後門，找不到商品嚴禁白送 VIP！
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("🎉 成功啟動 Pro 會員權限（沙盒/展示模式）"),
-            backgroundColor: Colors.teal,
-            duration: Duration(seconds: 2),
+            content: Text("❌ 無法連接 App Store 或商品尚未生效，請稍後再試"),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 3),
           ),
         );
-        _closePaywall();
       }
     }
   }
@@ -208,7 +202,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
                     const SizedBox(height: 24),
 
-                    // 🌟 Apple Guideline 3.1.2 嚴格合規聲明區塊
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -274,7 +267,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          // 🌟 按鈕文案依據是否包含 7 天免費試用作切換，蘋果審查最愛看這個
                           _selectedTier == 2 
                               ? "搶購終身創始席次 (NT$ 2,990)" 
                               : "開啟 7 天免費試用",
