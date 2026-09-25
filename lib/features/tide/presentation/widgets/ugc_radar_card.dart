@@ -23,7 +23,6 @@ class UgcRadarCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ugcReportProvider);
-    // 🌟 若無真人回報，自動由 AI 巡航哨兵依實況波高風速補位，絕不留白
     final stationReports = ref.read(ugcReportProvider.notifier).getReportsForStation(
       stationId,
       waveHeight: waveHeight,
@@ -159,31 +158,20 @@ class UgcRadarCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              // 🚨 蘋果合規排雷 2/3：UGC 檢舉與封鎖機制 (僅限真人通報顯示)
               if (!isAiSentinel)
                 PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade400),
                   padding: EdgeInsets.zero,
                   onSelected: (value) {
                     if (value == 'report') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("已收到您的檢舉，審核團隊將於 24 小時內處理。"), backgroundColor: Colors.blueGrey),
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已收到您的檢舉，審核團隊將於 24 小時內處理。"), backgroundColor: Colors.blueGrey));
                     } else if (value == 'block') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("已封鎖此用戶，將不再顯示其發佈的實況。"), backgroundColor: Colors.blueGrey),
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已封鎖此用戶，將不再顯示其發佈的實況。"), backgroundColor: Colors.blueGrey));
                     }
                   },
                   itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(
-                      value: 'report',
-                      child: Text('檢舉不當內容', style: TextStyle(fontSize: 13, color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                    ),
-                    const PopupMenuItem<String>(
-                      value: 'block',
-                      child: Text('封鎖此用戶', style: TextStyle(fontSize: 13)),
-                    ),
+                    const PopupMenuItem<String>(value: 'report', child: Text('檢舉不當內容', style: TextStyle(fontSize: 13, color: Colors.redAccent, fontWeight: FontWeight.bold))),
+                    const PopupMenuItem<String>(value: 'block', child: Text('封鎖此用戶', style: TextStyle(fontSize: 13))),
                   ],
                 ),
             ],
@@ -210,7 +198,7 @@ class UgcRadarCard extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
 
-              // 🌟 利益激勵誘餌
+              // 🌟 A 輪重構：不再破壞訂閱制，改為發放虛擬資產 (老船長幣)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -220,11 +208,11 @@ class UgcRadarCard extends ConsumerWidget {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.workspace_premium_rounded, color: Colors.amber, size: 18),
+                    Icon(Icons.monetization_on_rounded, color: Colors.amber, size: 18),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "🎁 實況互助獎勵：通報現場海況，每月可領取 1 次 Pro 體驗特權！",
+                        "🪙 實況互助獎勵：每日首次通報現場海況，即可獲得 5 枚「老船長幣」！",
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
                       ),
                     ),
@@ -250,26 +238,27 @@ class UgcRadarCard extends ConsumerWidget {
                       // 1. 執行通報
                       ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
                       
-                      // 2. 防刷 VIP 檢查 (30天冷卻)
+                      // 🌟 2. 代幣經濟防刷機制：24 小時冷卻期
                       final prefs = await SharedPreferences.getInstance();
-                      final lastRewardEpoch = prefs.getInt('last_ugc_reward_epoch') ?? 0;
+                      final lastRewardEpoch = prefs.getInt('last_coin_reward_epoch') ?? 0;
                       final nowEpoch = DateTime.now().millisecondsSinceEpoch;
-                      final bool canClaimReward = (nowEpoch - lastRewardEpoch) > const Duration(days: 30).inMilliseconds;
+                      final bool canClaimReward = (nowEpoch - lastRewardEpoch) > const Duration(hours: 24).inMilliseconds;
 
                       if (canClaimReward) {
-                        await prefs.setInt('last_ugc_reward_epoch', nowEpoch);
-                        await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
+                        await prefs.setInt('last_coin_reward_epoch', nowEpoch);
+                        await ref.read(premiumProvider.notifier).addCoins(5); // 發放 5 枚代幣
                       }
 
                       if (ctx.mounted) Navigator.pop(ctx);
 
                       if (context.mounted) {
+                        final currentCoins = ref.read(premiumProvider).coinBalance;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
                               canClaimReward 
-                                ? "🎉 感謝通報【${dummyItem.label}】！已為您啟動 Pro 旗艦特權以示感謝！"
-                                : "🙏 感謝通報【${dummyItem.label}】！您的無私分享幫助了全台釣友！(本月已領取過獎勵)"
+                                ? "🎉 感謝通報【${dummyItem.label}】！已獲得 5 枚老船長幣 (餘額: $currentCoins 幣)"
+                                : "🙏 感謝通報【${dummyItem.label}】！(今日已領取過代幣獎勵)"
                             ),
                             backgroundColor: canClaimReward ? Colors.deepOrange : const Color(0xFF0077B6),
                             duration: const Duration(seconds: 3),

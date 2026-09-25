@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'iap_manager.dart';
 
@@ -9,20 +9,31 @@ class PremiumState {
   final SubscriptionType type;
   final DateTime? expiryDate;
   final bool isFounder;
+  final int coinBalance; // 🌟 A 輪重構：引入老船長幣 (代幣經濟)
 
   PremiumState({
     required this.isPremium,
     this.type = SubscriptionType.none,
     this.expiryDate,
     this.isFounder = false,
+    this.coinBalance = 0,
   });
 
-  Map<String, dynamic> toJson() => {
-    'isPremium': isPremium,
-    'type': type.index,
-    'expiryDate': expiryDate?.toIso8601String(),
-    'isFounder': isFounder,
-  };
+  PremiumState copyWith({
+    bool? isPremium,
+    SubscriptionType? type,
+    DateTime? expiryDate,
+    bool? isFounder,
+    int? coinBalance,
+  }) {
+    return PremiumState(
+      isPremium: isPremium ?? this.isPremium,
+      type: type ?? this.type,
+      expiryDate: expiryDate ?? this.expiryDate,
+      isFounder: isFounder ?? this.isFounder,
+      coinBalance: coinBalance ?? this.coinBalance,
+    );
+  }
 }
 
 final premiumProvider = StateNotifierProvider<PremiumNotifier, PremiumState>((ref) {
@@ -68,7 +79,7 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
           await prefs.setBool('is_pro', false);
           await prefs.remove('expiry_date');
           await prefs.setInt('sub_type', SubscriptionType.none.index);
-          state = PremiumState(isPremium: false);
+          state = state.copyWith(isPremium: false);
           return;
         }
       }
@@ -77,6 +88,7 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       int typeIndex = prefs.getInt('sub_type') ?? 0;
       final expiryStr = prefs.getString('expiry_date');
       final isFounder = prefs.getBool('is_founder') ?? false;
+      final coins = prefs.getInt('captain_coins') ?? 0; // 🌟 讀取代幣餘額
 
       DateTime? expiryDate = expiryStr != null ? DateTime.tryParse(expiryStr) : null;
 
@@ -97,6 +109,7 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
         type: SubscriptionType.values[typeIndex < SubscriptionType.values.length ? typeIndex : 0],
         expiryDate: expiryDate,
         isFounder: isFounder,
+        coinBalance: coins,
       );
     } catch (e) {
       state = PremiumState(isPremium: false);
@@ -134,12 +147,31 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       await prefs.remove('expiry_date');
     }
 
-    state = PremiumState(
+    state = state.copyWith(
       isPremium: isPro,
       type: type,
       expiryDate: expiry,
-      isFounder: state.isFounder,
     );
+  }
+
+  // 🌟 新增：發行老船長幣 (Earn)
+  Future<void> addCoins(int amount) async {
+    final prefs = await SharedPreferences.getInstance();
+    final newBalance = state.coinBalance + amount;
+    await prefs.setInt('captain_coins', newBalance);
+    state = state.copyWith(coinBalance: newBalance);
+  }
+
+  // 🌟 新增：消費老船長幣 (Burn)
+  Future<bool> spendCoins(int amount) async {
+    if (state.coinBalance >= amount) {
+      final prefs = await SharedPreferences.getInstance();
+      final newBalance = state.coinBalance - amount;
+      await prefs.setInt('captain_coins', newBalance);
+      state = state.copyWith(coinBalance: newBalance);
+      return true;
+    }
+    return false;
   }
 
   Future<void> cancelSubscription() async {
@@ -148,6 +180,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     await prefs.remove('is_pro');
     await prefs.remove('sub_type');
     await prefs.remove('expiry_date');
-    state = PremiumState(isPremium: false, type: SubscriptionType.none);
+    state = state.copyWith(isPremium: false, type: SubscriptionType.none);
   }
 }
