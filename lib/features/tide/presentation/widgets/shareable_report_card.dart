@@ -20,7 +20,7 @@ class ShareableReportCard extends ConsumerWidget {
     final obs = station.observations.isNotEmpty ? station.observations.last : null;
     final nowStr = DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now());
     
-    // 🌟 讀取 VVIP 會員身分，打造群組炫耀資本
+    // 🌟 讀取 VVIP 會員身分
     final premium = ref.watch(premiumProvider);
     final bool isVvip = premium.isFounder || premium.type == SubscriptionType.yearly;
 
@@ -60,7 +60,6 @@ class ShareableReportCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 頂部列：如果是 VVIP，顯示霸氣軍規風格
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -80,7 +79,7 @@ class ShareableReportCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      isVvip ? "TIDE PRO 旗艦作戰情報" : "TIDE PRO 老船長海象情報",
+                      isVvip ? "潮汐表 PRO 旗艦作戰情報" : "潮汐表 PRO 老船長海象情報", // 🌟 抬頭對齊潮汐表品牌
                       style: TextStyle(
                         color: isVvip ? Colors.amberAccent : Colors.white, 
                         fontWeight: FontWeight.w900, 
@@ -97,7 +96,6 @@ class ShareableReportCard extends ConsumerWidget {
               ],
             ),
 
-            // 🌟 VVIP 專屬尊榮身分水印條 (在 LINE 群組一貼出來就震撼全場)
             if (isVvip) ...[
               const SizedBox(height: 10),
               Container(
@@ -210,7 +208,8 @@ class ShareableReportCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text("出海作釣、潛水必備決策工具", style: TextStyle(color: Colors.white60, fontSize: 10)),
-                    Text("App Store 搜尋: Tide Pro", style: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 9)),
+                    // 🌟 核心對齊：精準引流至 App Store 既有「潮汐表」大詞
+                    Text("App Store 搜尋：「潮汐表」", style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 Container(

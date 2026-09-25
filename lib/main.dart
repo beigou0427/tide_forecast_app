@@ -7,14 +7,11 @@ import 'firebase_options.dart';
 import 'features/tide/presentation/home_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'core/services/analytics_service.dart';
-import 'core/services/notification_service.dart';
-import 'core/services/fcm_service.dart';
 import 'core/services/global_error_trap.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🌟 真實全域崩潰與渲染異常看門狗
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     GlobalErrorTrap.record("${details.exception}");
@@ -25,18 +22,6 @@ void main() async {
     await AnalyticsService.init();
   } catch (e) {
     debugPrint("Firebase 初始化失敗: $e");
-  }
-
-  try {
-    await NotificationService.init();
-  } catch (e) {
-    debugPrint("本地推播服務初始化失敗: $e");
-  }
-
-  try {
-    await FcmService.init();
-  } catch (e) {
-    debugPrint("FCM 雲端推播初始化失敗: $e");
   }
 
   final prefs = await SharedPreferences.getInstance();
@@ -57,7 +42,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Tide Pro 潮汐海象',
+      title: '潮汐表 Pro', // 🌟 對齊 App Store 自然搜尋霸主名稱
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

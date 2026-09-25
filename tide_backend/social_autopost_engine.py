@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import glob
 from datetime import datetime, timezone, timedelta
@@ -79,7 +79,7 @@ def run_social_engine():
 
     now_str = datetime.now(TZ_TAIWAN).strftime("%Y年%m月%d日")
     
-    # 🌟 生成 Threads / IG / LINE 專用的爆發型格式文案
+    # 🌟 生成 Threads / IG / LINE 專用的爆發型格式文案 (精準對齊 App Store「潮汐表」黃金大詞)
     post_content = f"""🌊【老船長每日水文快報】{now_str} 全台 Top 3 爆咬黃金釣況排行榜出爐！
 
 各位釣友與浪人師兄早！
@@ -103,9 +103,9 @@ def run_social_engine():
 
 ⚠️ 【安全提醒】：出海作釣請穿著合格防滑釘鞋與救生衣，嚴防外礁瘋狗浪！
 📲 欲查全台 85 測站實時 0 延遲湧浪、30 天潮位回測與 Waze 實況雷達：
-👉 請在 App Store 搜尋：「Tide Pro 潮汐海象」
+👉 請在 App Store 搜尋：「潮汐表」或「潮汐表 Pro」
 
-#釣魚 #磯釣 #海釣 #潮汐 #浪高 #路亞 #老船長 #TidePro #出海決策
+#潮汐表 #釣魚 #磯釣 #海釣 #潮汐 #浪高 #路亞 #老船長 #潮汐表Pro #出海決策
 """
 
     output_txt = os.path.join(deploy_dir, "daily_social_blast.txt")
@@ -117,7 +117,7 @@ def run_social_engine():
     print("=" * 65)
     print(post_content)
     print("=" * 65)
-    print(f"✅ 已同步保存至：{output_txt}，每天發布至 Threads / FB 群組即可自動引流！")
+    print(f"✅ 已同步保存至：{output_txt}，每天發布至 Threads / FB 群組即可精準承接自然流量！")
 
 if __name__ == "__main__":
     run_social_engine()
