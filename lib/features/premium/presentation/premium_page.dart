@@ -17,7 +17,8 @@ class PremiumPage extends ConsumerStatefulWidget {
 }
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
-  int _selectedTier = 1; // 預設主推「年度方案」
+  // 🌟 預設選中具備 7 天免費試用的主力方案「年度指揮官 (Index 2)」
+  int _selectedTier = 2; 
   List<ProductDetails> _storeProducts = [];
 
   final String _legalUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
@@ -58,12 +59,15 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
     switch (_selectedTier) {
       case 0:
-        targetProductId = AppConstants.iapProMonthly;
-        break;
-      case 2:
-        targetProductId = AppConstants.iapProLifetime;
+        targetProductId = AppConstants.iapProWeekly;
         break;
       case 1:
+        targetProductId = AppConstants.iapProMonthly;
+        break;
+      case 3:
+        targetProductId = AppConstants.iapProLifetime;
+        break;
+      case 2:
       default:
         targetProductId = AppConstants.iapProYearly;
         break;
@@ -82,7 +86,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     if (matchedProduct != null) {
       await ref.read(iapManagerProvider).buySubscription(matchedProduct);
     } else {
-      // 🚨 蘋果合規排雷 1/3：徹底拔除測試沙盒後門，找不到商品嚴禁白送 VIP！
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -165,43 +168,60 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       _buildUnlockedCard(premiumState),
                       const SizedBox(height: 24),
                     ] else ...[
+                      // 🌟 1. 週費方案：NT$ 30 / 週 (衝動出海散客)
                       _buildTierCard(
                         index: 0,
-                        title: "月度航海員",
-                        price: "NT\$ 150",
-                        unit: " / 月",
-                        subDesc: "首 7 日免費體驗，隨時可取消",
-                        badge: "7天免費試用",
+                        title: "週費衝刺版",
+                        price: "NT\$ 30",
+                        unit: " / 週",
+                        subDesc: "週末衝刺必備，換算年費需 NT\$ 1,560",
+                        badge: "週末散客",
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+
+                      // 🌟 2. 月費方案：NT$ 60 / 月 (精準對齊 App Store 現有文案)
                       _buildTierCard(
                         index: 1,
-                        title: "年度指揮官計畫",
-                        price: "NT\$ 990",
-                        unit: " / 年",
-                        subDesc: "每月僅約 NT\$ 82，現省 45%",
-                        badge: "🔥 首 7 日免費",
-                        isHighlight: true,
+                        title: "月度專業版",
+                        price: "NT\$ 60",
+                        unit: " / 月",
+                        subDesc: "季節釣汛首選，換算年費需 NT\$ 720",
+                        badge: "釣汛首選",
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+
+                      // 🌟 3. 年費方案：NT$ 550 / 年 (主力推薦，對齊商店文案＋7 天免費試用)
                       _buildTierCard(
                         index: 2,
+                        title: "年度指揮官計畫",
+                        price: "NT\$ 550",
+                        unit: " / 年",
+                        subDesc: "每月僅約 NT\$ 45，現省 25%",
+                        badge: "🔥 7天免費試用",
+                        isHighlight: true,
+                      ),
+                      const SizedBox(height: 10),
+
+                      // 🌟 4. 終身方案：NT$ 1,490 / 永久 (核心硬核粉絲專屬)
+                      _buildTierCard(
+                        index: 3,
                         title: "終身買斷席次",
-                        price: "NT\$ 2,990",
+                        price: "NT\$ 1,490",
                         unit: " / 永久",
-                        subDesc: "一次付費，終身享受全功能升級",
+                        subDesc: "一次付費，終身享受全功能更新",
                         badge: "⚡ 限量席位",
                         isGold: true,
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                     ],
 
                     _buildFeatureRow(Icons.bolt, "VIP 氣象署即時直連專線 (0 延遲刷新)"),
                     _buildFeatureRow(Icons.auto_awesome, "Gemini Flash-Lite 老船長綜合海象推理"),
                     _buildFeatureRow(Icons.history_toggle_off, "30 天完整風浪水溫回測與未來遠期預報"),
                     _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
+                    // 🌟 Apple Guideline 3.1.2 嚴格合規宣告 (完全吻合商店說明文字)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -209,7 +229,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        "【訂閱與免費試用須知】\n我們提供 7 天免費試用期（僅限年度與月度方案）。付款將在確認購買或試用期結束時，由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
+                        "【訂閱與免費試用須知】\n我們為「年度指揮官計畫」提供 7 天免費試用期。確認購買或試用期結束時，費用將由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或 7 天試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10, height: 1.4),
                       ),
                     ),
@@ -259,17 +279,26 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     child: ElevatedButton(
                       onPressed: _handlePurchase,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedTier == 2 ? Colors.amberAccent : const Color(0xFF00B4D8),
-                        foregroundColor: _selectedTier == 2 ? Colors.black87 : Colors.white,
+                        backgroundColor: _selectedTier == 3 
+                            ? Colors.amberAccent 
+                            : (_selectedTier == 2 ? const Color(0xFF00B4D8) : Colors.white12),
+                        foregroundColor: _selectedTier == 3 
+                            ? Colors.black87 
+                            : Colors.white,
                         elevation: 4,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
+                          // 🌟 按鈕文案依選取項目動態切換
                           _selectedTier == 2 
-                              ? "搶購終身創始席次 (NT\$ 2,990)" // 🌟 精準修復跳脫字元
-                              : "開啟 7 天免費試用",
+                              ? "開啟 7 天免費試用 (年費 NT\$ 550)"
+                              : (_selectedTier == 3 
+                                  ? "搶購終身創始席次 (NT\$ 1,490)" 
+                                  : (_selectedTier == 1 
+                                      ? "立即訂閱月度版 (NT\$ 60 / 月)" 
+                                      : "開啟週度體驗 (NT\$ 30 / 週)")),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -307,22 +336,22 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
     return InkWell(
       onTap: () => setState(() => _selectedTier = index),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected ? (isGold ? Colors.amber.withValues(alpha: 0.12) : const Color(0xFF00B4D8).withValues(alpha: 0.1)) : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: isSelected ? 2.2 : 1.0),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: isSelected ? 2.0 : 1.0),
         ),
         child: Row(
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
               color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38,
-              size: 20,
+              size: 18,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,32 +359,32 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                   Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
                     spacing: 6,
-                    runSpacing: 4,
+                    runSpacing: 2,
                     children: [
-                      Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                      Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
                       if (badge != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
                             color: isGold ? Colors.amber : const Color(0xFF00B4D8),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(badge, style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+                          child: Text(badge, style: const TextStyle(color: Colors.black, fontSize: 8.5, fontWeight: FontWeight.w900)),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(subDesc, style: TextStyle(color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38, fontSize: 11, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text(subDesc, style: TextStyle(color: isSelected ? (isGold ? Colors.amberAccent : const Color(0xFF00B4D8)) : Colors.white38, fontSize: 10.5, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(price, style: TextStyle(color: isGold ? Colors.amberAccent : Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                Text(unit, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                Text(price, style: TextStyle(color: isGold ? Colors.amberAccent : Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                Text(unit, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10)),
               ],
             ),
           ],
@@ -407,13 +436,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
   Widget _buildFeatureRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 5.0),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF00B4D8), size: 18),
-          const SizedBox(width: 12),
+          Icon(icon, color: const Color(0xFF00B4D8), size: 17),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w500)),
           ),
         ],
       ),
