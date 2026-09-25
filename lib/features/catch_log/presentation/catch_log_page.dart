@@ -190,9 +190,7 @@ class CatchLogPage extends ConsumerWidget {
           builder: (context, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
+                left: 20, right: 20, top: 20,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
@@ -226,11 +224,7 @@ class CatchLogPage extends ConsumerWidget {
                             top: 8, right: 8,
                             child: InkWell(
                               onTap: () => setModalState(() => selectedImage = null),
-                              child: const CircleAvatar(
-                                backgroundColor: Colors.black54,
-                                radius: 14,
-                                child: Icon(Icons.close, size: 16, color: Colors.white),
-                              ),
+                              child: const CircleAvatar(backgroundColor: Colors.black54, radius: 14, child: Icon(Icons.close, size: 16, color: Colors.white)),
                             )
                           )
                         ],
@@ -246,7 +240,13 @@ class CatchLogPage extends ConsumerWidget {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () async {
-                                final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+                                // 🌟 硬核優化：強制限制長寬與畫質，10MB 照片秒變 200KB，徹底杜絕 OOM 閃退！
+                                final img = await picker.pickImage(
+                                  source: ImageSource.camera, 
+                                  imageQuality: 60,
+                                  maxWidth: 1200,
+                                  maxHeight: 1200,
+                                );
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
                               icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF0077B6)),
@@ -262,7 +262,13 @@ class CatchLogPage extends ConsumerWidget {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () async {
-                                final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+                                // 🌟 硬核優化：強制壓縮
+                                final img = await picker.pickImage(
+                                  source: ImageSource.gallery, 
+                                  imageQuality: 60,
+                                  maxWidth: 1200,
+                                  maxHeight: 1200,
+                                );
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
                               icon: const Icon(Icons.photo_library_rounded, color: Color(0xFF0077B6)),

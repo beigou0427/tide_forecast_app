@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../services/premium_service.dart';
@@ -20,6 +20,9 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     final String memberId = "CAPT-2026-${(state.expiryDate?.millisecondsSinceEpoch ?? 88888).toString().substring(5, 9)}";
     final String title = state.isFounder ? "創始天尊指揮官" : (state.type == SubscriptionType.yearly ? "年度首席領航員" : "尊榮專業會員");
     final String expiryText = state.isFounder ? "終身永久享有最高特權" : "特權有效期至：${state.expiryDate != null ? DateFormat('yyyy/MM/dd').format(state.expiryDate!) : '有效'}";
+    
+    // 取得當前餘額
+    final int coins = state.coinBalance;
 
     return Scaffold(
       backgroundColor: const Color(0xFF020E1C),
@@ -33,7 +36,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
         child: Column(
           children: [
-            // 🌟 1. 尊榮黑金金屬身分銘牌 (支援直接截圖分享至 LINE)
+            // 🌟 1. 尊榮黑金金屬身分銘牌
             RepaintBoundary(
               key: _vipCardKey,
               child: Container(
@@ -143,7 +146,23 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 32),
 
-            // 🌟 2. 給予極致科技掌控感的特權儀表板
+            // 🌟 2. 虛擬資產與特權金庫 (代幣經濟展示)
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet_rounded, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  "虛擬資產與特權金庫",
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _buildCoinWallet(context, coins),
+
+            const SizedBox(height: 32),
+
+            // 🌟 3. 硬核專線儀表板
             Row(
               children: [
                 const Icon(Icons.shield_rounded, color: Color(0xFF00B4D8), size: 18),
@@ -189,6 +208,67 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // 🌟 建構老船長幣錢包 UI
+  Widget _buildCoinWallet(BuildContext context, int coins) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.monetization_on_rounded, color: Colors.amber, size: 32),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("老船長幣 (Captain Coins)", style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text("$coins", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                    const SizedBox(width: 4),
+                    const Text("枚", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black87,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("🛠️ 特約釣具店折扣與高階測站單次解鎖功能，將於下個版本開放兌換！"),
+                  backgroundColor: Color(0xFF0077B6),
+                ),
+              );
+            },
+            child: const Text("兌換中心", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+          )
+        ],
       ),
     );
   }
