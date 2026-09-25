@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/ugc_report_model.dart';
 import '../../providers/ugc_provider.dart';
 import '../../../premium/services/premium_service.dart';
@@ -178,7 +179,7 @@ class UgcRadarCard extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
 
-              // 🌟 利益激勵誘餌：回報即送 Pro 會員體驗
+              // 🌟 利益激勵誘餌
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -192,7 +193,7 @@ class UgcRadarCard extends ConsumerWidget {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "🎁 實況互助獎勵：通報 1 次現場海況，免費啟動 Pro 旗艦特權！",
+                        "🎁 實況互助獎勵：通報現場海況，每月可領取 1 次 Pro 體驗特權！",
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
                       ),
                     ),
@@ -215,16 +216,31 @@ class UgcRadarCard extends ConsumerWidget {
                   final dummyItem = UgcReportItem(id: '', stationId: '', timestamp: DateTime.now(), type: type);
                   return InkWell(
                     onTap: () async {
+                      // 1. 執行通報
                       ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
-                      // 激勵回饋：通報後直接贈送 Pro 體驗
-                      await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
+                      
+                      // 🌟 2. 商業漏洞修補：防刷 VIP 檢查 (30天冷卻)
+                      final prefs = await SharedPreferences.getInstance();
+                      final lastRewardEpoch = prefs.getInt('last_ugc_reward_epoch') ?? 0;
+                      final nowEpoch = DateTime.now().millisecondsSinceEpoch;
+                      final bool canClaimReward = (nowEpoch - lastRewardEpoch) > const Duration(days: 30).inMilliseconds;
+
+                      if (canClaimReward) {
+                        await prefs.setInt('last_ugc_reward_epoch', nowEpoch);
+                        await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
+                      }
+
                       if (ctx.mounted) Navigator.pop(ctx);
 
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text("🎉 感謝通報【${dummyItem.label}】！已為您啟動 Pro 旗艦特權以示感謝！"),
-                            backgroundColor: Colors.deepOrange,
+                            content: Text(
+                              canClaimReward 
+                                ? "🎉 感謝通報【${dummyItem.label}】！已為您啟動 Pro 旗艦特權以示感謝！"
+                                : "🙏 感謝通報【${dummyItem.label}】！您的無私分享幫助了全台釣友！(本月已領取過獎勵)"
+                            ),
+                            backgroundColor: canClaimReward ? Colors.deepOrange : const Color(0xFF0077B6),
                             duration: const Duration(seconds: 3),
                             behavior: SnackBarBehavior.floating,
                           ),

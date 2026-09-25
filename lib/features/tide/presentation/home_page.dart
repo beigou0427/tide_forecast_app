@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -55,144 +55,153 @@ class HomePage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       drawer: StationDrawer(currentId: currentId),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 185,
-            backgroundColor: modeColor,
-            elevation: 0,
-            leadingWidth: 100,
-            leading: Builder(builder: (context) => _buildRegionButton(context)),
-            centerTitle: true,
-            title: Text(
-              isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+      // 🌟 加入 RefreshIndicator 實作下拉更新機制
+      body: RefreshIndicator(
+        color: const Color(0xFF0077B6),
+        backgroundColor: Colors.white,
+        onRefresh: () async {
+          // 強制廢棄並重新抓取雲端資料，以提供流暢直覺的即時體驗
+          return await ref.refresh(tideViewDataProvider.future);
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 185,
+              backgroundColor: modeColor,
+              elevation: 0,
+              leadingWidth: 100,
+              leading: Builder(builder: (context) => _buildRegionButton(context)),
+              centerTitle: true,
+              title: Text(
+                isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.share_rounded, color: Colors.white),
+                  tooltip: "產出海象戰報分享",
+                  onPressed: tideViewAsync.value == null
+                      ? null
+                      : () => _showShareModal(context, tideViewAsync.value!.stationData),
+                ),
+                IconButton(
+                  icon: Icon(isFavorited ? Icons.star : Icons.star_border, color: isFavorited ? Colors.amberAccent : Colors.white),
+                  onPressed: () async {
+                    await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
+                    ref.invalidate(favoriteStationsProvider);
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.calendar_month, color: premiumState.isPremium ? Colors.amberAccent : Colors.white),
+                  onPressed: () => _openCalendar(context, ref),
+                )
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    DateRibbon(selectedDate: selectedDate, themeColor: modeColor),
+                    const SizedBox(height: 15),
+                  ],
+                ),
+              ),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share_rounded, color: Colors.white),
-                tooltip: "產出海象戰報分享",
-                onPressed: tideViewAsync.value == null
-                    ? null
-                    : () => _showShareModal(context, tideViewAsync.value!.stationData),
-              ),
-              IconButton(
-                icon: Icon(isFavorited ? Icons.star : Icons.star_border, color: isFavorited ? Colors.amberAccent : Colors.white),
-                onPressed: () async {
-                  await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
-                  ref.invalidate(favoriteStationsProvider);
-                },
-              ),
-              IconButton(
-                icon: Icon(Icons.calendar_month, color: premiumState.isPremium ? Colors.amberAccent : Colors.white),
-                onPressed: () => _openCalendar(context, ref),
-              )
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  DateRibbon(selectedDate: selectedDate, themeColor: modeColor),
-                  const SizedBox(height: 15),
-                ],
-              ),
-            ),
-          ),
 
-          tideViewAsync.when(
-            loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF0077B6)))),
-            error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
-            data: (viewData) {
-              final station = viewData.stationData;
-              final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
+            tideViewAsync.when(
+              loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF0077B6)))),
+              error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
+              data: (viewData) {
+                final station = viewData.stationData;
+                final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
 
-              final dayForecasts = station.forecasts.where((f) =>
-                  DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
+                final dayForecasts = station.forecasts.where((f) =>
+                    DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
 
-              final dayObservations = isToday
-                  ? station.observations
-                  : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
+                final dayObservations = isToday
+                    ? station.observations
+                    : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
-              // 非預報模式且該日實測為空時安全返回
-              if (!isFuture && dayObservations.isEmpty) {
-                return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
-              }
+                // 非預報模式且該日實測為空時安全返回
+                if (!isFuture && dayObservations.isEmpty) {
+                  return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
+                }
 
-              // 🌟 徹底消滅 Bad state: No element！安全提取最新實測（永不在空陣列調用 .last）
-              final Observation? activeObservation = dayObservations.isNotEmpty
-                  ? dayObservations.last
-                  : (station.observations.isNotEmpty ? station.observations.last : null);
+                // 🌟 徹底消滅 Bad state: No element！安全提取最新實測（永不在空陣列調用 .last）
+                final Observation? activeObservation = dayObservations.isNotEmpty
+                    ? dayObservations.last
+                    : (station.observations.isNotEmpty ? station.observations.last : null);
 
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    if (isToday) ...[
-                      SeaBriefingCard(station: station, distance: viewData.distanceKm),
-                      const SizedBox(height: 24),
-                    ],
-                    StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
-                    const SizedBox(height: 16),
-                    
-                    if (isToday) ...[
-                      UgcRadarCard(
-                        stationId: currentId,
-                        stationName: station.info.stationName,
-                        waveHeight: activeObservation?.waveHeight,
-                        windSpeed: activeObservation?.windSpeed,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    SolunarCard(selectedDate: selectedDate),
-                    const SizedBox(height: 20),
-
-                    if (isFuture) ...[
-                      _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", modeColor),
-                      const SizedBox(height: 12),
-                      _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
-                      const SizedBox(height: 20),
-                      _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署模型完成推算。"),
-                    ] else if (activeObservation != null) ...[
-                      HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
-                      const SizedBox(height: 16),
-                      SafetyAlert(current: activeObservation),
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (isToday) ...[
+                        SeaBriefingCard(station: station, distance: viewData.distanceKm),
+                        const SizedBox(height: 24),
+                      ],
+                      StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                       const SizedBox(height: 16),
                       
-                      WindCompassCard(current: activeObservation),
+                      if (isToday) ...[
+                        UgcRadarCard(
+                          stationId: currentId,
+                          stationName: station.info.stationName,
+                          waveHeight: activeObservation?.waveHeight,
+                          windSpeed: activeObservation?.windSpeed,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
-                      if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        _sectionTitle(isToday ? "⏱️ 今日滿乾潮預測" : "⏱️ 當日滿乾潮預測", modeColor),
+                      SolunarCard(selectedDate: selectedDate),
+                      const SizedBox(height: 20),
+
+                      if (isFuture) ...[
+                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", modeColor),
                         const SizedBox(height: 12),
                         _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
+                        const SizedBox(height: 20),
+                        _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署模型完成推算。"),
+                      ] else if (activeObservation != null) ...[
+                        HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
+                        const SizedBox(height: 16),
+                        SafetyAlert(current: activeObservation),
+                        const SizedBox(height: 16),
+                        
+                        WindCompassCard(current: activeObservation),
+
+                        if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          _sectionTitle(isToday ? "⏱️ 今日滿乾潮預測" : "⏱️ 當日滿乾潮預測", modeColor),
+                          const SizedBox(height: 12),
+                          _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
+                        ],
+                        const SizedBox(height: 24),
+                        _sectionTitle(isToday ? "🌊 24h 走勢監控" : "🗓️ ${DateFormat('MM/dd').format(selectedDate)} 歷史走勢圖", modeColor),
+                        const SizedBox(height: 12),
+                        CustomCard(child: TideChartSheet(observations: dayObservations)),
+                        const SizedBox(height: 24),
+                        _sectionTitle("📋 ${isToday ? '詳細觀測參數' : '歷史時空記錄參數'}", modeColor),
+                        const SizedBox(height: 12),
+                        MetricGrid(current: activeObservation),
                       ],
                       const SizedBox(height: 24),
-                      _sectionTitle(isToday ? "🌊 24h 走勢監控" : "🗓️ ${DateFormat('MM/dd').format(selectedDate)} 歷史走勢圖", modeColor),
-                      const SizedBox(height: 12),
-                      CustomCard(child: TideChartSheet(observations: dayObservations)),
+
+                      LocalMerchantCard(
+                        stationName: station.info.stationName,
+                        region: currentStation.region,
+                      ),
                       const SizedBox(height: 24),
-                      _sectionTitle("📋 ${isToday ? '詳細觀測參數' : '歷史時空記錄參數'}", modeColor),
-                      const SizedBox(height: 12),
-                      MetricGrid(current: activeObservation),
-                    ],
-                    const SizedBox(height: 24),
 
-                    LocalMerchantCard(
-                      stationName: station.info.stationName,
-                      region: currentStation.region,
-                    ),
-                    const SizedBox(height: 24),
-
-                    _buildFooter(station.info.addressDescription),
-                  ]),
-                ),
-              );
-            },
-          ),
-        ],
+                      _buildFooter(station.info.addressDescription),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
       floatingActionButton: !isToday
           ? FloatingActionButton.extended(
@@ -239,8 +248,8 @@ class HomePage extends ConsumerWidget {
                 height: 48,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B4D8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: const Color(0xFF00B4D8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.send_rounded, color: Colors.black87),
                   label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 15)),

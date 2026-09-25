@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/tide_model.dart';
 import '../domain/tide_repository.dart';
 import '../data/tide_repository_impl.dart';
@@ -44,7 +45,57 @@ final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   return AppConstants.fallbackStations;
 });
 
-final currentStationIdProvider = StateProvider<String>((ref) => "C6AH2");
+// 🌟 升級修復：讀取 Onboarding 問卷偏好，並持久化記憶使用者的最後選擇
+class CurrentStationNotifier extends Notifier<String> {
+  @override
+  String build() {
+    _loadPreference();
+    return "C6AH2"; // 預設值，讀取完成後會自動更新
+  }
+
+  Future<void> _loadPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasInit = prefs.getBool('has_init_station') ?? false;
+      
+      if (!hasInit) {
+        // 第一次載入：套用使用者在 Onboarding 選擇的常去海域
+        final region = prefs.getString('user_pref_region') ?? '';
+        String targetId = "C6AH2"; // 預設北部
+        
+        if (region.contains('北')) targetId = "C6AH2"; // 富貴角
+        else if (region.contains('西')) targetId = "C4F01"; // 臺中港
+        else if (region.contains('南')) targetId = "C4P01"; // 高雄港
+        else if (region.contains('東')) targetId = "C4T01"; // 花蓮港
+        else if (region.contains('島')) targetId = "C4W02"; // 澎湖
+        
+        state = targetId;
+        await prefs.setBool('has_init_station', true);
+        await prefs.setString('last_station_id', targetId);
+      } else {
+        // 非首次載入：還原使用者上次關閉 App 前看的測站
+        final savedId = prefs.getString('last_station_id');
+        if (savedId != null) {
+          state = savedId;
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  set state(String value) {
+    super.state = value;
+    // 當 UI 觸發狀態改變時，同步寫入硬碟快取
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('last_station_id', value);
+    });
+  }
+}
+
+final currentStationIdProvider = NotifierProvider<CurrentStationNotifier, String>(() {
+  return CurrentStationNotifier();
+});
+
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
 final userLocationProvider = FutureProvider<Position?>((ref) async {

@@ -2,15 +2,13 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'iap_manager.dart';
 
-/// 1. 擴充訂閱類型 (新增週費犧牲打、終身買斷)
 enum SubscriptionType { none, weekly, monthly, yearly, lifetime }
 
-/// 2. Premium 狀態模型 (新增創始釣友標記)
 class PremiumState {
   final bool isPremium;
   final SubscriptionType type;
   final DateTime? expiryDate;
-  final bool isFounder; // 🌟 創始天使標記
+  final bool isFounder;
 
   PremiumState({
     required this.isPremium,
@@ -47,8 +45,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 🌟【創始天使防禦遷移邏輯】
-      // 檢查改版前原本已經是 is_pro 的老用戶，直接封頂為終身創始天使
       final bool alreadyMigrated = prefs.getBool('has_migrated_founder') ?? false;
       final bool oldIsPro = prefs.getBool('is_pro') ?? false;
 
@@ -60,15 +56,46 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
         await prefs.setBool('has_migrated_founder', true);
       }
 
-      final isPro = prefs.getBool('is_pro') ?? false;
-      final typeIndex = prefs.getInt('sub_type') ?? 0;
+      final now = DateTime.now();
+      String? installStr = prefs.getString('app_install_epoch');
+      if (installStr == null) {
+        installStr = now.toIso8601String();
+        await prefs.setString('app_install_epoch', installStr);
+      } else {
+        final installTime = DateTime.parse(installStr);
+        if (now.isBefore(installTime)) {
+          // 🚨 時光機防禦：系統時間回撥，強制封鎖
+          await prefs.setBool('is_pro', false);
+          await prefs.remove('expiry_date');
+          await prefs.setInt('sub_type', SubscriptionType.none.index);
+          state = PremiumState(isPremium: false);
+          return;
+        }
+      }
+
+      bool isPro = prefs.getBool('is_pro') ?? false;
+      int typeIndex = prefs.getInt('sub_type') ?? 0;
       final expiryStr = prefs.getString('expiry_date');
       final isFounder = prefs.getBool('is_founder') ?? false;
+
+      DateTime? expiryDate = expiryStr != null ? DateTime.tryParse(expiryStr) : null;
+
+      // 🚨 離線過期白嫖防禦：過期後徹底降級
+      if (isPro && !isFounder && expiryDate != null) {
+        if (now.isAfter(expiryDate)) {
+          isPro = false;
+          typeIndex = SubscriptionType.none.index;
+          expiryDate = null;
+          await prefs.setBool('is_pro', false);
+          await prefs.setInt('sub_type', typeIndex);
+          await prefs.remove('expiry_date');
+        }
+      }
 
       state = PremiumState(
         isPremium: isPro,
         type: SubscriptionType.values[typeIndex < SubscriptionType.values.length ? typeIndex : 0],
-        expiryDate: expiryStr != null ? DateTime.tryParse(expiryStr) : null,
+        expiryDate: expiryDate,
         isFounder: isFounder,
       );
     } catch (e) {
@@ -117,11 +144,10 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
 
   Future<void> cancelSubscription() async {
     final prefs = await SharedPreferences.getInstance();
-    // 創始天使不允許被撤銷
     if (state.isFounder) return;
-    
-    await prefs.clear();
+    await prefs.remove('is_pro');
+    await prefs.remove('sub_type');
+    await prefs.remove('expiry_date');
     state = PremiumState(isPremium: false, type: SubscriptionType.none);
   }
 }
-

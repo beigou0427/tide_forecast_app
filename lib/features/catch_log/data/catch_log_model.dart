@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 class CatchLogItem {
   final String id;
@@ -10,6 +10,7 @@ class CatchLogItem {
   final double? seaTemperature;
   final String notes;
   final int rating;
+  final String? imagePath;
 
   CatchLogItem({
     required this.id,
@@ -21,6 +22,7 @@ class CatchLogItem {
     this.seaTemperature,
     this.notes = "",
     this.rating = 5,
+    this.imagePath,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,6 +36,7 @@ class CatchLogItem {
       'seaTemperature': seaTemperature,
       'notes': notes,
       'rating': rating,
+      'imagePath': imagePath,
     };
   }
 
@@ -48,6 +51,7 @@ class CatchLogItem {
       seaTemperature: map['seaTemperature']?.toDouble(),
       notes: map['notes'] ?? '',
       rating: map['rating']?.toInt() ?? 5,
+      imagePath: map['imagePath'],
     );
   }
 
