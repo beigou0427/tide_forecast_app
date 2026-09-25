@@ -24,7 +24,13 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
       final now = DateTime.now();
       List<UgcReportItem> loaded = rawList
           .map((e) => UgcReportItem.fromJson(e))
-          .where((item) => now.difference(item.timestamp).inHours < 6)
+          .where((item) {
+            final diff = now.difference(item.timestamp);
+            // 🚨 死穴 4 修復：雙向時間圍欄 (Two-Way Temporal Fence)
+            // 1. 下界：diff.inMinutes >= -5，只允許最多 5 分鐘時鐘漂移，徹底消滅未來 2099 永生穿透！
+            // 2. 上界：diff.inMinutes <= 360，嚴格 6 小時整自動過期清除！
+            return diff.inMinutes >= -5 && diff.inMinutes <= 360;
+          })
           .toList();
 
       state = loaded..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -80,20 +86,19 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     return sentinelReports;
   }
 
-  // 🌟 情緒價值升級：讓 VVIP 的回報具備尊榮階級碾壓感
+  // 尊榮 VVIP 階級頭銜與自帶權威讚
   Future<void> reportCondition(String stationId, UgcConditionType type) async {
     final premium = ref.read(premiumProvider);
     
-    // 依據訂閱階級賦予專屬神級頭銜
     String customTag = "🔥 現場認證釣友";
     int initialUpvotes = 1;
 
     if (premium.isFounder) {
       customTag = "👑 創始天尊指揮官";
-      initialUpvotes = 8; // 創始人發言自帶 8 個認證讚
+      initialUpvotes = 8;
     } else if (premium.type == SubscriptionType.yearly) {
       customTag = "🔱 年度首席領航員";
-      initialUpvotes = 5; // 年度 VVIP 發言自帶 5 個認證讚
+      initialUpvotes = 5;
     } else if (premium.isPremium) {
       customTag = "⭐ VIP 專業航海家";
       initialUpvotes = 3;

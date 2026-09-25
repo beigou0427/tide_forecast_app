@@ -1,7 +1,8 @@
-﻿import requests
+import requests
 import json
 import os
 import time
+import re
 from datetime import datetime, timezone, timedelta
 
 # 🌟 引入 Gemini AI SDK
@@ -196,7 +197,6 @@ def analyze_safety_heuristic(sanitized_metrics, station_name=""):
     wave_h = sanitized_metrics.get("wave_height") or 0.8
     wind_s = sanitized_metrics.get("wind_speed") or 5.0
     
-    # 傳統演算法 (無 API Key 時的 Fallback)
     score = 88
     briefing = "海況平穩，風浪週期適中，全島多數近岸水域作業條件優良。"
     acts = ["浮游磯釣", "路亞遠投", "沿岸採集"]
@@ -206,34 +206,42 @@ def analyze_safety_heuristic(sanitized_metrics, station_name=""):
     elif wave_h > 1.5 or wind_s > 7.5:
         score, briefing, acts = 65, "風浪稍強，潮位變換走水急促，作釣請務必穿著合格救生衣與防滑釘鞋。", ["港區內搞搞", "背風灣作釣"]
 
-    # 🌟 真實呼叫 Google Gemini AI
+    # 🌟 死穴 5 修復：結構化輸出約束 + Regex 貪婪切片，徹底粉碎 JSONDecodeError！
     if GEMINI_KEY:
         try:
             # 🚨 絕對遵守 AI 開發守則：嚴禁加上數字版號，永遠使用 latest 結尾
-            model = genai.GenerativeModel('gemini-flash-lite-latest')
+            model = genai.GenerativeModel(
+                'gemini-flash-lite-latest',
+                generation_config={"response_mime_type": "application/json"}
+            )
             prompt = f"""
             你是一位台灣資深討海人與磯釣老船長。請根據以下即時水文數據，評估目前海象的安全度，並給出專業建議。
             測站：{station_name}
             浪高：{wave_h} 公尺
             風速：{wind_s} 公尺/秒
             
-            請以 JSON 格式回傳（不要加 Markdown 標記，純 JSON 字串），必須包含以下 3 個欄位：
-            "briefing": (字串，用老船長的口吻給出 30 字以內的精要出海與作釣建議)
-            "safety_score": (整數 0~100，評估當下安全係數)
-            "activities": (字串陣列，例如 ["浮游磯釣", "岸拋路亞"]，最多 3 個適合當下的活動)
+            請輸出純 JSON 物件：
+            "briefing": (字串，老船長口吻30字以內專業出海建議)
+            "safety_score": (整數 0~100)
+            "activities": (字串陣列，例如 ["浮游磯釣", "岸拋路亞"]，最多 3 個)
             """
             response = model.generate_content(prompt)
-            text = response.text.replace('```json', '').replace('```', '').strip()
-            ai_data = json.loads(text)
+            raw_text = response.text.strip()
             
-            return {
-                "briefing": ai_data.get("briefing", briefing),
-                "safety_score": ai_data.get("safety_score", score),
-                "activities": ai_data.get("activities", acts)
-            }
+            # 🚨 核心防禦：正則表達式強行截取最外層大括號，徹底抹除 LLM 前後客套話！
+            match = re.search(r'\{[\s\S]*\}', raw_text)
+            if match:
+                clean_json_str = match.group(0)
+                ai_data = json.loads(clean_json_str)
+                return {
+                    "briefing": str(ai_data.get("briefing", briefing)),
+                    "safety_score": int(ai_data.get("safety_score", score)),
+                    "activities": list(ai_data.get("activities", acts))
+                }
+            else:
+                print(f"⚠️ [{station_name}] 未能匹配到合法 JSON 結構，安全降級為傳統演算法")
         except Exception as e:
-            print(f"⚠️ Gemini 推論失敗，降級為傳統演算法: {e}")
-            pass
+            print(f"⚠️ [{station_name}] Gemini 推論失敗: {e}，安全降級為傳統演算法")
 
     return {"briefing": briefing, "safety_score": score, "activities": acts}
 
@@ -278,9 +286,9 @@ def main():
             best_match = min(parsed_forecasts, key=lambda f: (f['lat'] - lat)**2 + (f['lng'] - lng)**2)
             station_forecasts = best_match['times']
 
-        # 🌟 傳入測站名稱以利 Gemini 推理在地化水文特徵
+        # 傳入測站名稱以利 Gemini 推理在地化特徵
         ai_advice = analyze_safety_heuristic(sanitized, name)
-        time.sleep(4.2) # 🌟 節流閥：避開免費版每分鐘 15 次的限流陷阱
+        time.sleep(4.2) # 🌟 節流閥：避開每分鐘 15 次免費限制
         
         station_snapshot = {
             "obs": loc,

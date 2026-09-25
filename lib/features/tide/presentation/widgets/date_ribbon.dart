@@ -42,9 +42,10 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
 
   @override
   Widget build(BuildContext context) {
+    // 🌟 死穴 1 修復：徹底消除當前時分秒雜訊，純淨錨定在當日 00:00:00
     final DateTime now = DateTime.now();
     final DateTime todayZero = DateTime(now.year, now.month, now.day);
-    final String todayStr = DateFormat('yyyyMMdd').format(now);
+    final String todayStr = DateFormat('yyyyMMdd').format(todayZero);
     final String selectedStr = DateFormat('yyyyMMdd').format(widget.selectedDate);
     final isPremium = ref.watch(premiumProvider).isPremium;
 
@@ -56,19 +57,21 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: 61, 
         itemBuilder: (context, index) {
-          final date = now.subtract(const Duration(days: 30)).add(Duration(days: index));
+          // 🌟 數學級純淨換算：第 30 格為今天，天數差恆等於 (index - 30)
+          // 徹底杜絕 Duration.inDays 的負數截斷 Bug 與跨日誤差
+          final int dayDiff = index - 30;
+          final date = DateTime(todayZero.year, todayZero.month, todayZero.day + dayDiff);
+          
           final String currentStr = DateFormat('yyyyMMdd').format(date);
           final bool isToday = currentStr == todayStr;
           final bool isSelected = currentStr == selectedStr;
-
-          // 🌟 VIP 痛點修復 3/3：精準捕捉週末，賦予高亮色彩
           final bool isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
 
-          final int dayDiff = date.difference(todayZero).inDays;
+          // 精準三日免費判定：昨日(-1)、今日(0)、明日(1)
           final bool isFree = dayDiff >= -1 && dayDiff <= 1;
           final bool isLocked = !isFree && !isPremium;
 
-          // 週末與平日的文字顏色邏輯
+          // 週末高亮樣式
           Color weekdayColor = isSelected 
               ? widget.themeColor 
               : (isToday ? Colors.amberAccent : (isWeekend ? Colors.deepOrangeAccent : Colors.white70));
@@ -90,7 +93,9 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
               width: 58,
               margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : (isWeekend && !isToday ? Colors.deepOrange.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15)),
+                color: isSelected 
+                    ? Colors.white 
+                    : (isWeekend && !isToday ? Colors.deepOrange.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15)),
                 borderRadius: BorderRadius.circular(16),
                 border: isToday 
                     ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5) 
@@ -109,7 +114,16 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
                     ),
                   ),
                   if (isToday)
-                    Positioned(top: -11, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]), child: const Text("今日", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900))))),
+                    Positioned(
+                      top: -11, left: 0, right: 0, 
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), 
+                          decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]), 
+                          child: const Text("今日", style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900))
+                        )
+                      )
+                    ),
                   if (isLocked)
                     Positioned(top: 4, right: 4, child: Icon(Icons.lock_outline, size: 10, color: Colors.white.withValues(alpha: 0.7))),
                 ],

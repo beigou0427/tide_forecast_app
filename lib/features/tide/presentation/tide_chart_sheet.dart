@@ -24,32 +24,45 @@ class TideChartSheet extends StatelessWidget {
     final bool useWaveHeight = observations.any((o) => o.tideHeight == null) &&
                                observations.any((o) => o.waveHeight != null);
 
-    // 🌟 VIP 痛點修復：黃金咬度演算法 (抓取滿水波峰與作釣窗口)
+    // 🌟 死穴 3 修復：防崩潰安全峰值演算法
     int peakIndex = -1;
-    double maxVal = -9999;
+    double maxVal = double.negativeInfinity;
     for (int i = 0; i < observations.length; i++) {
-      final val = useWaveHeight ? (observations[i].waveHeight ?? 0) : (observations[i].tideHeight ?? -999);
+      final val = useWaveHeight 
+          ? (observations[i].waveHeight ?? double.negativeInfinity) 
+          : (observations[i].tideHeight ?? double.negativeInfinity);
       if (val > maxVal) { 
         maxVal = val; 
         peakIndex = i; 
       }
     }
 
-    double goldenStartX = -1;
-    double goldenEndX = -1;
+    // 🌟 嚴格座標守衛：預設為 null，只有在 100% 合法且 start < end 時才生成
+    double? goldenStartX;
+    double? goldenEndX;
 
-    if (peakIndex != -1) {
+    if (peakIndex != -1 && maxVal != double.negativeInfinity && observations.length >= 2) {
       final peakTime = observations[peakIndex].dateTime;
       final startTime = peakTime.subtract(const Duration(hours: 2));
       final endTime = peakTime.add(const Duration(hours: 1));
 
-      for(int i = 0; i < observations.length; i++) {
-        if (goldenStartX == -1 && observations[i].dateTime.isAfter(startTime)) {
-          goldenStartX = i.toDouble();
+      int? startIdx;
+      int? endIdx;
+
+      for (int i = 0; i < observations.length; i++) {
+        final t = observations[i].dateTime;
+        if (t.isAfter(startTime) || t.isAtSameMomentAs(startTime)) {
+          startIdx ??= i;
         }
-        if (observations[i].dateTime.isBefore(endTime)) {
-          goldenEndX = i.toDouble();
+        if (t.isBefore(endTime) || t.isAtSameMomentAs(endTime)) {
+          endIdx = i;
         }
+      }
+
+      // 🚨 核心防線：強制確保 startIdx 必須嚴格小於 endIdx，杜絕 Rect left > right 逆轉崩潰！
+      if (startIdx != null && endIdx != null && startIdx < endIdx) {
+        goldenStartX = startIdx.toDouble();
+        goldenEndX = endIdx.toDouble();
       }
     }
 
@@ -72,7 +85,7 @@ class TideChartSheet extends StatelessWidget {
               ),
               Row(
                 children: [
-                  if (peakIndex != -1)
+                  if (goldenStartX != null && goldenEndX != null)
                     Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -95,10 +108,10 @@ class TideChartSheet extends StatelessWidget {
           padding: const EdgeInsets.only(right: 20, top: 10),
           child: LineChart(
             LineChartData(
-              // 🌟 VIP 專屬：黃金漸層底色區間 (滿潮前 2h ~ 後 1h)
+              // 🌟 100% 幾何安全守衛的黃金區間
               rangeAnnotations: RangeAnnotations(
                 verticalRangeAnnotations: [
-                  if (goldenStartX != -1 && goldenEndX != -1)
+                  if (goldenStartX != null && goldenEndX != null && goldenStartX < goldenEndX)
                     VerticalRangeAnnotation(
                       x1: goldenStartX,
                       x2: goldenEndX,
@@ -106,10 +119,10 @@ class TideChartSheet extends StatelessWidget {
                     ),
                 ],
               ),
-              // 🌟 VIP 專屬：滿水波峰提示線
+              // 滿水波峰提示線
               extraLinesData: ExtraLinesData(
                 verticalLines: [
-                  if (peakIndex != -1)
+                  if (peakIndex >= 0 && peakIndex < observations.length && maxVal != double.negativeInfinity)
                     VerticalLine(
                       x: peakIndex.toDouble(),
                       color: Colors.amber.shade700,

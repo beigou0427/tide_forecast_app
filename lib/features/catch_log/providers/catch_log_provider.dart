@@ -23,17 +23,13 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   Future<void> _initSync() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // 🌟 1. 產生或讀取裝置綁定 ID
     _deviceId = prefs.getString('device_sync_id') ?? '';
     if (_deviceId.isEmpty) {
       _deviceId = "device_${DateTime.now().millisecondsSinceEpoch}";
       await prefs.setString('device_sync_id', _deviceId);
     }
 
-    // 🌟 2. 優先載入本地離線快取 (Offline First)
     _loadLocal(prefs);
-
-    // 🌟 3. 背景啟動 Firestore 雙向雲端同步
     _syncWithCloud();
   }
 
@@ -58,9 +54,9 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
           await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(localItem.id).set(localItem.toMap());
         }
         
-        // 🌟 補償機制：如果本地有照片但沒有雲端網址，觸發背景上傳
+        // 🌟 死穴 2 修復：序列化執行上傳，杜絕多個非同步任務同時踩踏 state
         if (localItem.imagePath != null && localItem.imageUrl == null) {
-          _uploadImageAndSync(localItem);
+          await _uploadImageAndSync(localItem);
         }
       }
 
@@ -88,7 +84,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   }
 
   Future<void> addLog(CatchLogItem item) async {
-    // 1. 寫入本地狀態 (Optimistic UI)
     final updated = [item, ...state];
     state = updated;
     
@@ -96,7 +91,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
     final rawList = updated.map((e) => e.toJson()).toList();
     await prefs.setStringList(_storageKey, rawList);
 
-    // 2. 寫入雲端 Firestore 與觸發照片上傳
     try {
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(item.id).set(item.toMap());
       if (item.imagePath != null && item.imageUrl == null) {
@@ -107,17 +101,27 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
     }
   }
 
-  // 🌟 核心功能：背景上傳實體照片至 Firebase Storage 並回填網址
+  // 🌟 核心防禦：具備「防詐屍安全檢查」的照片上傳器
   Future<void> _uploadImageAndSync(CatchLogItem item) async {
     try {
       final file = File(item.imagePath!);
       if (!await file.exists()) return;
 
-      final ref = _storage.ref().child('users/$_deviceId/catch_logs/${item.id}.jpg');
-      final uploadTask = await ref.putFile(file);
+      final storageRef = _storage.ref().child('users/$_deviceId/catch_logs/${item.id}.jpg');
+      final uploadTask = await storageRef.putFile(file);
       final downloadUrl = await uploadTask.ref.getDownloadURL();
 
-      // 更新資料模型
+      // 🚨 核心防詐屍防線：檢查這段上傳期間，使用者是否已經把這筆日誌刪除了！
+      final bool isStillAlive = state.any((e) => e.id == item.id);
+      if (!isStillAlive) {
+        debugPrint("🛡️ [防詐屍攔截] 用戶已在照片上傳期間刪除此日誌，中止寫入並清理孤兒檔案！");
+        try {
+          await storageRef.delete();
+        } catch (_) {}
+        return;
+      }
+
+      // 原子化替換狀態，確保不覆蓋其他併發更新
       final updatedItem = CatchLogItem(
         id: item.id,
         dateTime: item.dateTime,
@@ -129,47 +133,44 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
         notes: item.notes,
         rating: item.rating,
         imagePath: item.imagePath,
-        imageUrl: downloadUrl, // 🌟 注入剛取得的雲端網址
+        imageUrl: downloadUrl,
       );
 
-      // 更新記憶體狀態與硬碟快取
-      final updatedList = state.map((e) => e.id == item.id ? updatedItem : e).toList();
-      state = updatedList;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_storageKey, updatedList.map((e) => e.toJson()).toList());
+      state = [
+        for (final existing in state)
+          if (existing.id == item.id) updatedItem else existing
+      ];
 
-      // 更新雲端 Firestore
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_storageKey, state.map((e) => e.toJson()).toList());
+
+      // 再次確認雲端紀錄存在才執行 update
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(item.id).update({'imageUrl': downloadUrl});
-      debugPrint("☁️ [Storage] 照片上傳成功！網址已無縫寫入資料庫。");
+      debugPrint("☁️ [Storage] 照片上傳成功！網址已安全寫入資料庫。");
     } catch (e) {
-      debugPrint("⚠️ [Storage] 照片上傳失敗: $e");
+      debugPrint("⚠️ [Storage] 照片上傳失敗或紀錄已不存在: $e");
     }
   }
 
   Future<void> deleteLog(String id) async {
-    // 找出要刪除的物件，以便後續清理雲端照片
     final itemToDelete = state.firstWhere(
       (e) => e.id == id, 
       orElse: () => CatchLogItem(id: '', dateTime: DateTime.now(), stationName: '', species: '')
     );
         
-    final updated = state.where((e) => e.id != id).toList();
-    state = updated;
+    // 立即從狀態與本地快取中抹除
+    state = state.where((e) => e.id != id).toList();
 
     final prefs = await SharedPreferences.getInstance();
-    final rawList = updated.map((e) => e.toJson()).toList();
-    await prefs.setStringList(_storageKey, rawList);
+    await prefs.setStringList(_storageKey, state.map((e) => e.toJson()).toList());
 
     try {
-      // 刪除 Firestore 紀錄
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(id).delete();
       
-      // 🌟 若存在雲端照片，一併實體刪除，絕不浪費成本
-      if (itemToDelete.imageUrl != null || itemToDelete.imagePath != null) {
-        await _storage.ref().child('users/$_deviceId/catch_logs/$id.jpg').delete();
-      }
+      // 不論當前是否有 imageUrl，一併嘗試清除對應的 storage 檔案，防範殘留
+      await _storage.ref().child('users/$_deviceId/catch_logs/$id.jpg').delete();
     } catch (e) {
-      debugPrint("⚠️ [Firestore/Storage] 雲端刪除失敗: $e");
+      debugPrint("⚠️ [Firestore/Storage] 雲端刪除失敗或檔案本就不存在: $e");
     }
   }
 }
