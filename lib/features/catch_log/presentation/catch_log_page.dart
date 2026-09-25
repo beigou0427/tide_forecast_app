@@ -9,6 +9,7 @@ import '../providers/catch_log_provider.dart';
 import '../data/catch_log_model.dart';
 import '../../tide/providers/tide_provider.dart';
 import '../../../shared/widgets/custom_card.dart';
+import '../../../core/services/review_service.dart'; // 🌟 引入 Google 級 ASO 評分飛輪
 
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
@@ -107,7 +108,6 @@ class CatchLogPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   
-                  // 🌟 智慧判斷影像來源 (本地沙盒 優先 -> 失敗則降級為 雲端快取)
                   if (item.imagePath != null || item.imageUrl != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -164,7 +164,6 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  // 🌟 雲端圖片智慧快取載入器
   Widget _buildCloudImage(String? url) {
     if (url == null || url.isEmpty) {
       return Container(
@@ -360,6 +359,9 @@ class CatchLogPage extends ConsumerWidget {
 
                           ref.read(catchLogProvider.notifier).addLog(item);
                           Navigator.pop(ctx);
+
+                          // 🌟 Google CMO 高潮觸發原則：剛釣到 4~5 星大魚並保存，多巴胺正濃時發起好評邀請！
+                          ReviewService.onCatchLogSaved(selectedRating);
                         },
                         child: const Text("保存並疊加即時海象", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                       ),

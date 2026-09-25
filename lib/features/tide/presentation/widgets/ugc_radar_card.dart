@@ -5,6 +5,7 @@ import '../../data/ugc_report_model.dart';
 import '../../providers/ugc_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../../shared/widgets/custom_card.dart';
+import '../../../../core/services/review_service.dart'; // 🌟 引入 Google 級 ASO 評分飛輪
 
 class UgcRadarCard extends ConsumerWidget {
   final String stationId;
@@ -198,7 +199,6 @@ class UgcRadarCard extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
 
-              // 🌟 A 輪重構：不再破壞訂閱制，改為發放虛擬資產 (老船長幣)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -235,10 +235,8 @@ class UgcRadarCard extends ConsumerWidget {
                   final dummyItem = UgcReportItem(id: '', stationId: '', timestamp: DateTime.now(), type: type);
                   return InkWell(
                     onTap: () async {
-                      // 1. 執行通報
                       ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
                       
-                      // 🌟 2. 代幣經濟防刷機制：24 小時冷卻期
                       final prefs = await SharedPreferences.getInstance();
                       final lastRewardEpoch = prefs.getInt('last_coin_reward_epoch') ?? 0;
                       final nowEpoch = DateTime.now().millisecondsSinceEpoch;
@@ -246,7 +244,7 @@ class UgcRadarCard extends ConsumerWidget {
 
                       if (canClaimReward) {
                         await prefs.setInt('last_coin_reward_epoch', nowEpoch);
-                        await ref.read(premiumProvider.notifier).addCoins(5); // 發放 5 枚代幣
+                        await ref.read(premiumProvider.notifier).addCoins(5);
                       }
 
                       if (ctx.mounted) Navigator.pop(ctx);
@@ -265,6 +263,11 @@ class UgcRadarCard extends ConsumerWidget {
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
+
+                        // 🌟 Google CMO 高潮觸發原則：用戶通報成功並爽拿 5 枚代幣，喜悅正濃時發起 5 星好評邀請！
+                        if (canClaimReward) {
+                          ReviewService.onUgcRewarded();
+                        }
                       }
                     },
                     borderRadius: BorderRadius.circular(12),
