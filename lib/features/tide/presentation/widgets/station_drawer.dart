@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -10,6 +10,7 @@ import '../../../premium/presentation/vip_center_page.dart';
 import '../../../diagnostic/presentation/diagnostic_page.dart';
 import '../station_guide_page.dart';
 import '../../../catch_log/presentation/catch_log_page.dart';
+import '../aso_studio_page.dart'; // 🌟 引入 ASO 截圖工坊
 
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
@@ -21,7 +22,7 @@ class StationDrawer extends ConsumerStatefulWidget {
 
 class _StationDrawerState extends ConsumerState<StationDrawer> {
   String _searchQuery = "";
-  String _selectedFilter = "全部"; // 全部 | 👑 VIP專屬 | 🌊 資料浮標 | ⏱️ 潮位站 | 🆓 免費體驗
+  String _selectedFilter = "全部";
 
   @override
   Widget build(BuildContext context) {
@@ -69,13 +70,12 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                     const Divider(height: 1),
 
-                    // 地區分類列表 (連動水文型態與 PRO 篩選)
+                    // 地區分類列表
                     ...AppConstants.regions.map((region) {
                       final List<StationModel> stations = allStations.where((s) {
                         final bool matchesRegion = s.region == region;
                         final bool matchesSearch = s.name.contains(_searchQuery) || s.id.contains(_searchQuery);
                         
-                        // 多維度篩選邏輯
                         bool matchesFilter = true;
                         if (_selectedFilter == "👑 VIP專屬") {
                           matchesFilter = s.isProOnly;
@@ -142,6 +142,21 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const StationGuidePage()));
+            },
+          ),
+          // 🌟 ASO 宣傳截圖專用攝影棚入口
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.camera_alt_outlined, color: Colors.purple),
+            title: const Text("ASO 截圖工坊", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple)),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6)),
+              child: const Text("拍照用", style: TextStyle(color: Colors.purple, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const AsoStudioPage()));
             },
           ),
           ListTile(
@@ -366,7 +381,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
     return ListTile(
       onTap: () {
-        // 🌟 商業變現阻斷閘門：未付費用戶點擊 VIP 測站，自動彈出付費牆
         if (isLocked) {
           Navigator.pop(context);
           Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
@@ -410,7 +424,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           ),
           const SizedBox(width: 4),
 
-          // 🌟 水文與權限徽章
           if (station.isProOnly)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
