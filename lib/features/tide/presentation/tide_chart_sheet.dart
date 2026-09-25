@@ -1,4 +1,4 @@
-﻿import 'package:fl_chart/fl_chart.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/tide_model.dart';
@@ -20,16 +20,41 @@ class TideChartSheet extends StatelessWidget {
       );
     }
 
-    // 取得該批數據的日期 (取第一筆觀測資料的日期)
     final String chartDate = DateFormat('yyyy/MM/dd').format(observations.first.dateTime);
-
-    // 判斷數據源：優先使用潮位高度，若無則使用波浪高度
     final bool useWaveHeight = observations.any((o) => o.tideHeight == null) &&
                                observations.any((o) => o.waveHeight != null);
 
+    // 🌟 VIP 痛點修復：黃金咬度演算法 (抓取滿水波峰與作釣窗口)
+    int peakIndex = -1;
+    double maxVal = -9999;
+    for (int i = 0; i < observations.length; i++) {
+      final val = useWaveHeight ? (observations[i].waveHeight ?? 0) : (observations[i].tideHeight ?? -999);
+      if (val > maxVal) { 
+        maxVal = val; 
+        peakIndex = i; 
+      }
+    }
+
+    double goldenStartX = -1;
+    double goldenEndX = -1;
+
+    if (peakIndex != -1) {
+      final peakTime = observations[peakIndex].dateTime;
+      final startTime = peakTime.subtract(const Duration(hours: 2));
+      final endTime = peakTime.add(const Duration(hours: 1));
+
+      for(int i = 0; i < observations.length; i++) {
+        if (goldenStartX == -1 && observations[i].dateTime.isAfter(startTime)) {
+          goldenStartX = i.toDouble();
+        }
+        if (observations[i].dateTime.isBefore(endTime)) {
+          goldenEndX = i.toDouble();
+        }
+      }
+    }
+
     return Column(
       children: [
-        // --- 圖表標題與日期 ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
@@ -45,28 +70,61 @@ class TideChartSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              // 🌟 新增：顯示圖表日期
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blueGrey.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  chartDate,
-                  style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.w500),
-                ),
-              ),
+              Row(
+                children: [
+                  if (peakIndex != -1)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                      child: const Text("🔥 黃金咬度標示中", style: TextStyle(fontSize: 10, color: Color(0xFFD84315), fontWeight: FontWeight.bold)),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.blueGrey.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                    child: Text(chartDate, style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.w500)),
+                  ),
+                ],
+              )
             ],
           ),
         ),
         
-        // --- 核心圖表區 ---
         Container(
           height: 220,
           padding: const EdgeInsets.only(right: 20, top: 10),
           child: LineChart(
             LineChartData(
+              // 🌟 VIP 專屬：黃金漸層底色區間 (滿潮前 2h ~ 後 1h)
+              rangeAnnotations: RangeAnnotations(
+                verticalRangeAnnotations: [
+                  if (goldenStartX != -1 && goldenEndX != -1)
+                    VerticalRangeAnnotation(
+                      x1: goldenStartX,
+                      x2: goldenEndX,
+                      color: Colors.amber.withValues(alpha: 0.15),
+                    ),
+                ],
+              ),
+              // 🌟 VIP 專屬：滿水波峰提示線
+              extraLinesData: ExtraLinesData(
+                verticalLines: [
+                  if (peakIndex != -1)
+                    VerticalLine(
+                      x: peakIndex.toDouble(),
+                      color: Colors.amber.shade700,
+                      strokeWidth: 1.5,
+                      dashArray: [5, 5],
+                      label: VerticalLineLabel(
+                        show: true,
+                        alignment: Alignment.topRight,
+                        padding: const EdgeInsets.only(bottom: 5, left: 5),
+                        labelResolver: (_) => "🔥 滿水點",
+                        style: TextStyle(color: Colors.amber.shade800, fontWeight: FontWeight.bold, fontSize: 10),
+                      )
+                    )
+                ]
+              ),
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
@@ -80,8 +138,6 @@ class TideChartSheet extends StatelessWidget {
                 show: true,
                 rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                
-                // 下方 X 軸：顯示時間
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
@@ -101,8 +157,6 @@ class TideChartSheet extends StatelessWidget {
                     },
                   ),
                 ),
-                
-                // 左側 Y 軸：顯示高度
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
@@ -117,7 +171,6 @@ class TideChartSheet extends StatelessWidget {
                 ),
               ),
               borderData: FlBorderData(show: false),
-              
               lineBarsData: [
                 LineChartBarData(
                   spots: observations.asMap().entries.map((e) {
@@ -145,15 +198,12 @@ class TideChartSheet extends StatelessWidget {
                   ),
                 ),
               ],
-              
-              // 🌟 修改：點擊圖表時顯示詳細日期與時間
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
                   tooltipBgColor: const Color(0xFF023E8A).withValues(alpha: 0.9),
                   getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                     return touchedBarSpots.map((barSpot) {
                       final obs = observations[barSpot.x.toInt()];
-                      // Tooltip 顯示範例：03/12 20:00
                       final String fullTime = DateFormat('MM/dd HH:mm').format(obs.dateTime);
                       return LineTooltipItem(
                         "$fullTime\n",

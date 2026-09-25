@@ -1,4 +1,5 @@
-﻿import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:io' show Platform;
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../features/tide/data/tide_model.dart';
@@ -21,6 +22,21 @@ class TtsNotifier extends StateNotifier<bool> {
       await _tts.setSpeechRate(0.5); // 沉穩適中的語速
       await _tts.setVolume(1.0);
       await _tts.setPitch(0.95);    // 略帶成熟的老船長沉穩音色
+
+      // 🌟 VIP 痛點修復 2/3：實作 Audio Focus Ducking 技術
+      // 確保 TTS 播放時，自動壓低 (Duck) 背景音樂 (如 Spotify, Apple Music)，播完後平滑恢復
+      if (Platform.isIOS) {
+        await _tts.setSharedInstance(true);
+        await _tts.setIosAudioCategory(
+          IosTextToSpeechAudioCategory.playback,
+          [
+            IosTextToSpeechAudioCategoryOptions.duckOthers, // 核心：壓低其他 App 音量
+            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker
+          ],
+        );
+      }
+      // 啟動等待播放完成機制，讓 Android 與 iOS 都能精準掌握釋放 Audio Focus 的時機
+      await _tts.awaitSpeakCompletion(true);
 
       _tts.setStartHandler(() => state = true);
       _tts.setCompletionHandler(() => state = false);
@@ -69,7 +85,6 @@ class TtsNotifier extends StateNotifier<bool> {
       if (obs.seaTemperature != null) sb.write("海水表溫：${obs.seaTemperature}度。");
     }
 
-    // 尋找下一次滿潮
     final now = DateTime.now();
     for (final f in station.forecasts) {
       if (f.tideType.contains("滿") && f.dateTime.isAfter(now)) {

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -61,9 +61,21 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
           final bool isToday = currentStr == todayStr;
           final bool isSelected = currentStr == selectedStr;
 
+          // 🌟 VIP 痛點修復 3/3：精準捕捉週末，賦予高亮色彩
+          final bool isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+
           final int dayDiff = date.difference(todayZero).inDays;
           final bool isFree = dayDiff >= -1 && dayDiff <= 1;
           final bool isLocked = !isFree && !isPremium;
+
+          // 週末與平日的文字顏色邏輯
+          Color weekdayColor = isSelected 
+              ? widget.themeColor 
+              : (isToday ? Colors.amberAccent : (isWeekend ? Colors.deepOrangeAccent : Colors.white70));
+          
+          Color dateColor = isSelected 
+              ? widget.themeColor 
+              : (isWeekend && !isToday ? Colors.orange.shade100 : Colors.white);
 
           return GestureDetector(
             onTap: () {
@@ -78,9 +90,11 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
               width: 58,
               margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
+                color: isSelected ? Colors.white : (isWeekend && !isToday ? Colors.deepOrange.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15)),
                 borderRadius: BorderRadius.circular(16),
-                border: isToday ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5) : null,
+                border: isToday 
+                    ? Border.all(color: isSelected ? Colors.amber : Colors.amberAccent, width: 2.5) 
+                    : (isWeekend && !isSelected ? Border.all(color: Colors.deepOrangeAccent.withValues(alpha: 0.4), width: 1.2) : null),
                 boxShadow: isSelected ? [const BoxShadow(color: Colors.black26, blurRadius: 4)] : null,
               ),
               child: Stack(
@@ -89,8 +103,8 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(DateFormat('E').format(date), style: TextStyle(color: isSelected ? widget.themeColor : (isToday ? Colors.amberAccent : Colors.white70), fontSize: 10, fontWeight: isToday ? FontWeight.bold : FontWeight.normal)),
-                        Text(DateFormat('dd').format(date), style: TextStyle(color: isSelected ? widget.themeColor : Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(DateFormat('E').format(date), style: TextStyle(color: weekdayColor, fontSize: 10, fontWeight: isToday || isWeekend ? FontWeight.bold : FontWeight.normal)),
+                        Text(DateFormat('dd').format(date), style: TextStyle(color: dateColor, fontSize: 18, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -107,4 +121,3 @@ class _DateRibbonState extends ConsumerState<DateRibbon> {
     );
   }
 }
-
