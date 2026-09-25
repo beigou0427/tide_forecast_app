@@ -1,8 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../data/tide_model.dart';
+import '../../../premium/services/premium_service.dart';
 
-class ShareableReportCard extends StatelessWidget {
+class ShareableReportCard extends ConsumerWidget {
   final GlobalKey boundaryKey;
   final TideStationData station;
 
@@ -13,10 +15,14 @@ class ShareableReportCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ai = station.aiBriefing;
     final obs = station.observations.isNotEmpty ? station.observations.last : null;
     final nowStr = DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now());
+    
+    // 🌟 讀取 VVIP 會員身分，打造群組炫耀資本
+    final premium = ref.watch(premiumProvider);
+    final bool isVvip = premium.isFounder || premium.type == SubscriptionType.yearly;
 
     return RepaintBoundary(
       key: boundaryKey,
@@ -24,14 +30,37 @@ class ShareableReportCard extends StatelessWidget {
         width: 360,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF021B33),
+          gradient: isVvip 
+              ? const LinearGradient(
+                  colors: [Color(0xFF031E3A), Color(0xFF021326), Color(0xFF141908)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isVvip ? null : const Color(0xFF021B33),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF00B4D8).withValues(alpha: 0.4), width: 1.5),
+          border: Border.all(
+            color: premium.isFounder
+                ? const Color(0xFFFFD700)
+                : (premium.type == SubscriptionType.yearly 
+                    ? const Color(0xFF00E5FF) 
+                    : const Color(0xFF00B4D8).withValues(alpha: 0.4)),
+            width: isVvip ? 2.0 : 1.5,
+          ),
+          boxShadow: isVvip
+              ? [
+                  BoxShadow(
+                    color: (premium.isFounder ? const Color(0xFFFFD700) : const Color(0xFF00E5FF)).withValues(alpha: 0.2),
+                    blurRadius: 16,
+                  )
+                ]
+              : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 頂部列：如果是 VVIP，顯示霸氣軍規風格
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -40,15 +69,24 @@ class ShareableReportCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00B4D8).withValues(alpha: 0.2),
+                        color: isVvip ? Colors.amber.withValues(alpha: 0.2) : const Color(0xFF00B4D8).withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.anchor_rounded, color: Color(0xFF00B4D8), size: 18),
+                      child: Icon(
+                        isVvip ? Icons.workspace_premium_rounded : Icons.anchor_rounded, 
+                        color: isVvip ? Colors.amberAccent : const Color(0xFF00B4D8), 
+                        size: 18,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      "TIDE PRO 老船長海象情報",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1),
+                    Text(
+                      isVvip ? "TIDE PRO 旗艦作戰情報" : "TIDE PRO 老船長海象情報",
+                      style: TextStyle(
+                        color: isVvip ? Colors.amberAccent : Colors.white, 
+                        fontWeight: FontWeight.w900, 
+                        fontSize: 12, 
+                        letterSpacing: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -58,7 +96,41 @@ class ShareableReportCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+
+            // 🌟 VVIP 專屬尊榮身分水印條 (在 LINE 群組一貼出來就震撼全場)
+            if (isVvip) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: premium.isFounder 
+                      ? Colors.amber.withValues(alpha: 0.15) 
+                      : const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.shield_rounded, size: 12, color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF)),
+                    const SizedBox(width: 4),
+                    Text(
+                      premium.isFounder ? "👑 創始天尊指揮官 • 專屬鑑測戰報" : "🔱 年度首席領航員 • 專屬特權戰報",
+                      style: TextStyle(
+                        fontSize: 10, 
+                        fontWeight: FontWeight.w900, 
+                        color: premium.isFounder ? Colors.amberAccent : const Color(0xFF00E5FF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 14),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -67,11 +139,11 @@ class ShareableReportCard extends StatelessWidget {
                   children: [
                     Text(
                       station.info.stationName,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      station.info.attr,
-                      style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 12),
+                      "${station.info.attr} • 官方即時直連",
+                      style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 11),
                     ),
                   ],
                 ),
@@ -96,7 +168,7 @@ class ShareableReportCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -117,7 +189,7 @@ class ShareableReportCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             if (obs != null)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -128,9 +200,9 @@ class ShareableReportCard extends StatelessWidget {
                   _buildMetricItem("水溫", "${obs.seaTemperature ?? '--'} ℃"),
                 ],
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -144,10 +216,13 @@ class ShareableReportCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amberAccent,
+                    color: isVvip ? Colors.amberAccent : Colors.tealAccent,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text("官方即時數據", style: TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    isVvip ? "COMMANDER VERIFIED" : "官方即時數據",
+                    style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900),
+                  ),
                 ),
               ],
             ),
@@ -167,4 +242,3 @@ class ShareableReportCard extends StatelessWidget {
     );
   }
 }
-

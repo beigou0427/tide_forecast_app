@@ -1,16 +1,18 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/ugc_report_model.dart';
 import '../../../core/utils/solunar_util.dart';
+import '../../premium/services/premium_service.dart';
 
 final ugcReportProvider = StateNotifierProvider<UgcReportNotifier, List<UgcReportItem>>((ref) {
-  return UgcReportNotifier();
+  return UgcReportNotifier(ref);
 });
 
 class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
   static const String _storageKey = "ugc_reports_v1";
+  final Ref ref;
 
-  UgcReportNotifier() : super([]) {
+  UgcReportNotifier(this.ref) : super([]) {
     _loadReports();
   }
 
@@ -31,14 +33,12 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     }
   }
 
-  /// 🌟 核心破局：若該測站無真人回報，自動以 AI 水文哨兵推演動態情報，確保絕不留白！
   List<UgcReportItem> getReportsForStation(String stationId, {double? waveHeight, double? windSpeed}) {
     final realReports = state.where((r) => r.stationId == stationId).toList();
     if (realReports.isNotEmpty) {
       return realReports;
     }
 
-    // 當前無真人通報時，由 AI 哨兵依實時感測數據動態生成推演情報
     final now = DateTime.now();
     final solunar = SolunarUtil.calculate(now);
     final double wave = waveHeight ?? 0.8;
@@ -80,14 +80,32 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     return sentinelReports;
   }
 
+  // 🌟 情緒價值升級：讓 VVIP 的回報具備尊榮階級碾壓感
   Future<void> reportCondition(String stationId, UgcConditionType type) async {
+    final premium = ref.read(premiumProvider);
+    
+    // 依據訂閱階級賦予專屬神級頭銜
+    String customTag = "🔥 現場認證釣友";
+    int initialUpvotes = 1;
+
+    if (premium.isFounder) {
+      customTag = "👑 創始天尊指揮官";
+      initialUpvotes = 8; // 創始人發言自帶 8 個認證讚
+    } else if (premium.type == SubscriptionType.yearly) {
+      customTag = "🔱 年度首席領航員";
+      initialUpvotes = 5; // 年度 VVIP 發言自帶 5 個認證讚
+    } else if (premium.isPremium) {
+      customTag = "⭐ VIP 專業航海家";
+      initialUpvotes = 3;
+    }
+
     final newItem = UgcReportItem(
       id: "ugc_${DateTime.now().millisecondsSinceEpoch}",
       stationId: stationId,
       timestamp: DateTime.now(),
       type: type,
-      userTag: "🔥 現場認證釣友",
-      upvotes: 1,
+      userTag: customTag,
+      upvotes: initialUpvotes,
     );
 
     final updated = [newItem, ...state];
@@ -120,5 +138,3 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     await prefs.setStringList(_storageKey, raw);
   }
 }
-
-
