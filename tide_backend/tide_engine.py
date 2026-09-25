@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 import json
 import os
 import time
@@ -280,6 +280,7 @@ def main():
 
         # 🌟 傳入測站名稱以利 Gemini 推理在地化水文特徵
         ai_advice = analyze_safety_heuristic(sanitized, name)
+        time.sleep(4.2) # 🌟 節流閥：避開免費版每分鐘 15 次的限流陷阱
         
         station_snapshot = {
             "obs": loc,
