@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/tide_provider.dart';
 import '../data/tide_model.dart';
@@ -27,7 +28,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：雙軌自適應主座艙 (Adaptive Oceanic Canvas)
+/// 🍏 Apple 首席設計工藝：雙軌自適應主座艙 (含海事安全法律護甲)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -40,6 +41,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
+    // 1. 延遲 3 秒請求推播權限
     Future.delayed(const Duration(seconds: 3), () async {
       try {
         await NotificationService.init();
@@ -48,13 +50,107 @@ class _HomePageState extends ConsumerState<HomePage> {
         debugPrint("推播服務延遲初始化失敗: $e");
       }
     });
+
+    // 2. 🌟 法律合規死穴拆彈：啟動時檢查是否已簽署海事安全免責協議
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkMaritimeSafetyConsent());
+  }
+
+  // 🌟 法務防線：檢查並彈出強制同意免責聲明
+  Future<void> _checkMaritimeSafetyConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasAgreed = prefs.getBool('has_agreed_maritime_safety_v2') ?? false;
+    
+    if (!hasAgreed && mounted) {
+      _showMandatorySafetyDisclaimer(context, prefs);
+    }
+  }
+
+  void _showMandatorySafetyDisclaimer(BuildContext context, SharedPreferences prefs) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 🚨 不可點擊背景關閉，必須正面同意！
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.shield_rounded, color: AppColors.hazardCoral, size: 24),
+            SizedBox(width: 10),
+            Text(
+              "海事安全與法律免責聲明",
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.hazardCoral.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.hazardCoral.withValues(alpha: 0.3), width: 0.5),
+                ),
+                child: const Text(
+                  "⚠️ 敬告所有出海作釣、潛水與水上運動玩家：本聲明具備法律合意效力，進入前請務必詳閱。",
+                  style: TextStyle(fontSize: 11.5, color: AppColors.hazardCoral, fontWeight: FontWeight.bold, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                "1. 【非航行與人身安全保證工具】\n本系統所有數據（包括即時浪高、風速、潮位走勢及老船長 AI 安全評估）均來自氣象署公開遙測與數值演算法推算，僅供休閒與參考用途。嚴禁作為船舶正式航行、避難、外礁無防護登礁作業或人身財產安全之唯一依據。",
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "2. 【海洋不可抗力與長湧風險】\n台灣近岸水文瞬息萬變，外海長週期湧浪（俗稱瘋狗浪）極具突發性與不可預測性。從事任何水上或沿岸活動，使用者應自備合格救生衣、防滑釘鞋及安全通訊設備，並隨時觀察現場浪況。",
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "3. 【完全自負風險與責任限制】\n使用者點擊同意進入本程式，即代表明確理解並承諾自負所有出海與作釣之人身安全責任。在法律允許之最大範圍內，本應用程式開發者及發行方不對任何因不可抗力、自然災害或依賴本數據所衍生之直接或間接人身傷亡與財產損失承擔任何法律賠償責任。",
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pelagicCyan,
+                foregroundColor: AppColors.abyssBlack,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                HapticFeedback.heavyImpact();
+                await prefs.setBool('has_agreed_maritime_safety_v2', true);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text("我已詳讀並承諾自負個人安全責任", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🚨 炸彈 4 徹底拆除：拔除開機 GPS 強制覆蓋代碼！
-    // 100% 捍衛用戶在 Onboarding 選擇的目標海域與手動選擇的測站！
-
     final isClassic = ref.watch(isClassicThemeProvider);
     final tideViewAsync = ref.watch(tideViewDataProvider);
     final currentId = ref.watch(currentStationIdProvider);
@@ -227,14 +323,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
-                      // 🌟 炸彈 2 完美拆除：未來模式下，折線圖光榮回歸！
                       if (isFuture) ...[
                         _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", accentColor: Colors.indigoAccent, isClassic: isClassic),
                         const SizedBox(height: 12),
                         _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         const SizedBox(height: 22),
                         
-                        // 🌟 未來 24h 潮位擬合折線圖強勢上線！
                         _sectionTitle("🌊 預測潮位走勢 (餘弦調和擬合)", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
                         CustomCard(
@@ -518,6 +612,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  // 🌟 法務防護鋼印：主畫布常駐免責宣告
   Widget _buildFooter(String desc, bool isClassic) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,6 +632,28 @@ class _HomePageState extends ConsumerState<HomePage> {
             color: isClassic ? Colors.grey : AppColors.textTertiary, 
             fontSize: 11, 
             height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.glassBorder, width: 0.5),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.gavel_rounded, size: 14, color: AppColors.textTertiary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "⚠️ 法律免責聲明：本 App 所有水文預報、AI 建議與安全分數僅供休閒與參考用途，非屬官方航海指定設備。出海作釣請穿著合格救生衣與防滑釘鞋，個人人身安全請完全自負。",
+                  style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary, height: 1.4),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 40),
