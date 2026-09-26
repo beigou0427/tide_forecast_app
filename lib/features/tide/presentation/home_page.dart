@@ -52,11 +52,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<String?>(nearestStationIdProvider, (previous, next) {
-      if (next != null && previous == null) {
-        ref.read(currentStationIdProvider.notifier).state = next;
-      }
-    });
+    // 🚨 炸彈 4 徹底拆除：拔除開機 GPS 強制覆蓋代碼！
+    // 100% 捍衛用戶在 Onboarding 選擇的目標海域與手動選擇的測站！
 
     final isClassic = ref.watch(isClassicThemeProvider);
     final tideViewAsync = ref.watch(tideViewDataProvider);
@@ -75,13 +72,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     final bool isToday = selectedKey == todayKey;
     final bool isFuture = selectedDate.isAfter(now) && !isToday;
 
-    // 經典模式色彩
     final Color classicModeColor = isToday 
         ? const Color(0xFF0077B6) 
         : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
 
     return Scaffold(
-      // 🌟 自適應背景：經典白藍 (#F8FBFF) vs 深淵純黑 (#03070D)
       backgroundColor: isClassic ? AppColors.classicBg : AppColors.abyssBlack,
       drawer: StationDrawer(currentId: currentId),
       body: RefreshIndicator(
@@ -97,7 +92,6 @@ class _HomePageState extends ConsumerState<HomePage> {
             SliverAppBar(
               pinned: true,
               expandedHeight: 180,
-              // 🌟 自適應 AppBar：經典模式為飽滿藍/紫/橘；深淵模式為半透明毛玻璃純黑
               backgroundColor: isClassic 
                   ? classicModeColor 
                   : AppColors.abyssBlack.withValues(alpha: 0.88),
@@ -233,12 +227,26 @@ class _HomePageState extends ConsumerState<HomePage> {
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
+                      // 🌟 炸彈 2 完美拆除：未來模式下，折線圖光榮回歸！
                       if (isFuture) ...[
                         _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", accentColor: Colors.indigoAccent, isClassic: isClassic),
                         const SizedBox(height: 12),
                         _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
-                        const SizedBox(height: 18),
-                        _infoCard(context, "預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署物理模型推算。"),
+                        const SizedBox(height: 22),
+                        
+                        // 🌟 未來 24h 潮位擬合折線圖強勢上線！
+                        _sectionTitle("🌊 預測潮位走勢 (餘弦調和擬合)", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
+                        const SizedBox(height: 12),
+                        CustomCard(
+                          child: TideChartSheet(
+                            observations: const [],
+                            futureForecasts: station.forecasts,
+                            targetDate: selectedDate,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _infoCard(context, "預報模式說明", "您正在查看未來預報。圖表已透過航海調和演算法將滿乾潮預測點擬合為平滑走勢曲線。"),
                       ] else if (activeObservation != null) ...[
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
@@ -256,7 +264,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 22),
                         _sectionTitle(isToday ? "24h 走勢監控" : "歷史走勢圖", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, isClassic: isClassic),
                         const SizedBox(height: 12),
-                        CustomCard(child: TideChartSheet(observations: dayObservations)),
+                        CustomCard(
+                          child: TideChartSheet(
+                            observations: dayObservations,
+                            targetDate: selectedDate,
+                          ),
+                        ),
                         const SizedBox(height: 22),
                         _sectionTitle(isToday ? "詳細觀測參數" : "歷史時空記錄參數", isClassic: isClassic),
                         const SizedBox(height: 12),
@@ -375,7 +388,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               const SizedBox(width: 4),
               Text(
                 isClassic ? "地區" : "測站", 
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
               ),
             ],
           ),

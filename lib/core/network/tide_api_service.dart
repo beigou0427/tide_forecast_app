@@ -1,10 +1,11 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 import '../../features/tide/data/tide_model.dart';
 
+/// 🍏 Apple 首席架構：極速響應水文數據服務 (Low-Latency Oceanic API Service)
 class TideApiService {
   static const String _edgeUrl = "https://beigou0427.github.io/tide_forecast_app";
   static const String _cachePrefix = "tide_offline_cache_";
@@ -12,85 +13,109 @@ class TideApiService {
   Future<TideStationData> fetchData(String stationId, {bool isPremium = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
+    // 🌟 炸彈 3 拆彈核心 1：第一時間載入本地離線快取作為防護神盾
+    final cachedStr = prefs.getString('$_cachePrefix$stationId');
+    Map<String, dynamic> localCacheJson = {};
+    if (cachedStr != null) {
+      try {
+        localCacheJson = jsonDecode(cachedStr);
+      } catch (_) {}
+    }
+
+    Map<String, dynamic> edgeJson = {};
+
+    // 🌟 炸彈 3 拆彈核心 2：將原本 15 秒死等，大幅壓縮至 3.5 秒極速超時！
     try {
       final t = DateTime.now().millisecondsSinceEpoch;
       final edgeUrl = "$_edgeUrl/edge_$stationId.json?t=$t";
-      debugPrint("DEBUG: 正在抓取邊緣海象 -> $edgeUrl");
+      debugPrint("📡 [TideApi] 正在以極速專線抓取邊緣快照 -> $edgeUrl");
 
-      final edgeResponse = await http.get(Uri.parse(edgeUrl)).timeout(const Duration(seconds: 15));
+      final edgeResponse = await http.get(Uri.parse(edgeUrl)).timeout(const Duration(milliseconds: 3500));
       
-      Map<String, dynamic> edgeJson = {};
       if (edgeResponse.statusCode == 200) {
         edgeJson = jsonDecode(edgeResponse.body);
-      }
-
-      if (!isPremium) {
-        if (edgeJson.isEmpty) throw Exception("資料庫暫無回應 (HTTP ${edgeResponse.statusCode})");
+        // 成功連線，即時更新本地保險箱
         await prefs.setString('$_cachePrefix$stationId', jsonEncode(edgeJson));
-        return TideStationData.fromEdgeJson(edgeJson);
       }
+    } catch (edgeError) {
+      debugPrint("⚠️ [TideApi] 外海弱網或邊緣節點連線逾時 ($edgeError)，啟動本地快取防禦！");
+      // 網路逾時，無縫採用本地離線快取
+      edgeJson = localCacheJson;
+    }
 
-      // 💎 VIP 專線直連
-      try {
-        debugPrint("💎 VIP 啟動：向氣象署專線請求站點 $stationId 即時數據...");
-        final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId";
-        final cwaResponse = await http.get(Uri.parse(cwaUrl)).timeout(const Duration(seconds: 15));
-        
-        if (cwaResponse.statusCode == 200) {
-          final cwaData = jsonDecode(cwaResponse.body);
-          final records = cwaData['Records'] ?? cwaData['records'] ?? {};
-          final seaObs = records['SeaSurfaceObs'] ?? records;
-          final locations = (seaObs['Location'] is List) ? seaObs['Location'] : [];
-          
-          if (locations.isNotEmpty) {
-            final realtimeObs = locations[0];
-
-            // 🌟 核心防禦：氣象署 O-B0075-001 不帶中文名稱與座標，必須從 edge 快照中融合 station_info
-            final stationInfo = (edgeJson['station_info'] is Map) ? edgeJson['station_info'] as Map<String, dynamic> : {};
-            final edgeObs = (edgeJson['obs'] is Map) ? edgeJson['obs'] as Map<String, dynamic> : {};
-
-            final mergedObs = Map<String, dynamic>.from(realtimeObs);
-            mergedObs['StationName'] = stationInfo['friendly_name'] ?? edgeObs['StationName'] ?? "測站 $stationId";
-            mergedObs['CountyName'] = stationInfo['county'] ?? edgeObs['CountyName'] ?? "";
-            mergedObs['TownName'] = stationInfo['town'] ?? edgeObs['TownName'] ?? "";
-            mergedObs['lat'] = stationInfo['lat'] ?? edgeObs['lat'] ?? 25.0;
-            mergedObs['lng'] = stationInfo['lng'] ?? edgeObs['lng'] ?? 121.5;
-            mergedObs['attr'] = stationInfo['station_type'] ?? edgeObs['attr'] ?? "資料浮標";
-            mergedObs['region'] = stationInfo['region'] ?? edgeObs['region'] ?? "北部";
-
-            final mergedJson = {
-              "obs": mergedObs,
-              "station_info": stationInfo,
-              "forecasts": edgeJson['forecasts'] ?? [],
-              "ai_expert": edgeJson['ai_expert'] ?? {
-                "briefing": "AI 實時簡報同步完成，海況平穩。",
-                "safety_score": 85,
-                "activities": ["海邊作業", "作釣觀察"]
-              }
-            };
-            debugPrint("✅ VIP 即時數據融合成功 (已鎖定地理拓撲：${mergedObs['StationName']} - ${mergedObs['region']})！");
-            await prefs.setString('$_cachePrefix$stationId', jsonEncode(mergedJson));
-            return TideStationData.fromEdgeJson(mergedJson);
-          }
+    // 免費用戶：若連網失敗且無快取才拋出異常，有快取則秒開
+    if (!isPremium) {
+      if (edgeJson.isEmpty) {
+        if (localCacheJson.isNotEmpty) {
+          return TideStationData.fromEdgeJson(localCacheJson);
         }
-      } catch (cwaError) {
-        debugPrint("⚠️ VIP 直連超時，平滑降級使用 Edge 數據: $cwaError");
-      }
-
-      if (edgeJson.isNotEmpty) {
-        await prefs.setString('$_cachePrefix$stationId', jsonEncode(edgeJson));
+        throw Exception("外海訊號微弱，且本站尚無離線存檔。請稍後重試。");
       }
       return TideStationData.fromEdgeJson(edgeJson);
-
-    } catch (e) {
-      debugPrint("🚨 API 連線失敗，啟動離線防禦機制: $e");
-      final cachedStr = prefs.getString('$_cachePrefix$stationId');
-      if (cachedStr != null) {
-        final Map<String, dynamic> cachedJson = jsonDecode(cachedStr);
-        return TideStationData.fromEdgeJson(cachedJson);
-      }
-      rethrow;
     }
+
+    // 💎 VIP 專線直連 (雙軌融合)
+    try {
+      debugPrint("💎 [VIP 直連] 向氣象署專線請求站點 $stationId 即時數據...");
+      final cwaUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId";
+      
+      // 🌟 VIP 專線同樣給予 3.5 秒極速限制，絕不讓用戶在外礁傻等
+      final cwaResponse = await http.get(Uri.parse(cwaUrl)).timeout(const Duration(milliseconds: 3500));
+      
+      if (cwaResponse.statusCode == 200) {
+        final cwaData = jsonDecode(cwaResponse.body);
+        final records = cwaData['Records'] ?? cwaData['records'] ?? {};
+        final seaObs = records['SeaSurfaceObs'] ?? records;
+        final locations = (seaObs['Location'] is List) ? seaObs['Location'] : [];
+        
+        if (locations.isNotEmpty) {
+          final realtimeObs = locations[0];
+
+          // 核心防禦：確保中文地名與座標融合
+          final stationInfo = (edgeJson['station_info'] is Map) 
+              ? edgeJson['station_info'] as Map<String, dynamic> 
+              : (localCacheJson['station_info'] as Map<String, dynamic>? ?? {});
+          final edgeObs = (edgeJson['obs'] is Map) 
+              ? edgeJson['obs'] as Map<String, dynamic> 
+              : (localCacheJson['obs'] as Map<String, dynamic>? ?? {});
+
+          final mergedObs = Map<String, dynamic>.from(realtimeObs);
+          mergedObs['StationName'] = stationInfo['friendly_name'] ?? edgeObs['StationName'] ?? "測站 $stationId";
+          mergedObs['CountyName'] = stationInfo['region'] ?? edgeObs['CountyName'] ?? "";
+          mergedObs['TownName'] = stationInfo['town'] ?? edgeObs['TownName'] ?? "";
+          mergedObs['lat'] = stationInfo['lat'] ?? edgeObs['lat'] ?? 25.0;
+          mergedObs['lng'] = stationInfo['lng'] ?? edgeObs['lng'] ?? 121.5;
+          mergedObs['attr'] = stationInfo['station_type'] ?? edgeObs['attr'] ?? "資料浮標";
+          mergedObs['region'] = stationInfo['region'] ?? edgeObs['region'] ?? "北部";
+
+          final mergedJson = {
+            "obs": mergedObs,
+            "station_info": stationInfo,
+            "forecasts": edgeJson['forecasts'] ?? localCacheJson['forecasts'] ?? [],
+            "ai_expert": edgeJson['ai_expert'] ?? localCacheJson['ai_expert'] ?? {
+              "briefing": "AI 實時簡報同步完成，海況平穩。",
+              "safety_score": 85,
+              "activities": ["海邊作業", "作釣觀察"]
+            }
+          };
+          debugPrint("✅ [VIP 直連] 數據融合完成，寫入本地快取！");
+          await prefs.setString('$_cachePrefix$stationId', jsonEncode(mergedJson));
+          return TideStationData.fromEdgeJson(mergedJson);
+        }
+      }
+    } catch (cwaError) {
+      debugPrint("⚠️ [VIP 直連] 弱網逾時 ($cwaError)，平滑降級使用邊緣或本地快取");
+    }
+
+    // 兜底防禦：無論如何，只要手上有資料，絕不白屏
+    if (edgeJson.isNotEmpty) {
+      return TideStationData.fromEdgeJson(edgeJson);
+    }
+    if (localCacheJson.isNotEmpty) {
+      return TideStationData.fromEdgeJson(localCacheJson);
+    }
+
+    throw Exception("外海訊號微弱且無離線快取，請移至收訊良好處重試。");
   }
 
   Future<TideStationData> fetchHistoryOfficial(String sid, String s, String e) async => throw UnimplementedError();

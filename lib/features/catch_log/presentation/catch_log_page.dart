@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path_provider/path_provider.dart'; // 🌟 引入永久私有路徑套件
 
 import '../providers/catch_log_provider.dart';
 import '../data/catch_log_model.dart';
@@ -74,7 +75,7 @@ class CatchLogPage extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              "拍下戰利品，每筆紀錄將自動疊加當下即時水文\n並雙向備份至雲端金庫，留下不朽傳奇！",
+              "拍下戰利品，每筆紀錄將自動疊加當下即時水文\n並永久備份至本機與雲端金庫，留下不朽傳奇！",
               textAlign: TextAlign.center, 
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
             ),
@@ -155,7 +156,7 @@ class CatchLogPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                   
-                  // 🌟 藍寶石展覽相框
+                  // 藍寶石展覽相框
                   if (item.imagePath != null || item.imageUrl != null) ...[
                     Container(
                       decoration: BoxDecoration(
@@ -320,7 +321,6 @@ class CatchLogPage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     
-                    // 照片捕捉展示區
                     if (selectedImage != null)
                       Stack(
                         children: [
@@ -460,7 +460,7 @@ class CatchLogPage extends ConsumerWidget {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           elevation: 0,
                         ),
-                        onPressed: () {
+                        onPressed: () async {
                           final species = speciesCtrl.text.trim();
                           if (species.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("請填寫對象魚種")));
@@ -468,6 +468,22 @@ class CatchLogPage extends ConsumerWidget {
                           }
 
                           HapticFeedback.mediumImpact();
+
+                          // 🌟 炸彈 1 拆彈關鍵：將照片實體拷貝到 App 的永久私有目錄 (Documents Directory)
+                          // 徹底脫離 iOS/Android 的 /tmp 暫存區，保證重開機或空間清理時照片「永不蒸發」！
+                          String? permanentPath;
+                          if (selectedImage != null) {
+                            try {
+                              final appDir = await getApplicationDocumentsDirectory();
+                              final fileName = "${DateTime.now().millisecondsSinceEpoch}_catch.jpg";
+                              final savedFile = await File(selectedImage!.path).copy('${appDir.path}/$fileName');
+                              permanentPath = savedFile.path;
+                            } catch (e) {
+                              debugPrint("⚠️ 照片沙盒永久轉移失敗，回退使用原始路徑: $e");
+                              permanentPath = selectedImage!.path;
+                            }
+                          }
+
                           final item = CatchLogItem(
                             id: DateTime.now().millisecondsSinceEpoch.toString(),
                             dateTime: DateTime.now(),
@@ -478,13 +494,12 @@ class CatchLogPage extends ConsumerWidget {
                             seaTemperature: obs?.seaTemperature,
                             notes: notesCtrl.text.trim(),
                             rating: selectedRating,
-                            imagePath: selectedImage?.path,
+                            imagePath: permanentPath, // 🌟 儲存永久私有路徑
                           );
 
                           ref.read(catchLogProvider.notifier).addLog(item);
                           Navigator.pop(ctx);
 
-                          // 🌟 ASO 評分飛輪：多巴胺高潮頂峰發起好評邀請
                           ReviewService.onCatchLogSaved(selectedRating);
                         },
                         child: const Text("保存並疊加即時水文", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
