@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:path_provider/path_provider.dart'; // 🌟 引入永久私有路徑套件
+import 'package:path_provider/path_provider.dart';
 
 import '../providers/catch_log_provider.dart';
 import '../data/catch_log_model.dart';
@@ -321,6 +321,7 @@ class CatchLogPage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     
+                    // 照片捕捉展示區
                     if (selectedImage != null)
                       Stack(
                         children: [
@@ -469,8 +470,7 @@ class CatchLogPage extends ConsumerWidget {
 
                           HapticFeedback.mediumImpact();
 
-                          // 🌟 炸彈 1 拆彈關鍵：將照片實體拷貝到 App 的永久私有目錄 (Documents Directory)
-                          // 徹底脫離 iOS/Android 的 /tmp 暫存區，保證重開機或空間清理時照片「永不蒸發」！
+                          // 永久沙盒轉移 (防照片蒸發)
                           String? permanentPath;
                           if (selectedImage != null) {
                             try {
@@ -494,10 +494,13 @@ class CatchLogPage extends ConsumerWidget {
                             seaTemperature: obs?.seaTemperature,
                             notes: notesCtrl.text.trim(),
                             rating: selectedRating,
-                            imagePath: permanentPath, // 🌟 儲存永久私有路徑
+                            imagePath: permanentPath,
                           );
 
                           ref.read(catchLogProvider.notifier).addLog(item);
+
+                          // 🌟 核心防護：檢查 ctx 是否依然掛載存活，徹底消除 use_build_context_synchronously 警告！
+                          if (!ctx.mounted) return;
                           Navigator.pop(ctx);
 
                           ReviewService.onCatchLogSaved(selectedRating);
