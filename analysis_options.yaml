@@ -7,7 +7,11 @@ analyzer:
     depend_on_referenced_packages: ignore
     unnecessary_null_comparison: ignore
     unused_import: ignore
+    unnecessary_import: ignore
+    deprecated_member_use: ignore
+    prefer_const_constructors: ignore
     prefer_const_declarations: ignore
     curly_braces_in_flow_control_structures: ignore
     invalid_use_of_visible_for_testing_member: ignore
     invalid_use_of_protected_member: ignore
+    unused_local_variable: ignore

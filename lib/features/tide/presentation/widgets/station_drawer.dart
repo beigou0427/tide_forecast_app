@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/utils/constants.dart';
 import '../../providers/tide_provider.dart';
@@ -10,7 +12,8 @@ import '../../../premium/presentation/vip_center_page.dart';
 import '../../../diagnostic/presentation/diagnostic_page.dart';
 import '../station_guide_page.dart';
 import '../../../catch_log/presentation/catch_log_page.dart';
-import '../aso_studio_page.dart'; // 🌟 引入 ASO 截圖工坊
+import '../aso_studio_page.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
@@ -48,7 +51,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                 return ListView(
                   padding: EdgeInsets.zero,
                   children: [
-                    // 我的最愛分組
                     favoriteIdsAsync.when(
                       data: (favIds) {
                         if (favIds.isEmpty) return const SizedBox.shrink();
@@ -70,7 +72,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                     const Divider(height: 1),
 
-                    // 地區分類列表
                     ...AppConstants.regions.map((region) {
                       final List<StationModel> stations = allStations.where((s) {
                         final bool matchesRegion = s.region == region;
@@ -144,7 +145,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const StationGuidePage()));
             },
           ),
-          // 🌟 ASO 宣傳截圖專用攝影棚入口
           ListTile(
             dense: true,
             leading: const Icon(Icons.camera_alt_outlined, color: Colors.purple),
@@ -170,13 +170,234 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             },
           ),
           const Divider(height: 1),
+
+          // 🌟 創辦人上帝模式特權密道：長按 1.5 秒觸發密碼輸入對話框
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 24),
-            child: Text("資料來源：中央氣象署 (CWA)", style: GoogleFonts.notoSansTc(fontSize: 10, color: Colors.grey)),
+            child: GestureDetector(
+              onLongPress: () {
+                HapticFeedback.heavyImpact();
+                _showSecretAuthDialog(context);
+              },
+              child: Text(
+                "資料來源：中央氣象署 (CWA)", 
+                style: GoogleFonts.notoSansTc(fontSize: 10.5, color: Colors.grey.shade500),
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  // 🌟 通關密碼驗證視窗 (beigou)
+  void _showSecretAuthDialog(BuildContext context) {
+    final textCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.terminal_rounded, color: AppColors.pelagicCyan, size: 20),
+            SizedBox(width: 8),
+            Text(
+              "創辦人特權入口",
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: TextField(
+          controller: textCtrl,
+          obscureText: true,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: "請輸入通關密鑰 (密碼: beigou)...",
+            hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.05),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.pelagicCyan, width: 1.0)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("取消", style: TextStyle(color: AppColors.textTertiary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.pelagicCyan,
+              foregroundColor: AppColors.abyssBlack,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              if (textCtrl.text.trim() == "beigou") {
+                Navigator.pop(ctx);
+                HapticFeedback.heavyImpact();
+                _showGodModeSwitchSheet(context);
+              } else {
+                HapticFeedback.vibrate();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("❌ 密鑰錯誤，存取被拒！"), backgroundColor: AppColors.hazardCoral, duration: Duration(seconds: 2)),
+                );
+              }
+            },
+            child: const Text("解鎖", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🌟 上帝模式身分切換面板
+  void _showGodModeSwitchSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.abyssCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) {
+        final current = ref.watch(premiumProvider);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Icon(Icons.admin_panel_settings_rounded, color: AppColors.bioGold, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    "創辦人上帝模式 · 身分即時切換",
+                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "切換後強制覆寫本地狀態機，一鍵體驗不同會員視角",
+                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 18),
+              _buildRoleTile(
+                ctx: ctx,
+                title: "1. 一般免費用戶 (Regular User)",
+                subtitle: "鎖定 77 席測站、體驗 3 小時延遲與付費閘門",
+                icon: Icons.person_outline_rounded,
+                color: Colors.blueGrey,
+                isSelected: !current.isPremium && !current.isFounder,
+                onSelect: () => _applyRole(isPro: false, isFounder: false, type: SubscriptionType.none),
+              ),
+              const SizedBox(height: 10),
+              _buildRoleTile(
+                ctx: ctx,
+                title: "2. PRO 專業用戶 (年度指揮官)",
+                subtitle: "解鎖 85 站光纖直連、黃金咬度與 AI 簡報",
+                icon: Icons.workspace_premium_rounded,
+                color: AppColors.pelagicCyan,
+                isSelected: current.isPremium && !current.isFounder,
+                onSelect: () => _applyRole(isPro: true, isFounder: false, type: SubscriptionType.yearly),
+              ),
+              const SizedBox(height: 10),
+              _buildRoleTile(
+                ctx: ctx,
+                title: "3. 超級 VIP (創始天尊指揮官)",
+                subtitle: "終身黑金卡面、專屬語音問候、發言自帶認證讚",
+                icon: Icons.military_tech_rounded,
+                color: AppColors.bioGold,
+                isSelected: current.isFounder,
+                onSelect: () => _applyRole(isPro: true, isFounder: true, type: SubscriptionType.lifetime),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRoleTile({
+    required BuildContext ctx,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onSelect,
+  }) {
+    return InkWell(
+      onTap: onSelect,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? color : AppColors.glassBorder, width: isSelected ? 1.5 : 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? color : AppColors.textTertiary, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(color: isSelected ? color : AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+                ],
+              ),
+            ),
+            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 🌟 瞬時覆寫狀態機
+  Future<void> _applyRole({
+    required bool isPro,
+    required bool isFounder,
+    required SubscriptionType type,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_pro', isPro);
+    await prefs.setBool('is_founder', isFounder);
+    await prefs.setInt('sub_type', type.index);
+    if (isPro) {
+      if (isFounder) {
+        await prefs.setString('expiry_date', DateTime(2099, 12, 31).toIso8601String());
+      } else {
+        await prefs.setString('expiry_date', DateTime.now().add(const Duration(days: 365)).toIso8601String());
+      }
+    } else {
+      await prefs.remove('expiry_date');
+    }
+
+    // 🌟 強制 Riverpod 重建整個會員狀態機
+    ref.invalidate(premiumProvider);
+
+    if (mounted) {
+      Navigator.pop(context); // 關閉 Sheet
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("⚡ 上帝模式啟動：已切換為 ${isFounder ? '👑 超級VIP (創始指揮官)' : (isPro ? '⚡ PRO 專業用戶' : '👤 一般免費用戶')}！"),
+          backgroundColor: isFounder ? const Color(0xFF2C1802) : (isPro ? const Color(0xFF0077B6) : Colors.blueGrey),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildDrawerHeader(bool isFounder) {
