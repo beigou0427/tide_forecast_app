@@ -1,8 +1,13 @@
-﻿import 'dart:async';
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../premium/presentation/premium_page.dart';
+import '../../../core/theme/app_theme.dart';
 
+/// 🍏 Apple 首席設計工藝：深海啟航問卷與動態模型合成儀 (Deep Ocean Onboarding Odyssey)
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
 
@@ -11,21 +16,20 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  int _currentStep = 0; // 0, 1, 2: 問卷; 3: 假加載
+  int _currentStep = 0; // 0, 1, 2: 問卷; 3: 模型合成中
   
   String? _selectedRegion;
   String? _selectedStyle;
   String? _selectedRisk;
 
-  // 假進度條進度與輪播文字
   double _progress = 0.0;
-  String _loadingText = "正在連接中央氣象署 86 測站感測陣列...";
+  String _loadingText = "正在連接中央氣象署 85 測站光纖直連陣列...";
   Timer? _loadingTimer;
 
   final List<Map<String, dynamic>> _questions = [
     {
       "title": "您最常出沒的作業海域？",
-      "subtitle": "老船長將優先為您預載該海域之潮汐水文模型",
+      "subtitle": "老船長將優先預載該海域之高精度水文拓撲模型",
       "key": "region",
       "options": [
         {"icon": "🌊", "label": "北部沿海 (基隆 / 東北角 / 淡水)"},
@@ -36,8 +40,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ]
     },
     {
-      "title": "您的主要作釣方式？",
-      "subtitle": "系統將自適應計算最適合您作釣的海流與湧浪窗口",
+      "title": "您的主要作釣活動方式？",
+      "subtitle": "系統將自適應計算最適合您下竿的海流與湧浪窗口",
       "key": "style",
       "options": [
         {"icon": "🐟", "label": "浮游磯釣 / 沉底遠投"},
@@ -49,7 +53,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     },
     {
       "title": "出海時最在意的海象風險？",
-      "subtitle": "老船長 AI 預警引擎將為此風險提高安全加權等級",
+      "subtitle": "老船長 AI 預警引擎將為此風險提高安全加權係數",
       "key": "risk",
       "options": [
         {"icon": "⚠️", "label": "瘋狗浪 / 突發深海長湧浪"},
@@ -61,6 +65,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   ];
 
   void _onOptionSelected(String value) {
+    HapticFeedback.selectionClick();
     setState(() {
       if (_currentStep == 0) _selectedRegion = value;
       if (_currentStep == 1) _selectedStyle = value;
@@ -70,24 +75,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (_currentStep < 2) {
       setState(() => _currentStep++);
     } else {
-      _startFakeLoading();
+      _startSynthesisLoading();
     }
   }
 
-  void _startFakeLoading() async {
+  void _startSynthesisLoading() async {
     setState(() {
       _currentStep = 3;
       _progress = 0.05;
     });
 
-    // 儲存問卷偏好以利日後 AI 推理加權
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_pref_region', _selectedRegion ?? '');
     await prefs.setString('user_pref_style', _selectedStyle ?? '');
     await prefs.setString('user_pref_risk', _selectedRisk ?? '');
     await prefs.setBool('has_completed_onboarding', true);
 
-    const totalDurationMs = 2000;
+    const totalDurationMs = 2100;
     const intervalMs = 50;
     int elapsed = 0;
 
@@ -106,6 +110,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
       if (elapsed >= totalDurationMs) {
         timer.cancel();
+        HapticFeedback.mediumImpact();
         _goToPaywall();
       }
     });
@@ -114,8 +119,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void _goToPaywall() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => const PremiumPage(),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 500),
+        pageBuilder: (_, __, ___) => const PremiumPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
       ),
     );
   }
@@ -129,7 +138,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF021B33),
+      backgroundColor: AppColors.abyssBlack,
       body: SafeArea(
         child: _currentStep < 3 ? _buildQuestionStep() : _buildLoadingStep(),
       ),
@@ -145,52 +154,69 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 頂部步數指示
+          // 頂部膠囊進度光條
           Row(
             children: List.generate(3, (idx) {
+              final isPassed = idx <= _currentStep;
               return Expanded(
-                child: Container(
-                  height: 4,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: 3.5,
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(
-                    color: idx <= _currentStep ? const Color(0xFF00B4D8) : Colors.white24,
+                    color: isPassed ? AppColors.pelagicCyan : Colors.white12,
                     borderRadius: BorderRadius.circular(2),
+                    boxShadow: isPassed 
+                        ? [BoxShadow(color: AppColors.pelagicCyan.withValues(alpha: 0.5), blurRadius: 6)] 
+                        : null,
                   ),
                 ),
               );
             }),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 36),
           Text(
-            "STEP 0${_currentStep + 1} / 03",
-            style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2),
+            "STEP 0${_currentStep + 1} OF 03",
+            style: const TextStyle(
+              color: AppColors.pelagicCyan, 
+              fontSize: 11, 
+              fontWeight: FontWeight.w900, 
+              letterSpacing: 2.0,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             q["title"],
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, height: 1.3),
+            style: GoogleFonts.notoSansTc(
+              color: AppColors.textPrimary, 
+              fontSize: 26, 
+              fontWeight: FontWeight.w900, 
+              height: 1.25,
+              letterSpacing: -0.5,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             q["subtitle"],
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, height: 1.4),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.45),
           ),
           const SizedBox(height: 32),
           Expanded(
             child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
               itemCount: options.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, idx) {
                 final opt = options[idx];
                 return InkWell(
                   onTap: () => _onOptionSelected(opt["label"]!),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppColors.glassBorder, width: 0.5),
                     ),
                     child: Row(
                       children: [
@@ -199,10 +225,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
                         Expanded(
                           child: Text(
                             opt["label"]!,
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary, 
+                              fontSize: 14.5, 
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                        Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textTertiary, size: 14),
                       ],
                     ),
                   ),
@@ -226,33 +256,46 @@ class _OnboardingPageState extends State<OnboardingPage> {
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 120,
-                  height: 120,
+                  width: 130,
+                  height: 130,
                   child: CircularProgressIndicator(
                     value: _progress,
-                    strokeWidth: 6,
-                    backgroundColor: Colors.white12,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00B4D8)),
+                    strokeWidth: 3.5,
+                    backgroundColor: Colors.white10,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.pelagicCyan),
                   ),
                 ),
-                const Icon(Icons.anchor_rounded, color: Colors.amberAccent, size: 52),
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: AppColors.pelagicCyan.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 48),
+                ),
               ],
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 36),
             Text(
               "${(_progress * 100).toInt()} %",
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+              style: GoogleFonts.rubik(
+                color: AppColors.textPrimary, 
+                fontSize: 32, 
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
               _loadingText,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w500),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 12),
-            Text(
-              "依據您的釣法習慣自適應調整中",
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+            const SizedBox(height: 8),
+            const Text(
+              "依據您的個人水文習慣自適應調整中",
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
             ),
           ],
         ),
@@ -260,4 +303,3 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 }
-

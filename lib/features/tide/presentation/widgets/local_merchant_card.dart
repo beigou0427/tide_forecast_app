@@ -1,7 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
+/// 🍏 Apple 首席設計工藝：港口前哨站與特約船班 (Marina Outpost & Vessel Telemetry)
 class LocalMerchantCard extends StatelessWidget {
   final String stationName;
   final String region;
@@ -14,55 +17,79 @@ class LocalMerchantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 依據海域自動匹配在地特約釣具行與船班情報
     final merchant = _getMerchantInfo(region, stationName);
 
     return CustomCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 頂部特約證書標題列
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.15),
+                      color: AppColors.bioGold.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.storefront_rounded, color: Color(0xFFB8860B), size: 18),
+                    child: const Icon(Icons.storefront_rounded, color: AppColors.bioGold, size: 18),
                   ),
-                  const SizedBox(width: 8),
-                  Column(
+                  const SizedBox(width: 10),
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("周邊特約補給站 & 船班", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text("在地釣具 • 活餌現貨 • 船班預約", style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text(
+                        "周邊特約補給站 & 船班",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14.5,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        "在地釣具 · 活餌現貨 · 渡礁預約",
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                      ),
                     ],
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.amber.shade300, width: 0.8),
+                  color: AppColors.bioGold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.35), width: 0.5),
                 ),
-                child: const Text("特約認證", style: TextStyle(color: Color(0xFF795548), fontSize: 9, fontWeight: FontWeight.bold)),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_rounded, size: 11, color: AppColors.bioGold),
+                    SizedBox(width: 3),
+                    Text(
+                      "特約認證",
+                      style: TextStyle(color: AppColors.bioGold, fontSize: 9.5, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
+          // 2. 黑曜石玻璃商家資訊卡
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF021B33).withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,57 +97,98 @@ class LocalMerchantCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      merchant["name"]!,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF021B33)),
+                    Expanded(
+                      child: Text(
+                        merchant["name"]!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ),
-                    Text(
-                      merchant["distance"]!,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF0077B6), fontWeight: FontWeight.bold),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.pelagicCyan.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        merchant["distance"]!,
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.pelagicCyan, fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.check_circle_outline_rounded, size: 13, color: Colors.teal),
-                    const SizedBox(width: 4),
-                    Text(merchant["liveBait"]!, style: const TextStyle(fontSize: 11, color: Colors.teal, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF30D158)), // 🍏 Apple System Green
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        merchant["liveBait"]!,
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF30D158), fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Row(
                   children: [
-                    const Icon(Icons.directions_boat_filled_outlined, size: 13, color: Colors.blueGrey),
-                    const SizedBox(width: 4),
-                    Text(merchant["boatStatus"]!, style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade700)),
+                    const Icon(Icons.directions_boat_filled_rounded, size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        merchant["boatStatus"]!,
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
-                // 撥打電話與導航動作按鈕
+                // 3. 觸覺原生通訊按鍵
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF0077B6)),
-                        label: const Text("撥打訂餌/查船班", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0077B6))),
-                        onPressed: () => _launchCaller(merchant["phone"]!),
+                        icon: const Icon(Icons.phone_rounded, size: 14, color: AppColors.pelagicCyan),
+                        label: const Text(
+                          "撥打訂餌 / 查船班",
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.pelagicCyan),
+                        ),
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          _launchCaller(merchant["phone"]!);
+                        },
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF0077B6).withValues(alpha: 0.1),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(width: 10),
+                    InkWell(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        _launchMap(merchant["name"]!);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: AppColors.pelagicCyan.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.pelagicCyan.withValues(alpha: 0.3), width: 0.5),
+                        ),
+                        child: const Icon(Icons.navigation_rounded, size: 16, color: AppColors.pelagicCyan),
                       ),
-                      icon: const Icon(Icons.navigation_outlined, size: 18, color: Color(0xFF0077B6)),
-                      onPressed: () => _launchMap(merchant["name"]!),
                     ),
                   ],
                 ),

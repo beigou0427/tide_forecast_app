@@ -1,7 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/solunar_util.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
+/// 🍏 Apple 首席設計工藝：天體月相與生物咬度儀 (Celestial Solunar Intelligence)
 class SolunarCard extends StatelessWidget {
   final DateTime selectedDate;
   const SolunarCard({super.key, required this.selectedDate});
@@ -10,18 +13,42 @@ class SolunarCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final solunar = SolunarUtil.calculate(selectedDate);
     final bool isSpringTide = solunar.tideCategory == "大潮";
+    final Color tideAccent = isSpringTide ? AppColors.bioGold : AppColors.pelagicCyan;
 
     return CustomCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 月相立體微光與大中小潮膠囊
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Text(solunar.moonPhaseEmoji, style: const TextStyle(fontSize: 26)),
-                  const SizedBox(width: 10),
+                  // 🌟 天體玻璃光暈球
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.06),
+                      border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        solunar.moonPhaseEmoji,
+                        style: const TextStyle(fontSize: 22),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -29,48 +56,67 @@ class SolunarCard extends StatelessWidget {
                         children: [
                           Text(
                             solunar.moonPhaseName,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: AppColors.textPrimary,
+                              letterSpacing: -0.2,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Text(
                             "(${solunar.lunarDateStr})",
-                            style: const TextStyle(fontSize: 12, color: Colors.blueGrey, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      const Text("日月引力與海流活躍指數", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      const SizedBox(height: 3),
+                      const Text(
+                        "日月天體引力 · 海流走水活躍指數",
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                      ),
                     ],
                   ),
                 ],
               ),
+
+              // 大中小潮高對比光學膠囊
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isSpringTide
-                      ? Colors.redAccent.withValues(alpha: 0.1)
-                      : const Color(0xFF0077B6).withValues(alpha: 0.1),
+                  color: tideAccent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSpringTide
-                        ? Colors.redAccent.withValues(alpha: 0.3)
-                        : const Color(0xFF0077B6).withValues(alpha: 0.3),
+                    color: tideAccent.withValues(alpha: 0.35),
+                    width: 0.8,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: tideAccent.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                    )
+                  ],
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       isSpringTide ? Icons.local_fire_department_rounded : Icons.water_rounded,
-                      color: isSpringTide ? Colors.redAccent : const Color(0xFF0077B6),
+                      color: tideAccent,
                       size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       solunar.tideCategory,
                       style: TextStyle(
-                        color: isSpringTide ? Colors.redAccent : const Color(0xFF0077B6),
+                        color: tideAccent,
                         fontWeight: FontWeight.w900,
                         fontSize: 12,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
@@ -78,51 +124,86 @@ class SolunarCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
+
+          // 2. 🌟 生物熒光咬度進度條 (Cyan-to-Gold Liquid Gradient)
           Row(
             children: [
-              const Text("咬度指數", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              const SizedBox(width: 8),
+              const Text(
+                "咬度指數",
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: solunar.fishActivityScore / 100.0,
-                    backgroundColor: Colors.grey.shade100,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      solunar.fishActivityScore >= 85 ? Colors.orangeAccent : const Color(0xFF0077B6),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    height: 7,
+                    color: Colors.white.withValues(alpha: 0.08),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: (solunar.fishActivityScore / 100.0).clamp(0.0, 1.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          gradient: LinearGradient(
+                            colors: solunar.fishActivityScore >= 85
+                                ? const [AppColors.pelagicCyan, AppColors.bioGold]
+                                : const [AppColors.marineBlue, AppColors.pelagicCyan],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (solunar.fishActivityScore >= 85 ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.4),
+                              blurRadius: 6,
+                            )
+                          ],
+                        ),
+                      ),
                     ),
-                    minHeight: 6,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 "${solunar.fishActivityScore}%",
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: solunar.fishActivityScore >= 85 ? Colors.orange.shade800 : const Color(0xFF0077B6),
+                  color: solunar.fishActivityScore >= 85 ? AppColors.bioGold : AppColors.pelagicCyan,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
+
+          // 3. 滿水返退戰術指引氣泡
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF0077B6).withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(10),
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.tips_and_updates_outlined, size: 15, color: Color(0xFF0077B6)),
-                const SizedBox(width: 6),
+                const Icon(Icons.wb_twilight_rounded, size: 16, color: AppColors.bioGold),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     solunar.biteWindowAdvice,
-                    style: const TextStyle(fontSize: 11, color: Colors.blueGrey, height: 1.3),
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ),
               ],

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../data/tide_model.dart';
 import 'widgets/hero_metric_card.dart';
 import 'widgets/solunar_card.dart';
-import 'widgets/tide_chart_sheet.dart';
+import 'tide_chart_sheet.dart'; // 🌟 修復路徑：平級引用同目錄下的 tide_chart_sheet.dart
 import 'widgets/wind_compass_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
@@ -59,7 +59,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           children: [
             Column(
               children: [
-                // 頂部導覽列 (乾淨截圖模式時隱藏)
                 if (!_cleanMode)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -91,7 +90,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                     ),
                   ),
 
-                // 🌟 ASO 靈魂：頂部宣傳看板 (廣告標題)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                   child: Column(
@@ -128,7 +126,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                   ),
                 ),
 
-                // 核心預覽卡片區
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
@@ -138,7 +135,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
               ],
             ),
 
-            // 底部截圖控制器 (乾淨模式下點擊螢幕任意處即可喚回)
             if (!_cleanMode)
               Positioned(
                 bottom: 20, left: 20, right: 20,
@@ -202,7 +198,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                 ),
               ),
 
-            // 乾淨模式退出感應層
             if (_cleanMode)
               Positioned.fill(
                 child: GestureDetector(
@@ -216,11 +211,9 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
     );
   }
 
-  // 🌟 打造 5 套 App Store 專屬的完美無瑕商業展位
   Widget _buildSlideContent(int slideIdx) {
     final now = DateTime.now();
 
-    // 完美水文實測 (富貴角大咬晴朗天)
     final perfectObs = Observation(
       dateTime: now,
       waveHeight: 0.8,
@@ -235,7 +228,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
     );
 
     switch (slideIdx) {
-      // 01: 實時海象與 AI 指揮中心
       case 0:
         return Column(
           children: [
@@ -279,11 +271,9 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           ],
         );
 
-      // 02: 30天潮汐走勢與黃金咬度
       case 1:
         final mockChartData = List.generate(24, (i) {
           final t = now.subtract(Duration(hours: 23 - i));
-          // 模擬完美正弦波潮位
           final double h = 1.2 + 0.8 * (i == 14 ? 1.0 : (i % 6 - 3).abs() * 0.2);
           return Observation(dateTime: t, tideHeight: double.parse(h.toStringAsFixed(2)));
         });
@@ -315,7 +305,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           ],
         );
 
-      // 03: Waze 現場實況雷達
       case 2:
         return Column(
           children: [
@@ -350,7 +339,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           ],
         );
 
-      // 04: 戰利品漁獲相簿日誌
       case 3:
         return Column(
           children: [
@@ -378,7 +366,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // 模擬精美釣獲大物照片
                   Container(
                     height: 180,
                     width: double.infinity,
@@ -419,7 +406,6 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           ],
         );
 
-      // 05: VIP 首席黑金特權金庫
       case 4:
       default:
         return Column(
