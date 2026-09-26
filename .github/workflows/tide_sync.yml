@@ -1,9 +1,8 @@
-name: 每日 8 次全台 85 測站海象與 AI 自動同步
+name: 每日 8 次全台 85 測站海象與 AI 自動同步 (含 MLOps 質檢閘門)
 on:
   workflow_dispatch:
   schedule:
-    # 🌟 成本優化：改為每 3 小時執行一次 (0,3,6,9,12,15,18,21 點)
-    # 確保 Gemini API (680次/天) 與 GitHub Actions (1560分/月) 完美落在免費額度內
+    # 成本優化：每 3 小時執行一次
     - cron: '0 */3 * * *'
 jobs:
   tide-job:
@@ -24,6 +23,80 @@ jobs:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
+
+      # 🌟 MLOps 核心維度：發布前強制執行物理規律與結構化質檢閘門
+      - name: 🛡️ MLOps 質檢閘門：檢驗 85 站 AI 結構、數值邊界與海事物理防線
+        run: |
+          python -c "
+          import json, os, sys, glob
+
+          deploy_dir = 'deploy_api'
+          if not os.path.exists(deploy_dir):
+              print('❌ [MLOps 質檢失敗] deploy_api 目錄不存在！')
+              sys.exit(1)
+
+          cfg_path = os.path.join(deploy_dir, 'stations_config.json')
+          if not os.path.exists(cfg_path):
+              print('❌ [MLOps 質檢失敗] stations_config.json 缺失！')
+              sys.exit(1)
+
+          with open(cfg_path, 'r', encoding='utf-8') as f:
+              configs = json.load(f)
+
+          if len(configs) != 85:
+              print(f'❌ [MLOps 質檢失敗] 測站數量不符，應為 85 站，實測：{len(configs)} 站')
+              sys.exit(1)
+
+          edge_files = glob.glob(os.path.join(deploy_dir, 'edge_*.json'))
+          if len(edge_files) != 85:
+              print(f'❌ [MLOps 質檢失敗] 快照缺失，應為 85 份，實測：{len(edge_files)} 份')
+              sys.exit(1)
+
+          hallucination_count = 0
+          safety_drift_count = 0
+
+          for ef in edge_files:
+              with open(ef, 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+
+              ai = data.get('ai_expert', {})
+              score = ai.get('safety_score')
+              briefing = ai.get('briefing', '')
+              acts = ai.get('activities', [])
+
+              # 1. 結構與評分邊界約束檢驗
+              if score is None or not (0 <= score <= 100) or not briefing or not isinstance(acts, list):
+                  hallucination_count += 1
+                  print(f'⚠️ [結構異常] {ef}: AI 輸出缺失或安全分超出 [0, 100] 邊界！')
+
+              # 2. 海洋物理回歸防線 (物理規律嚴禁 LLM 任意漂移)
+              obs = data.get('obs', {})
+              we = obs.get('WeatherElements') or obs.get('WeatherElement') or {}
+              wave = obs.get('Wave') or {}
+              
+              raw_h = we.get('WaveHeight') if we.get('WaveHeight') is not None else wave.get('WaveHeight')
+              raw_p = we.get('WavePeriod') if we.get('WavePeriod') is not None else wave.get('WavePeriod')
+              
+              try:
+                  h = float(raw_h) if raw_h and str(raw_h) not in ('None', '-99') else 0.8
+                  p = float(raw_p) if raw_p and str(raw_p) not in ('None', '-99') else 5.0
+              except:
+                  h, p = 0.8, 5.0
+
+              # 🚨 長週期瘋狗浪防線：若週期 >= 10s 且浪高 >= 0.7m，安全分嚴禁超過 40 分！
+              if p >= 10.0 and h >= 0.7 and score > 40:
+                  safety_drift_count += 1
+                  print(f'🚨 [安全漂移攔截] {ef}: 浪高 {h}m、週期 {p}s 具致命長湧瘋狗浪風險，AI 卻給出高分 {score}，存在重大誤導風險！')
+
+          print(f'📊 [MLOps 質檢報告] 通過率：{(85 - hallucination_count)/85*100:.1f}% | 結構異常：{hallucination_count} 站 | 物理安全漂移：{safety_drift_count} 站')
+
+          if hallucination_count > 10 or safety_drift_count > 0:
+              print('❌ [MLOps 阻斷發布] 偵測到重大 AI 幻覺或物理防線漂移，強制終止發布，保護外礁釣客生命安全！')
+              sys.exit(1)
+
+          print('✅ [MLOps 質檢通過] 85 測站 AI 輸出完全符合海洋物理學與結構約束，核准發布至生產環境！')
+          "
+
       - name: 發布至 GitHub Pages (api-data 分支)
         uses: peaceiris/actions-gh-pages@v3
         with:

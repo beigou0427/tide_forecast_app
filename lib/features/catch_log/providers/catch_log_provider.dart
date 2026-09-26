@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -15,6 +16,9 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   String _deviceId = "unknown_device";
+  
+  // 🌟 移動端儲存優化：防抖節流計時器
+  Timer? _diskFlushTimer;
 
   CatchLogNotifier() : super([]) {
     _initSync();
@@ -40,6 +44,26 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
         ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
     } catch (_) {
       state = [];
+    }
+  }
+
+  // 🌟 核心防禦：防抖節流磁碟寫入器 (合併密集寫入，保護手機快閃記憶體與電量)
+  void _scheduleDiskFlush({bool immediate = false}) {
+    _diskFlushTimer?.cancel();
+    if (immediate) {
+      _flushToDisk();
+    } else {
+      _diskFlushTimer = Timer(const Duration(milliseconds: 600), _flushToDisk);
+    }
+  }
+
+  Future<void> _flushToDisk() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawList = state.map((e) => e.toJson()).toList();
+      await prefs.setStringList(_storageKey, rawList);
+    } catch (e) {
+      debugPrint("⚠️ [Storage I/O] 本地快取沉積失敗: $e");
     }
   }
 
@@ -73,8 +97,8 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
       if (hasNewCloudData) {
         updatedLocal.sort((a, b) => b.dateTime.compareTo(a.dateTime));
         state = updatedLocal;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList(_storageKey, updatedLocal.map((e) => e.toJson()).toList());
+        // 背景同步完成，延遲合併寫入硬碟
+        _scheduleDiskFlush(immediate: false);
         debugPrint("☁️ [Firestore] 雲端漁獲日誌同步完成，成功還原遺失資料！");
       }
     } catch (e) {
@@ -86,9 +110,8 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
     final updated = [item, ...state];
     state = updated;
     
-    final prefs = await SharedPreferences.getInstance();
-    final rawList = updated.map((e) => e.toJson()).toList();
-    await prefs.setStringList(_storageKey, rawList);
+    // 🌟 使用者主動操作：立即沉積寫入本機快取
+    _scheduleDiskFlush(immediate: true);
 
     try {
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(item.id).set(item.toMap());
@@ -137,8 +160,8 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
           if (existing.id == item.id) updatedItem else existing
       ];
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_storageKey, state.map((e) => e.toJson()).toList());
+      // 🌟 背景照片回填網址：啟動 600ms 節流閥，避免多張照片連續狂刷快閃記憶體
+      _scheduleDiskFlush(immediate: false);
 
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(item.id).update({'imageUrl': downloadUrl});
       debugPrint("☁️ [Storage] 照片上傳成功！網址已安全寫入資料庫。");
@@ -148,7 +171,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   }
 
   Future<void> deleteLog(String id) async {
-    // 🌟 正確抓取待刪除物件
     final itemToDelete = state.firstWhere(
       (e) => e.id == id, 
       orElse: () => CatchLogItem(id: '', dateTime: DateTime.now(), stationName: '', species: '')
@@ -156,18 +178,24 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
         
     state = state.where((e) => e.id != id).toList();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_storageKey, state.map((e) => e.toJson()).toList());
+    // 🌟 刪除關鍵操作：立即沉積寫入
+    _scheduleDiskFlush(immediate: true);
 
     try {
       await _firestore.collection('users').doc(_deviceId).collection('catch_logs').doc(id).delete();
       
-      // 🌟 消除未讀取變數警告：精準檢查實體照片是否存在才呼叫雲端刪除，省流量且零 Warning
       if (itemToDelete.imageUrl != null || (itemToDelete.imagePath != null && itemToDelete.imagePath!.isNotEmpty)) {
         await _storage.ref().child('users/$_deviceId/catch_logs/$id.jpg').delete();
       }
     } catch (e) {
       debugPrint("⚠️ [Firestore/Storage] 雲端刪除失敗或檔案本就不存在: $e");
     }
+  }
+
+  @override
+  void dispose() {
+    _diskFlushTimer?.cancel();
+    _flushToDisk(); // 銷毀前強制同步最後一次未完成寫入
+    super.dispose();
   }
 }
