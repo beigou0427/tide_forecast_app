@@ -5,7 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 import '../../data/tide_model.dart';
 
-/// 🍏 Apple 首席設計工藝：核心水文指標看板 (Hero Oceanic Telemetry)
+/// 🍏 Apple 首席設計工藝：核心水文指標看板 (零溢出安全版)
 class HeroMetricCard extends StatelessWidget {
   final Observation current;
   final bool isBuoy;
@@ -74,34 +74,37 @@ class HeroMetricCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              // 🌟 48pt 磅礴特粗數字 + 瑞士鐘錶級等寬特性 (Tabular Figures)
-              Text(
-                number,
-                style: GoogleFonts.rubik(
-                  fontSize: 48,
-                  fontWeight: FontWeight.w900,
-                  color: glowColor,
-                  letterSpacing: -1.5,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
+          // 🌟 死穴 4 修復：FittedBox 彈性縮放護甲，徹底終結雙位數暴浪或大字體溢出！
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
                 Text(
-                  unit,
+                  number,
                   style: GoogleFonts.rubik(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                    color: glowColor,
+                    letterSpacing: -1.5,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
+                if (unit.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    unit,
+                    style: GoogleFonts.rubik(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),

@@ -4,7 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/solunar_util.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：天體月相與生物咬度儀 (Celestial Solunar Intelligence)
+/// 🍏 Apple 首席設計工藝：天體月相與生物咬度儀 (零溢出安全版)
 class SolunarCard extends StatelessWidget {
   final DateTime selectedDate;
   const SolunarCard({super.key, required this.selectedDate});
@@ -20,69 +20,80 @@ class SolunarCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 月相立體微光與大中小潮膠囊
+          // 1. 月相立體微光與大中小潮膠囊 (🌟 雙重 Expanded 彈性約束，杜絕字體放大溢出)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  // 🌟 天體玻璃光暈球
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.06),
-                      border: Border.all(color: AppColors.glassBorder, width: 0.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        solunar.moonPhaseEmoji,
-                        style: const TextStyle(fontSize: 22),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            solunar.moonPhaseName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14.5,
-                              color: AppColors.textPrimary,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "(${solunar.lunarDateStr})",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
+              Expanded(
+                child: Row(
+                  children: [
+                    // 天體玻璃光暈球
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.06),
+                        border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            blurRadius: 10,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      const Text(
-                        "日月天體引力 · 海流走水活躍指數",
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                      child: Center(
+                        child: Text(
+                          solunar.moonPhaseEmoji,
+                          style: const TextStyle(fontSize: 22),
+                        ),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  solunar.moonPhaseName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                    color: AppColors.textPrimary,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                "(${solunar.lunarDateStr})",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            "日月天體引力 · 海流走水活躍指數",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
 
               // 大中小潮高對比光學膠囊
               Container(
@@ -126,7 +137,7 @@ class SolunarCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // 2. 🌟 生物熒光咬度進度條 (Cyan-to-Gold Liquid Gradient)
+          // 2. 生物熒光咬度進度條
           Row(
             children: [
               const Text(

@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：港口前哨站與特約船班 (Marina Outpost & Vessel Telemetry)
+/// 🍏 Apple 首席設計工藝：港口前哨站與特約船班 (零溢出安全版)
 class LocalMerchantCard extends StatelessWidget {
   final String stationName;
   final String region;
@@ -24,42 +24,51 @@ class LocalMerchantCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部特約證書標題列
+          // 1. 頂部特約證書標題列 (注入雙層彈性約束，徹底杜絕小螢幕溢出)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppColors.bioGold.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.bioGold.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.storefront_rounded, color: AppColors.bioGold, size: 18),
                     ),
-                    child: const Icon(Icons.storefront_rounded, color: AppColors.bioGold, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "周邊特約補給站 & 船班",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14.5,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.2,
-                        ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            "周邊特約補給站 & 船班",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            "在地釣具 · 活餌現貨 · 渡礁預約",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        "在地釣具 · 活餌現貨 · 渡礁預約",
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
@@ -126,11 +135,13 @@ class LocalMerchantCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF30D158)), // 🍏 Apple System Green
+                    const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF30D158)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         merchant["liveBait"]!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 11.5, color: Color(0xFF30D158), fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -144,6 +155,8 @@ class LocalMerchantCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         merchant["boatStatus"]!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                       ),
                     ),

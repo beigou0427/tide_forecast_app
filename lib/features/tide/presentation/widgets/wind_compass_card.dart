@@ -1,12 +1,11 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：360° 航海作戰羅盤 (Nautical Instrumentation Compass)
+/// 🍏 Apple 首席設計工藝：360° 航海作戰羅盤 (零溢出安全版)
 class WindCompassCard extends StatelessWidget {
   final Observation current;
 
@@ -26,42 +25,51 @@ class WindCompassCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部儀表標題與方位角膠囊
+          // 1. 頂部儀表標題與方位角膠囊 (🌟 注入 Expanded 彈性保護)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppColors.pelagicCyan.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.pelagicCyan.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.explore_rounded, color: AppColors.pelagicCyan, size: 18),
                     ),
-                    child: const Icon(Icons.explore_rounded, color: AppColors.pelagicCyan, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "360° 航海作戰羅盤",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.2,
-                        ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "360° 航海作戰羅盤",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            "即時方位角與蒲福風級階梯",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        "即時方位角與蒲福風級階梯",
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -86,14 +94,13 @@ class WindCompassCard extends StatelessWidget {
           // 2. 羅盤本體與風級戰術排印
           Row(
             children: [
-              // 🍏 瑞士精密航海羅盤錶盤
+              // 瑞士精密航海羅盤錶盤
               SizedBox(
                 width: 124,
                 height: 124,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // 外圈高精度水晶刻度環
                     Container(
                       width: 120,
                       height: 120,
@@ -111,7 +118,6 @@ class WindCompassCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // 內環細微同心圓
                     Container(
                       width: 86,
                       height: 86,
@@ -120,7 +126,6 @@ class WindCompassCard extends StatelessWidget {
                         border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
                       ),
                     ),
-                    // 四方基點標示 (Cardinal Points)
                     const Positioned(
                       top: 6,
                       child: Text("N", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.hazardCoral)),
@@ -138,7 +143,6 @@ class WindCompassCard extends StatelessWidget {
                       child: Text("E", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
                     ),
                     
-                    // 🌟 航海動態流體指針
                     Transform.rotate(
                       angle: (windDir * math.pi / 180),
                       child: Column(
@@ -153,7 +157,6 @@ class WindCompassCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // 軸心配重金屬珠
                     Container(
                       width: 8,
                       height: 8,
@@ -172,37 +175,44 @@ class WindCompassCard extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(width: 20),
+              const SizedBox(width: 18),
 
-              // 3. 風速數值與戰術指引氣泡
+              // 🌟 3. 風速數值區：採用 Wrap 自適應彈性佈局，徹底終結小螢幕強風溢出！
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
-                        Text(
-                          windSpeed.toStringAsFixed(1),
-                          style: GoogleFonts.rubik(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -1,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              windSpeed.toStringAsFixed(1),
+                              style: GoogleFonts.rubik(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.textPrimary,
+                                letterSpacing: -1,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            const Text(
+                              "m/s",
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          "m/s",
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                           decoration: BoxDecoration(
@@ -212,12 +222,14 @@ class WindCompassCard extends StatelessWidget {
                           ),
                           child: Text(
                             beaufortInfo,
-                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: windColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: windColor),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
