@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../services/premium_service.dart';
 import '../../../core/utils/share_util.dart';
+import '../../../core/theme/app_theme.dart';
 
 class VipCenterPage extends ConsumerStatefulWidget {
   const VipCenterPage({super.key});
@@ -17,11 +19,11 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(premiumProvider);
+    final isClassic = ref.watch(isClassicThemeProvider);
     final String memberId = "CAPT-2026-${(state.expiryDate?.millisecondsSinceEpoch ?? 88888).toString().substring(5, 9)}";
     final String title = state.isFounder ? "創始天尊指揮官" : (state.type == SubscriptionType.yearly ? "年度首席領航員" : "尊榮專業會員");
     final String expiryText = state.isFounder ? "終身永久享有最高特權" : "特權有效期至：${state.expiryDate != null ? DateFormat('yyyy/MM/dd').format(state.expiryDate!) : '有效'}";
     
-    // 取得當前餘額
     final int coins = state.coinBalance;
 
     return Scaffold(
@@ -144,9 +146,14 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 26),
 
-            // 🌟 2. 虛擬資產與特權金庫 (代幣經濟展示)
+            // 🌟 2. VIP 專屬：介面風格自由切換開關 (經典白藍 vs 深淵黑金)
+            _buildThemeSwitchCard(context, ref, isClassic),
+
+            const SizedBox(height: 24),
+
+            // 🌟 3. 虛擬資產與特權金庫
             Row(
               children: [
                 const Icon(Icons.account_balance_wallet_rounded, color: Colors.amber, size: 18),
@@ -162,7 +169,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 32),
 
-            // 🌟 3. 硬核專線儀表板
+            // 🌟 4. 硬核專線儀表板
             Row(
               children: [
                 const Icon(Icons.shield_rounded, color: Color(0xFF00B4D8), size: 18),
@@ -212,7 +219,73 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     );
   }
 
-  // 🌟 建構老船長幣錢包 UI
+  // 🌟 VIP 專屬：風格自由切換開關卡片
+  Widget _buildThemeSwitchCard(BuildContext context, WidgetRef ref, bool isClassic) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.15) : AppColors.pelagicCyan.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isClassic ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
+              color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      "介面風格自由切換",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: AppColors.bioGold.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.3), width: 0.5),
+                      ),
+                      child: const Text("VIP 特權", style: TextStyle(color: AppColors.bioGold, fontSize: 8.5, fontWeight: FontWeight.w900)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  isClassic ? "目前：經典白藍老船長版 (烈日外礁高對比)" : "目前：深淵黑金旗艦版 (OLED極致純黑)",
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isClassic,
+            activeColor: const Color(0xFF0077B6),
+            onChanged: (val) {
+              HapticFeedback.mediumImpact();
+              ref.read(isClassicThemeProvider.notifier).setClassicTheme(val);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCoinWallet(BuildContext context, int coins) {
     return Container(
       padding: const EdgeInsets.all(20),

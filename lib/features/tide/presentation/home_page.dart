@@ -27,7 +27,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：深海無邊界主座艙 (Abyssal Master Canvas)
+/// 🍏 Apple 首席設計工藝：雙軌自適應主座艙 (Adaptive Oceanic Canvas)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -40,7 +40,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
-    // 延遲 3 秒請求推播權限，先讓用戶看見 App 價值 (Apple HIG 規範)
     Future.delayed(const Duration(seconds: 3), () async {
       try {
         await NotificationService.init();
@@ -59,6 +58,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
     });
 
+    final isClassic = ref.watch(isClassicThemeProvider);
     final tideViewAsync = ref.watch(tideViewDataProvider);
     final currentId = ref.watch(currentStationIdProvider);
     final selectedDate = ref.watch(selectedDateProvider);
@@ -75,28 +75,35 @@ class _HomePageState extends ConsumerState<HomePage> {
     final bool isToday = selectedKey == todayKey;
     final bool isFuture = selectedDate.isAfter(now) && !isToday;
 
+    // 經典模式色彩
+    final Color classicModeColor = isToday 
+        ? const Color(0xFF0077B6) 
+        : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
+
     return Scaffold(
-      // 🌟 深淵極致純黑畫布
-      backgroundColor: AppColors.abyssBlack,
+      // 🌟 自適應背景：經典白藍 (#F8FBFF) vs 深淵純黑 (#03070D)
+      backgroundColor: isClassic ? AppColors.classicBg : AppColors.abyssBlack,
       drawer: StationDrawer(currentId: currentId),
       body: RefreshIndicator(
-        color: AppColors.pelagicCyan,
-        backgroundColor: AppColors.abyssCard,
+        color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+        backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
         onRefresh: () async {
           HapticFeedback.mediumImpact();
           return await ref.refresh(tideViewDataProvider.future);
         },
         child: CustomScrollView(
-          // iOS 彈簧回彈物理
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             SliverAppBar(
               pinned: true,
               expandedHeight: 180,
-              backgroundColor: AppColors.abyssBlack.withValues(alpha: 0.88),
-              elevation: 0,
+              // 🌟 自適應 AppBar：經典模式為飽滿藍/紫/橘；深淵模式為半透明毛玻璃純黑
+              backgroundColor: isClassic 
+                  ? classicModeColor 
+                  : AppColors.abyssBlack.withValues(alpha: 0.88),
+              elevation: isClassic ? 1 : 0,
               leadingWidth: 92,
-              leading: Builder(builder: (context) => _buildRegionButton(context)),
+              leading: Builder(builder: (context) => _buildRegionButton(context, isClassic)),
               centerTitle: true,
               title: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -105,25 +112,27 @@ class _HomePageState extends ConsumerState<HomePage> {
                     width: 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: isToday ? AppColors.pelagicCyan : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral),
+                      color: isToday 
+                          ? (isClassic ? Colors.white : AppColors.pelagicCyan) 
+                          : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                       fontSize: 16.5,
-                      letterSpacing: -0.3,
+                      letterSpacing: isClassic ? 0 : -0.3,
                     ),
                   ),
                 ],
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.share_rounded, color: AppColors.textPrimary, size: 20),
+                  icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
                   tooltip: "產出海象戰報分享",
                   onPressed: tideViewAsync.value == null
                       ? null
@@ -135,7 +144,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 IconButton(
                   icon: Icon(
                     isFavorited ? Icons.star_rounded : Icons.star_border_rounded, 
-                    color: isFavorited ? AppColors.bioGold : AppColors.textSecondary,
+                    color: isFavorited ? AppColors.bioGold : Colors.white,
                     size: 22,
                   ),
                   onPressed: () async {
@@ -147,7 +156,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 IconButton(
                   icon: Icon(
                     Icons.calendar_month_rounded, 
-                    color: premiumState.isPremium ? AppColors.bioGold : AppColors.textPrimary,
+                    color: premiumState.isPremium ? AppColors.bioGold : Colors.white,
                     size: 20,
                   ),
                   onPressed: () {
@@ -161,7 +170,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                 background: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    DateRibbon(selectedDate: selectedDate, themeColor: AppColors.pelagicCyan),
+                    DateRibbon(
+                      selectedDate: selectedDate, 
+                      themeColor: isClassic ? classicModeColor : AppColors.pelagicCyan,
+                    ),
                     const SizedBox(height: 10),
                   ],
                 ),
@@ -169,10 +181,15 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
 
             tideViewAsync.when(
-              loading: () => const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: AppColors.pelagicCyan, strokeWidth: 2.5)),
+              loading: () => SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
+                    strokeWidth: 2.5,
+                  ),
+                ),
               ),
-              error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
+              error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref, isClassic)),
               data: (viewData) {
                 final station = viewData.stationData;
                 final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
@@ -185,7 +202,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
                 if (!isFuture && dayObservations.isEmpty) {
-                  return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
+                  return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName, isClassic));
                 }
 
                 final Observation? activeObservation = dayObservations.isNotEmpty
@@ -217,11 +234,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                       const SizedBox(height: 20),
 
                       if (isFuture) ...[
-                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", accentColor: Colors.indigoAccent),
+                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", accentColor: Colors.indigoAccent, isClassic: isClassic),
                         const SizedBox(height: 12),
-                        _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
+                        _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         const SizedBox(height: 18),
-                        _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署物理模型推算。"),
+                        _infoCard(context, "預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署物理模型推算。"),
                       ] else if (activeObservation != null) ...[
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
@@ -232,16 +249,16 @@ class _HomePageState extends ConsumerState<HomePage> {
 
                         if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
                           const SizedBox(height: 22),
-                          _sectionTitle(isToday ? "今日滿乾潮時程" : "當日滿乾潮時程", accentColor: AppColors.bioGold),
+                          _sectionTitle(isToday ? "今日滿乾潮時程" : "當日滿乾潮時程", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                           const SizedBox(height: 12),
-                          _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
+                          _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         ],
                         const SizedBox(height: 22),
-                        _sectionTitle(isToday ? "24h 走勢監控" : "歷史走勢圖", accentColor: AppColors.pelagicCyan),
+                        _sectionTitle(isToday ? "24h 走勢監控" : "歷史走勢圖", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, isClassic: isClassic),
                         const SizedBox(height: 12),
                         CustomCard(child: TideChartSheet(observations: dayObservations)),
                         const SizedBox(height: 22),
-                        _sectionTitle(isToday ? "詳細觀測參數" : "歷史時空記錄參數"),
+                        _sectionTitle(isToday ? "詳細觀測參數" : "歷史時空記錄參數", isClassic: isClassic),
                         const SizedBox(height: 12),
                         MetricGrid(current: activeObservation),
                       ],
@@ -253,7 +270,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                       const SizedBox(height: 24),
 
-                      _buildFooter(station.info.addressDescription),
+                      _buildFooter(station.info.addressDescription, isClassic),
                     ]),
                   ),
                 );
@@ -268,8 +285,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 HapticFeedback.mediumImpact();
                 ref.read(selectedDateProvider.notifier).state = DateTime.now();
               },
-              backgroundColor: AppColors.pelagicCyan,
-              foregroundColor: AppColors.abyssBlack,
+              backgroundColor: isClassic ? classicModeColor : AppColors.pelagicCyan,
+              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
               elevation: 4,
               icon: const Icon(Icons.today_rounded, size: 18),
               label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
@@ -333,7 +350,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildRegionButton(BuildContext context) {
+  Widget _buildRegionButton(BuildContext context, bool isClassic) {
     return Padding(
       padding: const EdgeInsets.only(left: 12.0, top: 12, bottom: 12),
       child: InkWell(
@@ -344,16 +361,22 @@ class _HomePageState extends ConsumerState<HomePage> {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: isClassic ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.glassBorder, width: 0.5),
+            border: Border.all(
+              color: isClassic ? Colors.white.withValues(alpha: 0.35) : AppColors.glassBorder, 
+              width: 0.5,
+            ),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.near_me_rounded, color: AppColors.pelagicCyan, size: 13),
-              SizedBox(width: 4),
-              Text("測站", style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
+              Icon(Icons.near_me_rounded, color: isClassic ? Colors.white : AppColors.pelagicCyan, size: 13),
+              const SizedBox(width: 4),
+              Text(
+                isClassic ? "地區" : "測站", 
+                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -361,7 +384,17 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _sectionTitle(String title, {Color? accentColor}) {
+  Widget _sectionTitle(String title, {Color? accentColor, required bool isClassic}) {
+    if (isClassic) {
+      return Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: accentColor ?? const Color(0xFF023E8A),
+        ),
+      );
+    }
     return Row(
       children: [
         Container(
@@ -386,13 +419,17 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildForecastList(List<TideForecast> forecasts) {
+  Widget _buildForecastList(BuildContext context, List<TideForecast> forecasts) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     if (forecasts.isEmpty) {
-      return const CustomCard(
+      return CustomCard(
         child: Center(
           child: Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text("該日期暫無潮位轉向紀錄", style: TextStyle(color: AppColors.textTertiary)),
+            padding: const EdgeInsets.all(12.0),
+            child: Text(
+              "該日期暫無潮位轉向紀錄", 
+              style: TextStyle(color: isLight ? Colors.grey : AppColors.textTertiary),
+            ),
           ),
         ),
       );
@@ -405,16 +442,26 @@ class _HomePageState extends ConsumerState<HomePage> {
             dense: true,
             leading: Icon(
               isHigh ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, 
-              color: isHigh ? AppColors.hazardCoral : AppColors.pelagicCyan, 
+              color: isHigh 
+                  ? (isLight ? Colors.redAccent : AppColors.hazardCoral) 
+                  : (isLight ? Colors.blueAccent : AppColors.pelagicCyan), 
               size: 18,
             ),
             title: Text(
               "${DateFormat('HH:mm').format(f.dateTime)} · ${f.tideType}", 
-              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary, fontSize: 14),
+              style: TextStyle(
+                fontWeight: FontWeight.w700, 
+                color: isLight ? Colors.black87 : AppColors.textPrimary, 
+                fontSize: 14,
+              ),
             ),
             trailing: Text(
               "${f.tideHeight} cm", 
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontWeight: FontWeight.w800, 
+                fontSize: 16, 
+                color: isLight ? Colors.blueGrey : AppColors.textSecondary,
+              ),
             ),
           );
         }).toList(),
@@ -422,19 +469,34 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _infoCard(String title, String content) {
+  Widget _infoCard(BuildContext context, String title, String content) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return CustomCard(
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, color: AppColors.pelagicCyan, size: 20),
+          Icon(Icons.info_outline_rounded, color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: AppColors.textPrimary)),
+                Text(
+                  title, 
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700, 
+                    fontSize: 13.5, 
+                    color: isLight ? const Color(0xFF023E8A) : AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(content, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
+                Text(
+                  content, 
+                  style: TextStyle(
+                    color: isLight ? Colors.blueGrey : AppColors.textSecondary, 
+                    fontSize: 11.5, 
+                    height: 1.35,
+                  ),
+                ),
               ],
             ),
           ),
@@ -443,15 +505,26 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildFooter(String desc) {
+  Widget _buildFooter(String desc, bool isClassic) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("測站數據拓撲", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+        Text(
+          "測站數據拓撲", 
+          style: TextStyle(
+            fontSize: 13, 
+            fontWeight: FontWeight.w700, 
+            color: isClassic ? const Color(0xFF023E8A) : AppColors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           desc.isEmpty ? "中央氣象署 (CWA) 官方數據 · 雙軌邊緣運算拓撲。" : desc, 
-          style: const TextStyle(color: AppColors.textTertiary, fontSize: 11, height: 1.4),
+          style: TextStyle(
+            color: isClassic ? Colors.grey : AppColors.textTertiary, 
+            fontSize: 11, 
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 40),
       ],
@@ -470,24 +543,38 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
   }
 
-  Widget _buildErrorUI(String error, WidgetRef ref) {
+  Widget _buildErrorUI(String error, WidgetRef ref, bool isClassic) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.hazardCoral),
+          Icon(Icons.wifi_off_rounded, size: 48, color: isClassic ? Colors.redAccent : AppColors.hazardCoral),
           const SizedBox(height: 16),
-          const Text("海象數據暫時中斷", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.textPrimary)),
+          Text(
+            "海象數據暫時中斷", 
+            style: TextStyle(
+              fontWeight: FontWeight.w800, 
+              fontSize: 17, 
+              color: isClassic ? Colors.black87 : AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
-            child: Text("請檢查網路連線或稍後重新載入", textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              "請檢查網路連線或稍後重新載入", 
+              textAlign: TextAlign.center, 
+              style: TextStyle(
+                color: isClassic ? Colors.grey : AppColors.textSecondary, 
+                fontSize: 12,
+              ),
+            ),
           ),
           const SizedBox(height: 18),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.pelagicCyan, 
-              foregroundColor: AppColors.abyssBlack,
+              backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
+              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () => ref.refresh(tideViewDataProvider), 
@@ -498,25 +585,36 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name) {
+  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name, bool isClassic) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 80),
-        const Icon(Icons.event_busy_rounded, size: 56, color: AppColors.textTertiary),
+        Icon(Icons.event_busy_rounded, size: 56, color: isClassic ? Colors.grey : AppColors.textTertiary),
         const SizedBox(height: 16),
-        Text("$name 歷史水文存檔", style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        Text(
+          "$name 歷史水文存檔", 
+          style: TextStyle(
+            fontSize: 17, 
+            fontWeight: FontWeight.w800, 
+            color: isClassic ? Colors.black87 : AppColors.textPrimary,
+          ),
+        ),
         const SizedBox(height: 6),
         Text(
           "氣象署實測數據僅即時保留近 48 小時\n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", 
           textAlign: TextAlign.center, 
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+          style: TextStyle(
+            color: isClassic ? Colors.grey : AppColors.textSecondary, 
+            fontSize: 12, 
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 20),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.pelagicCyan, 
-            foregroundColor: AppColors.abyssBlack,
+            backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
+            foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),

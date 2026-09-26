@@ -9,20 +9,10 @@ import 'features/tide/presentation/home_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'core/services/analytics_service.dart';
 import 'core/services/global_error_trap.dart';
-import 'core/theme/app_theme.dart'; // 🌟 引入 Apple 首席深淵霓光設計系統
+import 'core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🍏 Apple 頂級沉浸感：狀態列完全透明，無縫融入深淵黑底
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppColors.abyssBlack,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -46,12 +36,26 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+// 🌟 升級為 ConsumerWidget，實現全域主題動態切換
+class MyApp extends ConsumerWidget {
   final bool hasCompletedOnboarding;
   const MyApp({super.key, required this.hasCompletedOnboarding});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 🌟 即時監聽 VIP 介面切換狀態機
+    final isClassic = ref.watch(isClassicThemeProvider);
+
+    // 狀態列自適應深淺
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isClassic ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isClassic ? AppColors.classicBg : AppColors.abyssBlack,
+        systemNavigationBarIconBrightness: isClassic ? Brightness.dark : Brightness.light,
+      ),
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '潮汐表 Pro',
@@ -61,10 +65,10 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('zh', 'TW'), Locale('en', 'US')],
-      // 🍏 Apple 首席設計系統：全域鎖定深淵 OLED 極致純黑主題
-      theme: AppTheme.darkTheme,
+      // 🌟 雙軌主題綁定
+      theme: AppTheme.classicLightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
+      themeMode: isClassic ? ThemeMode.light : ThemeMode.dark,
       home: hasCompletedOnboarding ? const HomePage() : const OnboardingPage(),
     );
   }
