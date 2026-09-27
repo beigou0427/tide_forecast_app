@@ -28,7 +28,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝：雙軌自適應主座艙 (含海事安全法律護甲)
+/// Apple 首席設計工藝：雙軌自適應主座艙 (零溢出高密度人因佈局)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -189,50 +189,54 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ? classicModeColor 
                   : AppColors.abyssBlack.withValues(alpha: 0.88),
               elevation: isClassic ? 1 : 0,
-              leadingWidth: 92,
+              // 緊湊收窄側邊按鈕寬度，釋放橫向佈局空間
+              leadingWidth: 78,
               leading: Builder(builder: (context) => _buildRegionButton(context, isClassic)),
               centerTitle: true,
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: isToday 
-                          ? (isClassic ? Colors.white : AppColors.pelagicCyan) 
-                          : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral),
-                      shape: BoxShape.circle,
+              // 注入 FittedBox 自動縮放防線，徹底消滅標題溢出
+              title: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isToday 
+                            ? (isClassic ? Colors.white : AppColors.pelagicCyan) 
+                            : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral),
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontSize: 16.5,
-                      letterSpacing: isClassic ? 0 : -0.3,
+                    const SizedBox(width: 6),
+                    Text(
+                      isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontSize: 16,
+                        letterSpacing: isClassic ? 0 : -0.3,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
-                // 🌟 下放給全體用戶：主畫面頂端「一秒切換烈日/夜戰戰術模式」
-                IconButton(
-                  icon: Icon(
-                    isClassic ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
-                    color: isClassic ? Colors.white : AppColors.bioGold,
-                    size: 21,
-                  ),
+                // 1. 戰術日/夜切換鈕 (緊湊高密度佈局)
+                _buildCompactAction(
+                  icon: isClassic ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
+                  color: isClassic ? Colors.white : AppColors.bioGold,
                   tooltip: isClassic ? "切換為深淵黑金夜戰模式" : "切換為烈日高對比白藍模式",
                   onPressed: () {
                     HapticFeedback.mediumImpact();
                     ref.read(isClassicThemeProvider.notifier).setClassicTheme(!isClassic);
                   },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                // 2. 戰報分享鈕
+                _buildCompactAction(
+                  icon: Icons.share_rounded,
+                  color: Colors.white,
                   tooltip: "產出海象戰報分享",
                   onPressed: tideViewAsync.value == null
                       ? null
@@ -241,30 +245,28 @@ class _HomePageState extends ConsumerState<HomePage> {
                           _showShareModal(context, tideViewAsync.value!.stationData);
                         },
                 ),
-                IconButton(
-                  icon: Icon(
-                    isFavorited ? Icons.star_rounded : Icons.star_border_rounded, 
-                    color: isFavorited ? AppColors.bioGold : Colors.white,
-                    size: 22,
-                  ),
+                // 3. 收藏切換鈕
+                _buildCompactAction(
+                  icon: isFavorited ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: isFavorited ? AppColors.bioGold : Colors.white,
+                  tooltip: isFavorited ? "取消收藏" : "加入最愛",
                   onPressed: () async {
                     HapticFeedback.selectionClick();
                     await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
                     ref.invalidate(favoriteStationsProvider);
                   },
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.calendar_month_rounded, 
-                    color: premiumState.isPremium ? AppColors.bioGold : Colors.white,
-                    size: 20,
-                  ),
+                // 4. 日曆選擇鈕
+                _buildCompactAction(
+                  icon: Icons.calendar_month_rounded,
+                  color: premiumState.isPremium ? AppColors.bioGold : Colors.white,
+                  tooltip: "選擇日期",
                   onPressed: () {
                     HapticFeedback.selectionClick();
                     _openCalendar(context, ref);
                   },
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
               ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Column(
@@ -412,6 +414,27 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  // 緊湊型高密度按鈕（徹底消滅 RenderFlex 48px 邊界衝突）
+  Widget _buildCompactAction({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        visualDensity: VisualDensity.compact,
+        icon: Icon(icon, color: color, size: 19),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
   void _showShareModal(BuildContext context, TideStationData station) {
     final GlobalKey reportKey = GlobalKey();
 
@@ -470,7 +493,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Widget _buildRegionButton(BuildContext context, bool isClassic) {
     return Padding(
-      padding: const EdgeInsets.only(left: 12.0, top: 12, bottom: 12),
+      padding: const EdgeInsets.only(left: 10.0, top: 12, bottom: 12),
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
@@ -489,11 +512,11 @@ class _HomePageState extends ConsumerState<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.near_me_rounded, color: isClassic ? Colors.white : AppColors.pelagicCyan, size: 13),
-              const SizedBox(width: 4),
+              Icon(Icons.near_me_rounded, color: isClassic ? Colors.white : AppColors.pelagicCyan, size: 12),
+              const SizedBox(width: 3),
               Text(
                 isClassic ? "地區" : "測站", 
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700),
               ),
             ],
           ),
