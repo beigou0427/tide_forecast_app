@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../data/tide_model.dart';
 import '../../../../core/theme/app_theme.dart';
 
-/// 🍏 Mike Matas 哲學重塑：活體流體潮汐光學圖表 (Living Oceanic Tidal Surface)
+/// Mike Matas 哲學重塑：活體流體潮汐光學圖表 (Living Oceanic Tidal Surface)
 class TideChartSheet extends StatelessWidget {
   final List<Observation> observations;
   final List<TideForecast>? futureForecasts;
@@ -30,12 +30,12 @@ class TideChartSheet extends StatelessWidget {
         ? _synthesizeFutureCurve(futureForecasts!, targetDate ?? DateTime.now())
         : observations;
 
-    if (effectiveObs.isEmpty) {
+    if (effectiveObs.length < 2) {
       return SizedBox(
         height: 200,
         child: Center(
           child: Text(
-            "目前無圖表觀測或預報數據", 
+            "目前無足夠圖表觀測或預報數據", 
             style: TextStyle(color: isLight ? Colors.grey.shade500 : AppColors.textTertiary),
           ),
         ),
@@ -47,23 +47,40 @@ class TideChartSheet extends StatelessWidget {
                                effectiveObs.any((o) => o.tideHeight == null) &&
                                effectiveObs.any((o) => o.waveHeight != null);
 
-    // 峰值與黃金咬度計算 (嚴格守衛 left <= right)
+    // 峰值與極值安全邊界計算
     int peakIndex = -1;
     double maxVal = double.negativeInfinity;
+    double minVal = double.infinity;
+
     for (int i = 0; i < effectiveObs.length; i++) {
-      final val = useWaveHeight 
-          ? (effectiveObs[i].waveHeight ?? double.negativeInfinity) 
-          : (effectiveObs[i].tideHeight ?? double.negativeInfinity);
-      if (val > maxVal) { 
-        maxVal = val; 
-        peakIndex = i; 
+      final double? rawVal = useWaveHeight ? effectiveObs[i].waveHeight : effectiveObs[i].tideHeight;
+      if (rawVal != null && !rawVal.isNaN && !rawVal.isInfinite) {
+        if (rawVal > maxVal) { 
+          maxVal = rawVal; 
+          peakIndex = i; 
+        }
+        if (rawVal < minVal) {
+          minVal = rawVal;
+        }
       }
     }
+
+    // 若數值全為空或無效，提供預設安全邊界
+    if (maxVal == double.negativeInfinity || minVal == double.infinity) {
+      maxVal = 2.0;
+      minVal = 0.0;
+    } else if (maxVal == minVal) {
+      maxVal += 0.5;
+      minVal = math.max(0.0, minVal - 0.5);
+    }
+
+    final double chartMinY = math.max(-2.0, minVal - 0.3);
+    final double chartMaxY = maxVal + 0.3;
 
     double? goldenStartX;
     double? goldenEndX;
 
-    if (peakIndex != -1 && maxVal != double.negativeInfinity && effectiveObs.length >= 2) {
+    if (peakIndex != -1 && effectiveObs.length >= 2) {
       final peakTime = effectiveObs[peakIndex].dateTime;
       final startTime = peakTime.subtract(const Duration(hours: 2));
       final endTime = peakTime.add(const Duration(hours: 1));
@@ -87,7 +104,6 @@ class TideChartSheet extends StatelessWidget {
       }
     }
 
-    // 🌟 主波形線條色彩：未來為香檳金，即時為冰川天青
     final Color waveLineColor = isFutureMode 
         ? AppColors.bioGold 
         : (isLight ? AppColors.marineBlue : AppColors.pelagicCyan);
@@ -167,7 +183,8 @@ class TideChartSheet extends StatelessWidget {
           padding: const EdgeInsets.only(right: 18, top: 12),
           child: LineChart(
             LineChartData(
-              // 🌟 Mike Matas 減法：黃金咬度薄霧紗幕 (取代生硬黃色膠帶)
+              minY: chartMinY,
+              maxY: chartMaxY,
               rangeAnnotations: RangeAnnotations(
                 verticalRangeAnnotations: [
                   if (goldenStartX != null && goldenEndX != null && goldenStartX < goldenEndX)
@@ -255,9 +272,10 @@ class TideChartSheet extends StatelessWidget {
               lineBarsData: [
                 LineChartBarData(
                   spots: effectiveObs.asMap().entries.map((e) {
-                    final double yValue = useWaveHeight 
+                    double yValue = useWaveHeight 
                         ? (e.value.waveHeight ?? 0.0) 
                         : (e.value.tideHeight ?? 0.0);
+                    if (yValue.isNaN || yValue.isInfinite) yValue = 0.0;
                     return FlSpot(e.key.toDouble(), yValue);
                   }).toList(),
                   isCurved: true, 
@@ -266,7 +284,6 @@ class TideChartSheet extends StatelessWidget {
                   barWidth: 2.5,
                   isStrokeCapRound: true,
                   dotData: const FlDotData(show: false), 
-                  // 🌟 Mike Matas 深海水波漸層：高光柔和沉降
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
@@ -280,7 +297,6 @@ class TideChartSheet extends StatelessWidget {
                   ),
                 ),
               ],
-              // 🌟 浮動毛玻璃觸控探針 Tooltip
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
                   tooltipBgColor: isLight ? Colors.white : AppColors.abyssCard,
@@ -323,6 +339,14 @@ class TideChartSheet extends StatelessWidget {
     );
   }
 
+  static double _parseTideMeters(String valStr) {
+    final v = double.tryParse(valStr);
+    if (v == null) return 1.0;
+    // 智慧單位自適應：絕對值大於 25 判定為公分換算公尺，否則保留公尺
+    if (v.abs() > 25.0) return v / 100.0;
+    return v;
+  }
+
   List<Observation> _synthesizeFutureCurve(List<TideForecast> forecasts, DateTime targetDay) {
     if (forecasts.isEmpty) return [];
 
@@ -354,15 +378,15 @@ class TideChartSheet extends StatelessWidget {
         final elapsedMs = currentT.difference(prev.dateTime).inMilliseconds;
         final double ratio = totalMs > 0 ? (elapsedMs / totalMs).clamp(0.0, 1.0) : 0.0;
 
-        final double h1 = (double.tryParse(prev.tideHeight) ?? 100.0) / 100.0;
-        final double h2 = (double.tryParse(next.tideHeight) ?? 100.0) / 100.0;
+        final double h1 = _parseTideMeters(prev.tideHeight);
+        final double h2 = _parseTideMeters(next.tideHeight);
 
         heightInMeters = (h1 + h2) / 2.0 + ((h1 - h2) / 2.0) * math.cos(math.pi * ratio);
       } else if (sorted.isNotEmpty) {
         final closest = sorted.reduce((a, b) => 
           (a.dateTime.difference(currentT).abs() < b.dateTime.difference(currentT).abs()) ? a : b
         );
-        heightInMeters = (double.tryParse(closest.tideHeight) ?? 100.0) / 100.0;
+        heightInMeters = _parseTideMeters(closest.tideHeight);
       } else {
         heightInMeters = 1.0;
       }

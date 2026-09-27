@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -28,7 +28,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：雙軌自適應主座艙 (含海事安全法律護甲)
+/// Apple 首席設計工藝：雙軌自適應主座艙 (含海事安全法律護甲)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -41,21 +41,18 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
-    // 1. 延遲 3 秒請求推播權限
     Future.delayed(const Duration(seconds: 3), () async {
       try {
         await NotificationService.init();
         await FcmService.init();
       } catch (e) {
-        debugPrint("推播服務延遲初始化失敗: $e");
+        debugPrint("推播服務初始化異常: $e");
       }
     });
 
-    // 2. 🌟 法律合規死穴拆彈：啟動時檢查是否已簽署海事安全免責協議
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkMaritimeSafetyConsent());
   }
 
-  // 🌟 法務防線：檢查並彈出強制同意免責聲明
   Future<void> _checkMaritimeSafetyConsent() async {
     final prefs = await SharedPreferences.getInstance();
     final bool hasAgreed = prefs.getBool('has_agreed_maritime_safety_v2') ?? false;
@@ -68,7 +65,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _showMandatorySafetyDisclaimer(BuildContext context, SharedPreferences prefs) {
     showDialog(
       context: context,
-      barrierDismissible: false, // 🚨 不可點擊背景關閉，必須正面同意！
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.abyssCard,
         shape: RoundedRectangleBorder(
@@ -445,6 +442,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                   label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                   onPressed: () async {
                     HapticFeedback.mediumImpact();
+                    // 等待渲染繪製管線就緒，杜絕 debugNeedsPaint 斷言死機
+                    await Future.delayed(const Duration(milliseconds: 120));
                     await ShareUtil.captureAndShare(reportKey, stationName: station.info.stationName);
                     if (ctx.mounted) Navigator.pop(ctx);
                   },
@@ -612,7 +611,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  // 🌟 法務防護鋼印：主畫布常駐免責宣告
   Widget _buildFooter(String desc, bool isClassic) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -663,11 +661,19 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {
     final now = DateTime.now();
+    final firstDate = now.subtract(const Duration(days: 30));
+    final lastDate = now.add(const Duration(days: 30));
+    
+    // 嚴格夾鉗初始日期，杜絕 Flutter 日期越界 Assert 閃退
+    DateTime initial = ref.read(selectedDateProvider);
+    if (initial.isBefore(firstDate)) initial = firstDate;
+    if (initial.isAfter(lastDate)) initial = lastDate;
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: ref.read(selectedDateProvider),
-      firstDate: now.subtract(const Duration(days: 30)),
-      lastDate: now.add(const Duration(days: 30)),
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
       helpText: "選擇回測或預報日期",
     );
     if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;

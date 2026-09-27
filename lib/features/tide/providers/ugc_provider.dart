@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,17 +14,22 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
   static const String _storageKey = "ugc_reports_v1";
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Ref ref;
+  SharedPreferences? _prefs;
 
   UgcReportNotifier(this.ref) : super([]) {
-    _loadReports();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    _prefs = await SharedPreferences.getInstance();
+    await _loadReports();
   }
 
   Future<void> _loadReports() async {
-    final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    // 1. 離線優先：先載入本地快取，確保在無訊號外礁秒開 (0ms)
-    final rawList = prefs.getStringList(_storageKey) ?? [];
+    // 1. 離線優先：0ms 秒開本機 6 小時內有效快取
+    final rawList = _prefs?.getStringList(_storageKey) ?? [];
     List<UgcReportItem> localReports = rawList
         .map((e) => UgcReportItem.fromJson(e))
         .where((item) {
@@ -35,12 +40,13 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
 
     state = localReports..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    // 2. 🌟 終極破局：真正連網！從 Firestore 全國公共雷達拉取全台釣友最新情報！
+    // 2. 雲端同步：強制倒序獲取「最新」100 筆一線情報
     try {
       final sixHoursAgo = now.subtract(const Duration(hours: 6));
       final snapshot = await _firestore
           .collection('public_ugc_reports')
           .where('timestamp', isGreaterThan: sixHoursAgo.toIso8601String())
+          .orderBy('timestamp', descending: true)
           .limit(100)
           .get();
 
@@ -49,7 +55,6 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
             .map((doc) => UgcReportItem.fromMap(doc.data()))
             .toList();
 
-        // 雙向合併去重 (以雲端最新讚數與情報為準)
         final Map<String, UgcReportItem> mergedMap = {};
         for (var item in localReports) {
           mergedMap[item.id] = item;
@@ -62,10 +67,8 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
         state = mergedList;
-
-        // 同步寫入本機快取
-        await prefs.setStringList(_storageKey, mergedList.map((e) => e.toJson()).toList());
-        debugPrint("📡 [真·Waze雷達] 成功同步全台 ${cloudReports.length} 筆釣友即時情報！");
+        _saveToDisk(mergedList);
+        debugPrint("📡 [真·Waze雷達] 成功倒序同步全台 ${cloudReports.length} 筆最新實況！");
       }
     } catch (e) {
       debugPrint("⚠️ [UGC雷達] 雲端同步暫時離線，平滑維持本機情報: $e");
@@ -78,7 +81,7 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
       return realReports;
     }
 
-    // 0 人回報時，由 AI 哨兵即時推演補位
+    // 0 人回報時，由 AI 水文哨兵即時補位
     final now = DateTime.now();
     final solunar = SolunarUtil.calculate(now);
     final double wave = waveHeight ?? 0.8;
@@ -120,7 +123,6 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     return sentinelReports;
   }
 
-  // 🌟 全網廣播實況情報
   Future<void> reportCondition(String stationId, UgcConditionType type) async {
     final premium = ref.read(premiumProvider);
     
@@ -147,21 +149,18 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
       upvotes: initialUpvotes,
     );
 
-    // 1. Optimistic UI 更新本機
     final updated = [newItem, ...state];
     state = updated;
-    await _save(updated);
+    _saveToDisk(updated);
 
-    // 2. 🌟 真正連網！將情報即時廣播至全台公共集合！
     try {
       await _firestore.collection('public_ugc_reports').doc(newItem.id).set(newItem.toMap());
-      debugPrint("📢 [真·Waze雷達] 釣況情報已成功廣播至全台灣！");
+      debugPrint("📢 [真·Waze雷達] 釣況情報已廣播至雲端雷達！");
     } catch (e) {
-      debugPrint("⚠️ [真·Waze雷達] 廣播失敗，已暫存於本機: $e");
+      debugPrint("⚠️ [真·Waze雷達] 雲端廣播暫時無法送達，保留於本機快取: $e");
     }
   }
 
-  // 🌟 雲端點讚原子遞增
   Future<void> upvote(String reportId) async {
     final updated = state.map((item) {
       if (item.id == reportId) {
@@ -178,19 +177,23 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     }).toList();
 
     state = updated;
-    await _save(updated);
+    _saveToDisk(updated);
 
-    // 🌟 全網同步累加讚數
+    // 雲端點讚原子安全遞增
     try {
-      await _firestore.collection('public_ugc_reports').doc(reportId).update({
+      await _firestore.collection('public_ugc_reports').doc(reportId).set({
         'upvotes': FieldValue.increment(1),
-      });
-    } catch (_) {}
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("⚠️ [點讚同步例外]: $e");
+    }
   }
 
-  Future<void> _save(List<UgcReportItem> list) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = list.map((e) => e.toJson()).toList();
-    await prefs.setStringList(_storageKey, raw);
+  void _saveToDisk(List<UgcReportItem> list) {
+    if (_prefs == null) return;
+    try {
+      final raw = list.map((e) => e.toJson()).toList();
+      _prefs!.setStringList(_storageKey, raw);
+    } catch (_) {}
   }
 }

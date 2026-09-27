@@ -1,4 +1,4 @@
-name: 每日 8 次全台 85 測站海象與 AI 自動同步 (含 MLOps 質檢閘門)
+﻿name: 每日 8 次全台 85 測站海象與 AI 自動同步 (含 MLOps 質檢閘門)
 on:
   workflow_dispatch:
   schedule:
@@ -24,7 +24,7 @@ jobs:
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
         run: python tide_backend/tide_engine.py
 
-      # 🌟 MLOps 核心維度：發布前強制執行物理規律與結構化質檢閘門
+      # 發布前強制執行物理規律、感測器斷線防線與結構化質檢閘門
       - name: 🛡️ MLOps 質檢閘門：檢驗 85 站 AI 結構、數值邊界與海事物理防線
         run: |
           python -c "
@@ -54,6 +54,7 @@ jobs:
 
           hallucination_count = 0
           safety_drift_count = 0
+          coord_error_count = 0
 
           for ef in edge_files:
               with open(ef, 'r', encoding='utf-8') as f:
@@ -69,7 +70,18 @@ jobs:
                   hallucination_count += 1
                   print(f'⚠️ [結構異常] {ef}: AI 輸出缺失或安全分超出 [0, 100] 邊界！')
 
-              # 2. 海洋物理回歸防線 (物理規律嚴禁 LLM 任意漂移)
+              # 2. 地理坐標邊界防護 (杜絕 Null Island 0, 0 坐標)
+              st_info = data.get('station_info', {})
+              try:
+                  lat = float(st_info.get('lat', 0))
+                  lng = float(st_info.get('lng', 0))
+                  if not (20.0 <= lat <= 27.5 and 116.0 <= lng <= 124.0):
+                      coord_error_count += 1
+                      print(f'🚨 [坐標漂移攔截] {ef}: 坐標 ({lat}, {lng}) 偏離台灣海域或呈現 0.0 壞死！')
+              except:
+                  coord_error_count += 1
+
+              # 3. 海洋物理回歸防線 (生命安全防衛)
               obs = data.get('obs', {})
               we = obs.get('WeatherElements') or obs.get('WeatherElement') or {}
               wave = obs.get('Wave') or {}
@@ -77,24 +89,37 @@ jobs:
               raw_h = we.get('WaveHeight') if we.get('WaveHeight') is not None else wave.get('WaveHeight')
               raw_p = we.get('WavePeriod') if we.get('WavePeriod') is not None else wave.get('WavePeriod')
               
-              try:
-                  h = float(raw_h) if raw_h and str(raw_h) not in ('None', '-99') else 0.8
-                  p = float(raw_p) if raw_p and str(raw_p) not in ('None', '-99') else 5.0
-              except:
-                  h, p = 0.8, 5.0
-
-              # 🚨 長週期瘋狗浪防線：若週期 >= 10s 且浪高 >= 0.7m，安全分嚴禁超過 40 分！
-              if p >= 10.0 and h >= 0.7 and score > 40:
+              is_sensor_offline = (raw_h is None or str(raw_h).strip() in ('None', '-99', '-999', 'nan', ''))
+              
+              # 🚨 關鍵生命安全防護：若感測器斷線，嚴禁給出超過 35 分的虛假安全分
+              if is_sensor_offline and score > 35:
                   safety_drift_count += 1
-                  print(f'🚨 [安全漂移攔截] {ef}: 浪高 {h}m、週期 {p}s 具致命長湧瘋狗浪風險，AI 卻給出高分 {score}，存在重大誤導風險！')
+                  print(f'🚨 [斷線安全漂移] {ef}: 感測器離線無數據，AI 卻給出高分 {score}，存在誘人登礁溺水風險！')
+                  continue
 
-          print(f'📊 [MLOps 質檢報告] 通過率：{(85 - hallucination_count)/85*100:.1f}% | 結構異常：{hallucination_count} 站 | 物理安全漂移：{safety_drift_count} 站')
+              try:
+                  h = float(raw_h) if not is_sensor_offline else 0.0
+                  p = float(raw_p) if raw_p and str(raw_p).strip() not in ('None', '-99', '-999', 'nan', '') else 0.0
+              except:
+                  h, p = 0.0, 0.0
 
-          if hallucination_count > 10 or safety_drift_count > 0:
-              print('❌ [MLOps 阻斷發布] 偵測到重大 AI 幻覺或物理防線漂移，強制終止發布，保護外礁釣客生命安全！')
+              # 🚨 長週期長湧瘋狗浪防線：若週期 >= 10s 且浪高 >= 0.7m，安全分嚴禁超過 35 分！
+              if p >= 10.0 and h >= 0.7 and score > 35:
+                  safety_drift_count += 1
+                  print(f'🚨 [長湧安全漂移] {ef}: 浪高 {h}m、週期 {p}s 具致命長湧瘋狗浪風險，AI 給出不安全高分 {score}！')
+              
+              # 🚨 巨浪防線：浪高 >= 2.5m 時安全分嚴禁超過 40 分
+              if h >= 2.5 and score > 40:
+                  safety_drift_count += 1
+                  print(f'🚨 [巨浪安全漂移] {ef}: 浪高 {h}m 屬危險海象，AI 給分過高 {score}！')
+
+          print(f'📊 [MLOps 質檢報告] 通過率：{(85 - hallucination_count)/85*100:.1f}% | 結構異常：{hallucination_count} 站 | 物理安全漂移：{safety_drift_count} 站 | 坐標異常：{coord_error_count} 站')
+
+          if hallucination_count > 10 or safety_drift_count > 0 or coord_error_count > 0:
+              print('❌ [MLOps 阻斷發布] 偵測到重大 AI 幻覺、坐標漂移或物理安全防線失守，強制終止發布，保護外礁釣客生命安全！')
               sys.exit(1)
 
-          print('✅ [MLOps 質檢通過] 85 測站 AI 輸出完全符合海洋物理學與結構約束，核准發布至生產環境！')
+          print('✅ [MLOps 質檢通過] 85 測站 AI 輸出完全符合海洋物理學、地理拓撲與生命安全約束，核准發布至生產環境！')
           "
 
       - name: 發布至 GitHub Pages (api-data 分支)

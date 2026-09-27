@@ -1,3 +1,4 @@
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -24,7 +25,7 @@ final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
 
-// 🌟 85 站本地神盾資產庫
+// 85 站本地神盾資產庫
 final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   try {
     final localJsonStr = await rootBundle.loadString('assets/stations_config.json');
@@ -44,7 +45,7 @@ final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   return AppConstants.fallbackStations;
 });
 
-// 🌟 啟動偏好就緒狀態標誌
+// 啟動偏好就緒狀態標誌
 final isStationInitializedProvider = StateProvider<bool>((ref) => false);
 
 class CurrentStationNotifier extends Notifier<String> {
@@ -85,7 +86,6 @@ class CurrentStationNotifier extends Notifier<String> {
         }
       }
     } catch (_) {} finally {
-      // 標記偏好已完全載入
       ref.read(isStationInitializedProvider.notifier).state = true;
     }
   }
@@ -114,8 +114,10 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return null;
     }
-    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
-  } catch (e) { return null; }
+    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low).timeout(const Duration(seconds: 4));
+  } catch (_) { 
+    return null; 
+  }
 });
 
 final nearestStationIdProvider = Provider<String?>((ref) {
@@ -127,8 +129,13 @@ final nearestStationIdProvider = Provider<String?>((ref) {
   double minDistance = double.infinity;
   String? nearestId;
   for (var station in stations) {
+    // 嚴格過濾 Null Island 與偏離台灣海域的無效坐標
+    if (station.lat < 20.0 || station.lat > 28.0 || station.lng < 116.0 || station.lng > 124.0) continue;
     double d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, station.lat, station.lng);
-    if (d < minDistance) { minDistance = d; nearestId = station.id; }
+    if (d < minDistance) { 
+      minDistance = d; 
+      nearestId = station.id; 
+    }
   }
   return nearestId;
 });
@@ -144,9 +151,9 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
   final isInit = ref.watch(isStationInitializedProvider);
   final stationId = ref.watch(currentStationIdProvider);
 
-  // 🌟 183 幀掉幀消滅手術：在開機 15ms 偏好尚未讀取完畢前，暫緩發起多餘的 C6AH2 廢請求！
+  // 乾淨消滅 183 幀掉幀：若開機偏好尚未完成讀取，掛起等待響應式觸發，不發送多餘廢請求
   if (!isInit) {
-    await Future.delayed(const Duration(milliseconds: 30));
+    return Completer<TideViewData>().future;
   }
 
   final api = ref.watch(tideApiServiceProvider);
@@ -161,7 +168,8 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
       try {
         final sLat = double.tryParse(stationData.info.lat);
         final sLng = double.tryParse(stationData.info.lng);
-        if (sLat != null && sLng != null && sLat != 0) {
+        // 核心地理防線：僅在坐標位於台灣周遭海域時才計算距離
+        if (sLat != null && sLng != null && sLat >= 20.0 && sLat <= 28.0 && sLng >= 116.0 && sLng <= 124.0) {
           distance = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, sLat, sLng) / 1000;
         }
       } catch (_) {}
@@ -178,6 +186,12 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
       }
     }
 
-    return TideViewData(stationData: stationData, distanceKm: distance, selectedDate: ref.read(selectedDateProvider));
-  } catch (e) { rethrow; }
+    return TideViewData(
+      stationData: stationData, 
+      distanceKm: distance, 
+      selectedDate: ref.read(selectedDateProvider),
+    );
+  } catch (e) { 
+    rethrow; 
+  }
 });

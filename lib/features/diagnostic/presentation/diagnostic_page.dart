@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +15,7 @@ import '../../../../shared/widgets/custom_card.dart';
 import '../../tide/data/tide_model.dart';
 import '../../catch_log/data/catch_log_model.dart';
 
-/// 🍏 Apple 首席工程工藝：極限破壞性自檢中心 (Chaos Bug-Hunter Console)
+/// Apple 首席工程工藝：極限破壞性自檢中心 (Chaos Bug-Hunter Console)
 class DiagnosticPage extends ConsumerStatefulWidget {
   const DiagnosticPage({super.key});
 
@@ -30,7 +30,7 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
   
   final List<Map<String, dynamic>> _chaosFindings = [];
 
-  // 🌟 核心哲學：全力抓 Bug，絕不粉飾太平！
+  // Dijkstra 哲學：以真實生產代碼承受極限髒數據，杜絕手寫 Mock 變數
   Future<void> _unleashChaosHunter() async {
     HapticFeedback.heavyImpact();
     setState(() {
@@ -59,9 +59,8 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
             }
           };
           final obs = Observation.fromProxy(chaosMap);
-          // 檢驗極端負數與非法字串是否全部被安全鉗制為 null
           if (obs.waveHeight != null || obs.windSpeed != null || obs.airPressure != null) {
-            flaw = "髒數值清洗穿透！未將 -999 或 NaN 轉為 null";
+            flaw = "髒數值清洗穿透！未將 -999、NaN 或 Infinity 轉為 null";
           } else {
             survived = true;
           }
@@ -154,30 +153,42 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         };
       },
 
-      // 向量 4：長湧浪瘋狗浪物理熔斷壓測 (Physics Groundswell Failsafe)
+      // 向量 4：真實模型邊界與 Null Island 坐標防衛 (真穿透測試)
       () async {
         final sw = Stopwatch()..start();
         bool passed = false;
-        String flaw = "物理評分熔斷正常";
+        String flaw = "領域實體夾鉗與坐標防衛完好";
         
-        // 模擬致命長湧：深海低浪高 0.7m，但週期高達 12 秒 (波能通量 = 0.7^2 * 12 = 5.88)
-        const double waveH = 0.7;
-        const double waveP = 12.0;
-        
-        // 物理規律：週期 >= 10s 且浪高 >= 0.7m 時，絕對具備外礁蓋礁瘋狗浪危險，安全分嚴禁超過 35 分！
-        int mockScore = 88;
-        if (waveP >= 10.0 && waveH >= 0.7) {
-          mockScore = 25; // 物理熔斷
+        try {
+          // 1. 真實驗證 AIExpertBriefing 數值夾鉗防線
+          final overflowAi = AIExpertBriefing.fromMap({'safety_score': 999});
+          final underflowAi = AIExpertBriefing.fromMap({'safety_score': -88});
+          
+          final bool clampOk = (overflowAi.safetyScore == 100) && (underflowAi.safetyScore == 0);
+          
+          // 2. 真實驗證 StationInfo 對 (0, 0) Null Island 坐標的防禦
+          final badStation = StationInfo.fromMap({
+            'lat': '0.0',
+            'lng': '0.0',
+            'StationName': '幾內亞灣漂移測試站',
+          });
+          
+          final double finalLat = double.parse(badStation.lat);
+          final double finalLng = double.parse(badStation.lng);
+          final bool coordsOk = (finalLat >= 20.0 && finalLat <= 27.5) && (finalLng >= 116.0 && finalLng <= 124.0);
+
+          if (clampOk && coordsOk) {
+            passed = true;
+          } else {
+            flaw = "漏洞未除！AI夾鉗狀態: $clampOk, 坐標防衛狀態: $coordsOk";
+          }
+        } catch (e) {
+          flaw = "實體校驗拋出例外: $e";
         }
 
-        if (mockScore <= 35) {
-          passed = true;
-        } else {
-          flaw = "⚠️ 嚴重安全漏洞！0.7m長湧(12s)被誤判為高分安全，存在誘人登礁溺水風險！";
-        }
         sw.stop();
         return {
-          "title": "04. 致命長湧瘋狗浪物理熔斷 (Physics)",
+          "title": "04. 領域實體夾鉗與坐標防衛 (Domain Failsafe)",
           "passed": passed,
           "flaw": flaw,
           "latency": "${sw.elapsedMicroseconds} μs",
@@ -185,25 +196,38 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         };
       },
 
-      // 向量 5：氣壓倒置風暴潮偏差壓測 (Inverted Barometer Storm Surge)
+      // 向量 5：920hPa 超級颱風暴潮氣壓真實解析 (Surge & Pressure)
       () async {
         final sw = Stopwatch()..start();
         bool passed = false;
         String flaw = "大氣吸升海平面計算精準";
         
-        // 模擬強颱極端低氣壓：920 hPa
-        const double extremePressure = 920.0;
-        // 物理公式：每降 1 hPa 抬升 1 cm -> (1013.25 - 920) ≈ +93.25 cm
-        final double surgeMeters = -0.01 * (extremePressure - 1013.25);
-        
-        if (surgeMeters >= 0.90 && surgeMeters <= 0.95) {
-          passed = true;
-        } else {
-          flaw = "氣壓倒置暴潮計算偏差 (實測抬升: ${surgeMeters.toStringAsFixed(2)}m)";
+        try {
+          // 真實注入 920.0 hPa 字串至 Observation 實體
+          final surgeMap = {
+            'DateTime': DateTime.now().toIso8601String(),
+            'WeatherElements': {'AirPressure': ' 920.0 '}
+          };
+          final obs = Observation.fromProxy(surgeMap);
+          
+          if (obs.airPressure == 920.0) {
+            // 物理公式：每降 1 hPa 海面抬升 1 cm -> -0.01 * (920.0 - 1013.25) ≈ +0.9325m
+            final double surgeMeters = -0.01 * (obs.airPressure! - 1013.25);
+            if (surgeMeters >= 0.90 && surgeMeters <= 0.95) {
+              passed = true;
+            } else {
+              flaw = "暴潮抬升偏差: ${surgeMeters.toStringAsFixed(3)}m";
+            }
+          } else {
+            flaw = "極端氣壓 920.0 解析失敗 (實得: ${obs.airPressure})";
+          }
+        } catch (e) {
+          flaw = "氣壓實體解析拋出例外: $e";
         }
+
         sw.stop();
         return {
-          "title": "05. 920hPa 超級颱風暴潮偏差 (Surge)",
+          "title": "05. 920hPa 超級颱風暴潮氣壓 (Surge)",
           "passed": passed,
           "flaw": flaw,
           "latency": "${sw.elapsedMicroseconds} μs",
@@ -217,7 +241,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         bool passed = true;
         String flaw = "記憶體與源碼中 0 處明文特徵碼外洩";
         
-        // 驗證解密後能得到真實 CWA- 金鑰
         final key = AppConstants.officialApiKey;
         if (!key.startsWith("CWA-") || key.length != 40) {
           passed = false;
@@ -304,7 +327,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [
-          // 1. 故障獵犬指揮儀表板
           CustomCard(
             borderColor: breachedCount > 0 ? AppColors.hazardCoral : AppColors.pelagicCyan.withValues(alpha: 0.3),
             child: Column(
@@ -380,7 +402,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
           ),
           const SizedBox(height: 16),
 
-          // 2. 啟動按鈕
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -403,7 +424,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
           ),
           const SizedBox(height: 22),
 
-          // 3. 攻擊發現報告列表
           if (_chaosFindings.isNotEmpty) ...[
             const Row(
               children: [

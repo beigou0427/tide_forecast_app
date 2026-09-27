@@ -1,16 +1,35 @@
-import json
+﻿import json
 import os
 import glob
 from datetime import datetime, timezone, timedelta
 
 TZ_TAIWAN = timezone(timedelta(hours=8))
 
+def calculate_daily_solunar(dt):
+    # 對齊 SolunarUtil 29.53 天朔望月演算法
+    epoch_ref = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
+    epoch_days = (dt.astimezone(timezone.utc) - epoch_ref).total_seconds() / 86400.0
+    synodic_month = 29.53058867
+    phase_ratio = (epoch_days % synodic_month) / synodic_month
+    lunar_day = round(phase_ratio * synodic_month) % 30 + 1
+
+    if (1 <= lunar_day <= 3) or (15 <= lunar_day <= 17):
+        return 95, "大潮 (流水急湍，活水帶動魚群爆咬)"
+    elif (4 <= lunar_day <= 6) or (18 <= lunar_day <= 20):
+        return 85, "中潮 (流水平穩，全天咬口平均)"
+    elif (7 <= lunar_day <= 8) or (22 <= lunar_day <= 23):
+        return 70, "小潮 (走水較緩，活性平穩)"
+    elif (9 <= lunar_day <= 10) or (24 <= lunar_day <= 25):
+        return 65, "長潮 (潮差最小，流速近滯)"
+    else:
+        return 80, "中潮/轉潮 (潮水回升，走水漸暢)"
+
 def calculate_fishing_score(wave, wind, solunar_score, safety_score):
     # 複合黃金釣況演算法 (浪平、風柔、咬度高、安全係數大)
-    wave_penalty = min(50.0, wave * 20.0) if wave else 15.0
-    wind_penalty = min(40.0, wind * 4.0) if wind else 16.0
-    base_score = 60.0
-    score = base_score + (safety_score * 0.3) + (solunar_score * 0.3) - wave_penalty - wind_penalty
+    wave_penalty = min(50.0, wave * 22.0) if wave else 20.0
+    wind_penalty = min(40.0, wind * 4.5) if wind else 18.0
+    base_score = 55.0
+    score = base_score + (safety_score * 0.3) + (solunar_score * 0.35) - wave_penalty - wind_penalty
     return round(max(10.0, min(99.0, score)), 1)
 
 def run_social_engine():
@@ -23,6 +42,9 @@ def run_social_engine():
 
     with open(config_path, "r", encoding="utf-8") as f:
         stations = json.load(f)
+
+    now = datetime.now(TZ_TAIWAN)
+    solunar_score, tide_desc = calculate_daily_solunar(now)
 
     ranked_stations = []
 
@@ -39,21 +61,30 @@ def run_social_engine():
             we = obs.get("WeatherElements") or obs.get("WeatherElement") or {}
             wave = obs.get("Wave") or {}
             
-            raw_wave = we.get("WaveHeight") or wave.get("WaveHeight")
+            raw_wave = we.get("WaveHeight") if we.get("WaveHeight") is not None else wave.get("WaveHeight")
             raw_wind = we.get("WindSpeed")
             
-            wave_val = float(raw_wave) if raw_wave and str(raw_wave) not in ('None', '-99') else 0.8
-            wind_val = float(raw_wind) if raw_wind and str(raw_wind) not in ('None', '-99') else 4.5
+            # 生命安全防衛：感測器斷線的測站嚴禁登上出海推薦榜單
+            if raw_wave is None or str(raw_wave).strip() in ('None', '-99', '-999', 'nan', ''):
+                continue
+            if raw_wind is None or str(raw_wind).strip() in ('None', '-99', '-999', 'nan', ''):
+                continue
+                
+            wave_val = float(raw_wave)
+            wind_val = float(raw_wind)
             
             ai = data.get("ai_expert", {})
-            safety_score = ai.get("safety_score", 80)
+            safety_score = ai.get("safety_score", 70)
             
-            # 依當日大潮加權
-            fishing_score = calculate_fishing_score(wave_val, wind_val, 85, safety_score)
+            # 致命海況（長湧或大浪）直接剔除
+            if wave_val >= 2.2 or wind_val >= 10.0 or safety_score < 45:
+                continue
+            
+            fishing_score = calculate_fishing_score(wave_val, wind_val, solunar_score, safety_score)
             
             forecasts = data.get("forecasts", [])
             high_tide_str = "晨昏前後"
-            for f in forecasts[:4]:
+            for f in forecasts:
                 if "滿" in f.get("Tide", ""):
                     dt_str = f.get("DateTime", "")
                     if "T" in dt_str:
@@ -68,45 +99,41 @@ def run_social_engine():
                 "wind": wind_val,
                 "score": fishing_score,
                 "high_tide": high_tide_str,
-                "briefing": ai.get("briefing", "海象平穩")
+                "briefing": ai.get("briefing", "海象平穩，作業條件佳")
             })
         except:
             continue
 
+    if not ranked_stations:
+        print("⚠️ 全台各測站風浪偏大或感測器離線，今日不生成衝擊性出海推薦榜單")
+        return
+
     # 依照黃金釣況綜合評分倒序排列
     ranked_stations.sort(key=lambda x: x["score"], reverse=True)
-    top_3 = ranked_stations[:3]
+    top_3 = ranked_stations[:min(3, len(ranked_stations))]
 
-    now_str = datetime.now(TZ_TAIWAN).strftime("%Y年%m月%d日")
+    now_str = now.strftime("%Y年%m月%d日")
     
-    # 🌟 生成 Threads / IG / LINE 專用的爆發型格式文案 (精準對齊 App Store「潮汐表」黃金大詞)
-    post_content = f"""🌊【老船長每日水文快報】{now_str} 全台 Top 3 爆咬黃金釣況排行榜出爐！
+    post_lines = [
+        f"🌊【老船長每日水文快報】{now_str} 全台黃金釣況排行榜出爐！\n",
+        f"今日天體水文狀態：✨ {tide_desc}",
+        "老船長 AI 從全台 85 測站中，精選出今日實測作業條件最優、魚群活性最高的安全釣點：\n"
+    ]
 
-各位釣友與浪人師兄早！
-今天受潮汐與湧浪週期影響，老船長 AI 從氣象署全台 85 測站中，精選出今日作業條件最優、魚群活躍度最高的 Top 3 釣點：
+    medals = ["🥇 【No.1 爆咬榜首】", "🥈 【No.2 平穩推薦】", "🥉 【No.3 潛力黑馬】"]
+    for i, st in enumerate(top_3):
+        post_lines.append(f"{medals[i]} {st['name']}")
+        post_lines.append(f"• 水文評分：🔥 {st['score']} 分")
+        post_lines.append(f"• 實測海象：浪高 {st['wave']}m • 風速 {st['wind']}m/s")
+        post_lines.append(f"• 滿潮黃金水：約 {st['high_tide']} (滿潮返退2分水咬度最佳)")
+        post_lines.append(f"• 老船長筆記：{st['briefing']}\n")
 
-🥇 【No.1 爆咬榜首】{top_3[0]['name']}
-• 水文評分：🔥 {top_3[0]['score']} 分
-• 實測海象：浪高 {top_3[0]['wave']}m • 風速 {top_3[0]['wind']}m/s
-• 滿潮黃金水：約 {top_3[0]['high_tide']} (滿潮前後2分咬度最佳)
-• 老船長筆記：{top_3[0]['briefing']}
+    post_lines.append("⚠️ 【安全提醒】：出海作釣請穿著合格防滑釘鞋與救生衣，嚴防外礁瘋狗浪！")
+    post_lines.append("📲 欲查全台 85 測站實時 0 延遲湧浪、30 天潮位回測與 Waze 實況雷達：")
+    post_lines.append("👉 請在 App Store 搜尋：「潮汐表」或「潮汐表 Pro」\n")
+    post_lines.append("#潮汐表 #釣魚 #磯釣 #海釣 #潮汐 #浪高 #路亞 #老船長 #潮汐表Pro #出海決策")
 
-🥈 【No.2 平穩推薦】{top_3[1]['name']}
-• 水文評分：⚡ {top_3[1]['score']} 分
-• 實測海象：浪高 {top_3[1]['wave']}m • 風速 {top_3[1]['wind']}m/s
-• 滿潮時程：約 {top_3[1]['high_tide']}
-
-🥉 【No.3 潛力黑馬】{top_3[2]['name']}
-• 水文評分：✨ {top_3[2]['score']} 分
-• 實測海象：浪高 {top_3[2]['wave']}m • 風速 {top_3[2]['wind']}m/s
-• 滿潮時程：約 {top_3[2]['high_tide']}
-
-⚠️ 【安全提醒】：出海作釣請穿著合格防滑釘鞋與救生衣，嚴防外礁瘋狗浪！
-📲 欲查全台 85 測站實時 0 延遲湧浪、30 天潮位回測與 Waze 實況雷達：
-👉 請在 App Store 搜尋：「潮汐表」或「潮汐表 Pro」
-
-#潮汐表 #釣魚 #磯釣 #海釣 #潮汐 #浪高 #路亞 #老船長 #潮汐表Pro #出海決策
-"""
+    post_content = "\n".join(post_lines)
 
     output_txt = os.path.join(deploy_dir, "daily_social_blast.txt")
     with open(output_txt, "w", encoding="utf-8") as f:
@@ -117,7 +144,7 @@ def run_social_engine():
     print("=" * 65)
     print(post_content)
     print("=" * 65)
-    print(f"✅ 已同步保存至：{output_txt}，每天發布至 Threads / FB 群組即可精準承接自然流量！")
+    print(f"✅ 已同步保存至：{output_txt}")
 
 if __name__ == "__main__":
     run_social_engine()
