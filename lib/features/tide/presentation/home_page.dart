@@ -218,6 +218,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ],
               ),
               actions: [
+                // 🌟 下放給全體用戶：主畫面頂端「一秒切換烈日/夜戰戰術模式」
+                IconButton(
+                  icon: Icon(
+                    isClassic ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
+                    color: isClassic ? Colors.white : AppColors.bioGold,
+                    size: 21,
+                  ),
+                  tooltip: isClassic ? "切換為深淵黑金夜戰模式" : "切換為烈日高對比白藍模式",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(isClassicThemeProvider.notifier).setClassicTheme(!isClassic);
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
                   tooltip: "產出海象戰報分享",
@@ -442,7 +455,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                   label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                   onPressed: () async {
                     HapticFeedback.mediumImpact();
-                    // 等待渲染繪製管線就緒，杜絕 debugNeedsPaint 斷言死機
                     await Future.delayed(const Duration(milliseconds: 120));
                     await ShareUtil.captureAndShare(reportKey, stationName: station.info.stationName);
                     if (ctx.mounted) Navigator.pop(ctx);
@@ -664,7 +676,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     final firstDate = now.subtract(const Duration(days: 30));
     final lastDate = now.add(const Duration(days: 30));
     
-    // 嚴格夾鉗初始日期，杜絕 Flutter 日期越界 Assert 閃退
     DateTime initial = ref.read(selectedDateProvider);
     if (initial.isBefore(firstDate)) initial = firstDate;
     if (initial.isAfter(lastDate)) initial = lastDate;

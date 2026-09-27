@@ -163,7 +163,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 24),
 
-            // 2. VIP 專屬：介面風格自由切換開關（烈日白藍 vs 深淵黑金）
+            // 2. 全天候戰術環境風格切換
             _buildThemeSwitchCard(context, ref, isClassic),
 
             const SizedBox(height: 24),
@@ -269,7 +269,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                 Row(
                   children: [
                     Text(
-                      "介面風格自由切換",
+                      "全天候戰術環境風格",
                       style: TextStyle(
                         color: isClassic ? AppColors.classicText : Colors.white, 
                         fontWeight: FontWeight.bold, 
@@ -280,11 +280,21 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: AppColors.bioGold.withValues(alpha: 0.15),
+                        color: (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.3), width: 0.5),
+                        border: Border.all(
+                          color: (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan).withValues(alpha: 0.3), 
+                          width: 0.5,
+                        ),
                       ),
-                      child: const Text("VIP 特權", style: TextStyle(color: AppColors.bioGold, fontSize: 8.5, fontWeight: FontWeight.w900)),
+                      child: Text(
+                        "主畫面已支援一鍵秒切", 
+                        style: TextStyle(
+                          color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
+                          fontSize: 8.5, 
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ],
                 ),
