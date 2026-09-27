@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -20,25 +20,32 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(premiumProvider);
     final isClassic = ref.watch(isClassicThemeProvider);
-    final String memberId = "CAPT-2026-${(state.expiryDate?.millisecondsSinceEpoch ?? 88888).toString().substring(5, 9)}";
+
+    final currentYear = DateTime.now().year;
+    final String memberId = "CAPT-$currentYear-${(state.expiryDate?.millisecondsSinceEpoch ?? 88888).toString().substring(5, 9)}";
     final String title = state.isFounder ? "創始天尊指揮官" : (state.type == SubscriptionType.yearly ? "年度首席領航員" : "尊榮專業會員");
     final String expiryText = state.isFounder ? "終身永久享有最高特權" : "特權有效期至：${state.expiryDate != null ? DateFormat('yyyy/MM/dd').format(state.expiryDate!) : '有效'}";
     
     final int coins = state.coinBalance;
 
+    final Color pageBg = isClassic ? AppColors.classicBg : const Color(0xFF020E1C);
+    final Color appBarBg = isClassic ? const Color(0xFF0077B6) : const Color(0xFF020E1C);
+    final Color sectionTitleColor = isClassic ? const Color(0xFF023E8A) : Colors.white.withValues(alpha: 0.9);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF020E1C),
+      backgroundColor: pageBg,
       appBar: AppBar(
         title: const Text("老船長 VIP 指揮中心", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-        backgroundColor: const Color(0xFF020E1C),
+        backgroundColor: appBarBg,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
+        elevation: isClassic ? 1 : 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
         child: Column(
           children: [
-            // 🌟 1. 尊榮黑金金屬身分銘牌
+            // 1. 尊榮金屬身分銘牌（專利黑金/深藍拉絲光澤）
             RepaintBoundary(
               key: _vipCardKey,
               child: Container(
@@ -47,8 +54,8 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: state.isFounder 
-                        ? [const Color(0xFF2C1802), const Color(0xFF150A00), const Color(0xFF3D2605)]
-                        : [const Color(0xFF062343), const Color(0xFF021326), const Color(0xFF0A335C)],
+                        ? const [Color(0xFF2C1802), Color(0xFF150A00), Color(0xFF3D2605)]
+                        : const [Color(0xFF062343), Color(0xFF021326), Color(0xFF0A335C)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -137,46 +144,54 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               height: 44,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  backgroundColor: isClassic ? Colors.white : Colors.transparent,
+                  side: BorderSide(color: isClassic ? Colors.grey.shade300 : Colors.white.withValues(alpha: 0.2)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                icon: const Icon(Icons.share_rounded, color: Colors.amberAccent, size: 18),
-                label: const Text("分享我的 VIP 航海家榮譽身分卡", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                icon: const Icon(Icons.share_rounded, color: AppColors.bioGold, size: 18),
+                label: Text(
+                  "分享我的 VIP 航海家榮譽身分卡", 
+                  style: TextStyle(
+                    color: isClassic ? AppColors.classicText : Colors.white, 
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 13,
+                  ),
+                ),
                 onPressed: () => ShareUtil.captureAndShare(_vipCardKey, stationName: title),
               ),
             ),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 24),
 
-            // 🌟 2. VIP 專屬：介面風格自由切換開關 (經典白藍 vs 深淵黑金)
+            // 2. VIP 專屬：介面風格自由切換開關（烈日白藍 vs 深淵黑金）
             _buildThemeSwitchCard(context, ref, isClassic),
 
             const SizedBox(height: 24),
 
-            // 🌟 3. 虛擬資產與特權金庫
+            // 3. 虛擬資產與特權金庫
             Row(
               children: [
-                const Icon(Icons.account_balance_wallet_rounded, color: Colors.amber, size: 18),
+                const Icon(Icons.account_balance_wallet_rounded, color: AppColors.bioGold, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   "虛擬資產與特權金庫",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: sectionTitleColor, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 14),
-            _buildCoinWallet(context, coins),
+            _buildCoinWallet(context, coins, isClassic),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
-            // 🌟 4. 硬核專線儀表板
+            // 4. 硬核專線儀表板
             Row(
               children: [
-                const Icon(Icons.shield_rounded, color: Color(0xFF00B4D8), size: 18),
+                Icon(Icons.shield_rounded, color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   "專屬 VIP 硬核專線與運作狀態",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: sectionTitleColor, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -187,7 +202,8 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               title: "中央氣象署 85 測站光纖直連專線",
               statusText: "專線已連通 • 響應 38ms",
               desc: "繞過邊緣公共快取節點，直達氣象署即時感測陣列，享有 0 延遲水文數據刷新特權。",
-              statusColor: Colors.greenAccent,
+              statusColor: const Color(0xFF30D158),
+              isClassic: isClassic,
             ),
             const SizedBox(height: 12),
             _buildStatusCard(
@@ -195,7 +211,8 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               title: "Gemini Flash-Lite 專屬推論通道",
               statusText: "AI 專家優先席位",
               desc: "獨享全維度湧浪週期、風切轉向點與咬度視窗 AI 加權計算，不排隊、無請求次數上限。",
-              statusColor: Colors.amberAccent,
+              statusColor: AppColors.bioGold,
+              isClassic: isClassic,
             ),
             const SizedBox(height: 12),
             _buildStatusCard(
@@ -204,6 +221,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               statusText: "背景安全雷達運作中",
               desc: "依據您關注測站之每日滿潮死線，於滿潮前 30 分鐘發出專屬高分貝突發湧浪防護警告。",
               statusColor: Colors.cyanAccent,
+              isClassic: isClassic,
             ),
             const SizedBox(height: 12),
             _buildStatusCard(
@@ -212,6 +230,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               statusText: "本地防禦庫隨時待命",
               desc: "即使進入防波堤外側或深海無收訊死角，App 自動啟用離線神盾，確保水文回測不中斷。",
               statusColor: Colors.tealAccent,
+              isClassic: isClassic,
             ),
           ],
         ),
@@ -219,21 +238,21 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     );
   }
 
-  // 🌟 VIP 專屬：風格自由切換開關卡片
   Widget _buildThemeSwitchCard(BuildContext context, WidgetRef ref, bool isClassic) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: isClassic ? Colors.grey.shade200 : Colors.white.withValues(alpha: 0.08), width: isClassic ? 1.0 : 0.5),
+        boxShadow: isClassic ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)] : null,
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.15) : AppColors.pelagicCyan.withValues(alpha: 0.15),
+              color: (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -249,9 +268,13 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               children: [
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       "介面風格自由切換",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      style: TextStyle(
+                        color: isClassic ? AppColors.classicText : Colors.white, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Container(
@@ -268,7 +291,10 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                 const SizedBox(height: 3),
                 Text(
                   isClassic ? "目前：經典白藍老船長版 (烈日外礁高對比)" : "目前：深淵黑金旗艦版 (OLED極致純黑)",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                  style: TextStyle(
+                    color: isClassic ? Colors.grey.shade600 : Colors.white.withValues(alpha: 0.5), 
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -286,13 +312,13 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     );
   }
 
-  Widget _buildCoinWallet(BuildContext context, int coins) {
+  Widget _buildCoinWallet(BuildContext context, int coins, bool isClassic) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.1),
+        color: isClassic ? Colors.amber.shade50 : Colors.amber.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.amber.withValues(alpha: isClassic ? 0.5 : 0.3)),
       ),
       child: Row(
         children: [
@@ -309,15 +335,22 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("老船長幣 (Captain Coins)", style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                const Text("老船長幣 (Captain Coins)", style: TextStyle(color: Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text("$coins", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                    Text(
+                      "$coins", 
+                      style: TextStyle(
+                        color: isClassic ? Colors.black87 : Colors.white, 
+                        fontSize: 28, 
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(width: 4),
-                    const Text("枚", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text("枚", style: TextStyle(color: isClassic ? Colors.black54 : Colors.white70, fontSize: 12)),
                   ],
                 ),
               ],
@@ -352,13 +385,15 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     required String statusText,
     required String desc,
     required Color statusColor,
+    required bool isClassic,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: isClassic ? Colors.grey.shade200 : Colors.white.withValues(alpha: 0.08), width: isClassic ? 1.0 : 0.5),
+        boxShadow: isClassic ? [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4)] : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +410,14 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(
+                      title, 
+                      style: TextStyle(
+                        color: isClassic ? AppColors.classicText : Colors.white, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 14,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
@@ -390,7 +432,14 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(desc, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, height: 1.4)),
+          Text(
+            desc, 
+            style: TextStyle(
+              color: isClassic ? Colors.grey.shade600 : Colors.white.withValues(alpha: 0.5), 
+              fontSize: 12, 
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );

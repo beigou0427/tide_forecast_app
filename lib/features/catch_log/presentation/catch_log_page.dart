@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,36 +14,42 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/custom_card.dart';
 import '../../../core/services/review_service.dart';
 
-/// 🍏 Apple 首席設計工藝：黑金標本展覽館 (Catch Archive Gallery)
+/// Apple 首席設計工藝：黑金/白藍雙軌標本展覽館 (Catch Archive Gallery)
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isClassic = ref.watch(isClassicThemeProvider);
     final logs = ref.watch(catchLogProvider);
     final tideView = ref.watch(tideViewDataProvider).value;
 
+    final Color bgColor = isClassic ? AppColors.classicBg : AppColors.abyssBlack;
+    final Color appBarBg = isClassic ? const Color(0xFF0077B6) : AppColors.abyssBlack.withValues(alpha: 0.88);
+    final Color fabBg = isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
+    final Color fabFg = isClassic ? Colors.white : AppColors.abyssBlack;
+
     return Scaffold(
-      backgroundColor: AppColors.abyssBlack,
+      backgroundColor: bgColor,
       appBar: AppBar(
         title: const Text(
           "潮汐漁獲榮譽日誌", 
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.textPrimary, letterSpacing: -0.4),
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.white, letterSpacing: -0.4),
         ),
-        backgroundColor: AppColors.abyssBlack.withValues(alpha: 0.88),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
-        elevation: 0,
+        backgroundColor: appBarBg,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: isClassic ? 1 : 0,
       ),
       body: logs.isEmpty 
-          ? _buildEmptyState(context, ref, tideView) 
-          : _buildLogList(context, ref, logs, tideView),
+          ? _buildEmptyState(context, ref, tideView, isClassic) 
+          : _buildLogList(context, ref, logs, tideView, isClassic),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           HapticFeedback.lightImpact();
-          _showAddDialog(context, ref, tideView);
+          _showAddDialog(context, ref, tideView, isClassic);
         },
-        backgroundColor: AppColors.pelagicCyan,
-        foregroundColor: AppColors.abyssBlack,
+        backgroundColor: fabBg,
+        foregroundColor: fabFg,
         elevation: 4,
         icon: const Icon(Icons.add_a_photo_rounded, size: 18),
         label: const Text("記錄今日作釣", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
@@ -51,7 +57,11 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, dynamic tideView) {
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref, dynamic tideView, bool isClassic) {
+    final Color primaryColor = isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
+    final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+    final Color descColor = isClassic ? Colors.grey.shade600 : AppColors.textSecondary;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -62,32 +72,35 @@ class CatchLogPage extends ConsumerWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
+                color: primaryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                border: Border.all(
+                  color: primaryColor.withValues(alpha: 0.25), 
+                  width: 0.5,
+                ),
               ),
-              child: const Icon(Icons.phishing_rounded, size: 40, color: AppColors.pelagicCyan),
+              child: Icon(Icons.phishing_rounded, size: 40, color: primaryColor),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               "尚未建立作釣日誌", 
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: titleColor),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               "拍下戰利品，每筆紀錄將自動疊加當下即時水文\n並永久備份至本機與雲端金庫，留下不朽傳奇！",
               textAlign: TextAlign.center, 
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
+              style: TextStyle(color: descColor, fontSize: 12.5, height: 1.45),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
                 HapticFeedback.lightImpact();
-                _showAddDialog(context, ref, tideView);
+                _showAddDialog(context, ref, tideView, isClassic);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.pelagicCyan, 
-                foregroundColor: AppColors.abyssBlack,
+                backgroundColor: primaryColor, 
+                foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 elevation: 0,
@@ -101,7 +114,12 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildLogList(BuildContext context, WidgetRef ref, List<CatchLogItem> logs, dynamic tideView) {
+  Widget _buildLogList(BuildContext context, WidgetRef ref, List<CatchLogItem> logs, dynamic tideView, bool isClassic) {
+    final Color stationColor = isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
+    final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+    final Color noteColor = isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary;
+    final Color timeColor = isClassic ? Colors.grey : AppColors.textTertiary;
+
     return ListView.builder(
       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
@@ -137,11 +155,11 @@ class CatchLogPage extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.location_on_rounded, size: 13, color: AppColors.pelagicCyan),
+                          Icon(Icons.location_on_rounded, size: 13, color: stationColor),
                           const SizedBox(width: 4),
                           Text(
                             item.stationName, 
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.pelagicCyan),
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: stationColor),
                           ),
                         ],
                       ),
@@ -149,19 +167,21 @@ class CatchLogPage extends ConsumerWidget {
                         children: [
                           if (item.imageUrl != null) const Icon(Icons.cloud_done_rounded, size: 12, color: Color(0xFF30D158)),
                           if (item.imageUrl != null) const SizedBox(width: 4),
-                          Text(timeStr, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                          Text(timeStr, style: TextStyle(fontSize: 11, color: timeColor)),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   
-                  // 藍寶石展覽相框
                   if (item.imagePath != null || item.imageUrl != null) ...[
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                        border: Border.all(
+                          color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
+                          width: 0.5,
+                        ),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
@@ -171,9 +191,9 @@ class CatchLogPage extends ConsumerWidget {
                                 height: 190,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => _buildCloudImage(item.imageUrl),
+                                errorBuilder: (ctx, err, stack) => _buildCloudImage(item.imageUrl, isClassic),
                               )
-                            : _buildCloudImage(item.imageUrl),
+                            : _buildCloudImage(item.imageUrl, isClassic),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -184,7 +204,7 @@ class CatchLogPage extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           item.species, 
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textPrimary, letterSpacing: -0.3),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: titleColor, letterSpacing: -0.3),
                         ),
                       ),
                       Row(
@@ -193,7 +213,9 @@ class CatchLogPage extends ConsumerWidget {
                           (starIdx) => Icon(
                             starIdx < item.rating ? Icons.star_rounded : Icons.star_border_rounded,
                             size: 16,
-                            color: starIdx < item.rating ? AppColors.bioGold : AppColors.textTertiary,
+                            color: starIdx < item.rating 
+                                ? AppColors.bioGold 
+                                : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
                           ),
                         ),
                       ),
@@ -203,7 +225,7 @@ class CatchLogPage extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Text(
                       item.notes, 
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+                      style: TextStyle(color: noteColor, fontSize: 12.5, height: 1.4),
                     ),
                   ],
                   const SizedBox(height: 14),
@@ -211,7 +233,7 @@ class CatchLogPage extends ConsumerWidget {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
-                      if (item.tideHeight != null) _buildMetricBadge("潮位", "${item.tideHeight} m", AppColors.pelagicCyan),
+                      if (item.tideHeight != null) _buildMetricBadge("潮位", "${item.tideHeight} m", isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan),
                       if (item.waveHeight != null) _buildMetricBadge("浪高", "${item.waveHeight} m", Colors.indigoAccent),
                       if (item.seaTemperature != null) _buildMetricBadge("水溫", "${item.seaTemperature} ℃", const Color(0xFFFF9500)),
                     ],
@@ -225,12 +247,14 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildCloudImage(String? url) {
+  Widget _buildCloudImage(String? url, bool isClassic) {
     if (url == null || url.isEmpty) {
       return Container(
         height: 120, 
-        color: Colors.white.withValues(alpha: 0.03),
-        child: const Center(child: Icon(Icons.broken_image_rounded, color: AppColors.textTertiary, size: 36)),
+        color: isClassic ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.03),
+        child: Center(
+          child: Icon(Icons.broken_image_rounded, color: isClassic ? Colors.grey : AppColors.textTertiary, size: 36),
+        ),
       );
     }
     return CachedNetworkImage(
@@ -240,13 +264,17 @@ class CatchLogPage extends ConsumerWidget {
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
         height: 190, 
-        color: Colors.white.withValues(alpha: 0.03),
-        child: const Center(child: CircularProgressIndicator(color: AppColors.pelagicCyan, strokeWidth: 2)),
+        color: isClassic ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.03),
+        child: Center(
+          child: CircularProgressIndicator(color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, strokeWidth: 2),
+        ),
       ),
       errorWidget: (context, url, error) => Container(
         height: 120, 
-        color: Colors.white.withValues(alpha: 0.03),
-        child: const Center(child: Icon(Icons.cloud_off_rounded, color: AppColors.textTertiary, size: 36)),
+        color: isClassic ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.03),
+        child: Center(
+          child: Icon(Icons.cloud_off_rounded, color: isClassic ? Colors.grey : AppColors.textTertiary, size: 36),
+        ),
       ),
     );
   }
@@ -266,7 +294,7 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  void _showAddDialog(BuildContext context, WidgetRef ref, dynamic tideView) {
+  void _showAddDialog(BuildContext context, WidgetRef ref, dynamic tideView, bool isClassic) {
     final speciesCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     int selectedRating = 5;
@@ -276,10 +304,16 @@ class CatchLogPage extends ConsumerWidget {
     final obs = tideView?.stationData.observations.isNotEmpty == true ? tideView.stationData.observations.last : null;
     final stationName = tideView?.stationData.info.stationName ?? "當前測站";
 
+    final Color sheetBg = isClassic ? Colors.white : AppColors.abyssCard;
+    final Color primaryColor = isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
+    final Color textColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+    final Color inputBg = isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.05);
+    final Color borderColor = isClassic ? Colors.grey.shade300 : AppColors.glassBorder;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.abyssCard,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -295,40 +329,46 @@ class CatchLogPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
-                      child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                      child: Container(
+                        width: 36, 
+                        height: 4, 
+                        decoration: BoxDecoration(
+                          color: isClassic ? Colors.grey.shade300 : Colors.white24, 
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           "登錄作釣漁獲日誌", 
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.textPrimary, letterSpacing: -0.3),
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: textColor, letterSpacing: -0.3),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.pelagicCyan.withValues(alpha: 0.12), 
+                            color: primaryColor.withValues(alpha: 0.12), 
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.pelagicCyan.withValues(alpha: 0.25), width: 0.5),
+                            border: Border.all(color: primaryColor.withValues(alpha: 0.25), width: 0.5),
                           ),
                           child: Text(
                             "鎖定: $stationName", 
-                            style: const TextStyle(fontSize: 10.5, color: AppColors.pelagicCyan, fontWeight: FontWeight.w800),
+                            style: TextStyle(fontSize: 10.5, color: primaryColor, fontWeight: FontWeight.w800),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     
-                    // 照片捕捉展示區
                     if (selectedImage != null)
                       Stack(
                         children: [
                           Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                              border: Border.all(color: borderColor, width: 0.5),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
@@ -358,8 +398,8 @@ class CatchLogPage extends ConsumerWidget {
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
-                                backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+                                backgroundColor: inputBg,
+                                side: BorderSide(color: borderColor, width: 0.5),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
                               onPressed: () async {
@@ -367,8 +407,8 @@ class CatchLogPage extends ConsumerWidget {
                                 final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
-                              icon: const Icon(Icons.camera_alt_rounded, color: AppColors.pelagicCyan, size: 18),
-                              label: const Text("現場拍攝", style: TextStyle(color: AppColors.pelagicCyan, fontWeight: FontWeight.w800)),
+                              icon: Icon(Icons.camera_alt_rounded, color: primaryColor, size: 18),
+                              label: Text("現場拍攝", style: TextStyle(color: primaryColor, fontWeight: FontWeight.w800)),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -376,8 +416,8 @@ class CatchLogPage extends ConsumerWidget {
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
-                                backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+                                backgroundColor: inputBg,
+                                side: BorderSide(color: borderColor, width: 0.5),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
                               onPressed: () async {
@@ -385,8 +425,8 @@ class CatchLogPage extends ConsumerWidget {
                                 final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
                                 if (img != null) setModalState(() => selectedImage = img);
                               },
-                              icon: const Icon(Icons.photo_library_rounded, color: AppColors.pelagicCyan, size: 18),
-                              label: const Text("相簿挑選", style: TextStyle(color: AppColors.pelagicCyan, fontWeight: FontWeight.w800)),
+                              icon: Icon(Icons.photo_library_rounded, color: primaryColor, size: 18),
+                              label: Text("相簿挑選", style: TextStyle(color: primaryColor, fontWeight: FontWeight.w800)),
                             ),
                           ),
                         ],
@@ -395,17 +435,17 @@ class CatchLogPage extends ConsumerWidget {
                     
                     TextField(
                       controller: speciesCtrl,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                      style: TextStyle(color: textColor, fontSize: 13.5),
                       decoration: InputDecoration(
                         labelText: "對象魚種 / 體型 (必填)",
-                        labelStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                        labelStyle: TextStyle(color: isClassic ? Colors.grey : AppColors.textTertiary, fontSize: 12),
                         hintText: "例如: 黑毛 42cm / 軟絲 1.5kg",
-                        hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                        hintStyle: TextStyle(color: isClassic ? Colors.grey : AppColors.textTertiary, fontSize: 12),
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.pelagicCyan, width: 1.0)),
+                        fillColor: inputBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor, width: 0.5)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor, width: 0.5)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: primaryColor, width: 1.0)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
@@ -413,31 +453,40 @@ class CatchLogPage extends ConsumerWidget {
                     TextField(
                       controller: notesCtrl,
                       maxLines: 2,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                      style: TextStyle(color: textColor, fontSize: 13.5),
                       decoration: InputDecoration(
                         labelText: "作釣心得 / 使用餌料 (選填)",
-                        labelStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                        labelStyle: TextStyle(color: isClassic ? Colors.grey : AppColors.textTertiary, fontSize: 12),
                         hintText: "例如: 滿潮返乾時大咬，青磺蝦掛阿波1.5號",
-                        hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                        hintStyle: TextStyle(color: isClassic ? Colors.grey : AppColors.textTertiary, fontSize: 12),
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.pelagicCyan, width: 1.0)),
+                        fillColor: inputBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor, width: 0.5)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor, width: 0.5)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: primaryColor, width: 1.0)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        const Text("咬度評價: ", style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary)),
+                        Text(
+                          "咬度評價: ", 
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700, 
+                            fontSize: 13, 
+                            color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                          ),
+                        ),
                         const SizedBox(width: 6),
                         Row(
                           children: List.generate(5, (idx) {
                             return IconButton(
                               icon: Icon(
                                 idx < selectedRating ? Icons.star_rounded : Icons.star_border_rounded, 
-                                color: idx < selectedRating ? AppColors.bioGold : AppColors.textTertiary,
+                                color: idx < selectedRating 
+                                    ? AppColors.bioGold 
+                                    : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
                               ),
                               onPressed: () {
                                 HapticFeedback.selectionClick();
@@ -456,8 +505,8 @@ class CatchLogPage extends ConsumerWidget {
                       height: 50,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.pelagicCyan,
-                          foregroundColor: AppColors.abyssBlack,
+                          backgroundColor: primaryColor,
+                          foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           elevation: 0,
                         ),
@@ -470,7 +519,6 @@ class CatchLogPage extends ConsumerWidget {
 
                           HapticFeedback.mediumImpact();
 
-                          // 永久沙盒轉移 (防照片蒸發)
                           String? permanentPath;
                           if (selectedImage != null) {
                             try {
@@ -479,7 +527,7 @@ class CatchLogPage extends ConsumerWidget {
                               final savedFile = await File(selectedImage!.path).copy('${appDir.path}/$fileName');
                               permanentPath = savedFile.path;
                             } catch (e) {
-                              debugPrint("⚠️ 照片沙盒永久轉移失敗，回退使用原始路徑: $e");
+                              debugPrint("⚠️ 照片沙盒轉移失敗，回退使用原始路徑: $e");
                               permanentPath = selectedImage!.path;
                             }
                           }
@@ -499,7 +547,6 @@ class CatchLogPage extends ConsumerWidget {
 
                           ref.read(catchLogProvider.notifier).addLog(item);
 
-                          // 🌟 核心防護：檢查 ctx 是否依然掛載存活，徹底消除 use_build_context_synchronously 警告！
                           if (!ctx.mounted) return;
                           Navigator.pop(ctx);
 
