@@ -1,13 +1,13 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../premium/presentation/premium_page.dart';
+import '../../tide/presentation/home_page.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// 🍏 Apple 首席設計工藝：深海啟航問卷與動態模型合成儀 (Deep Ocean Onboarding Odyssey)
+/// Julie Zhuo 哲學重塑：零阻力前 60 秒價值直達導航 (Frictionless FTUX)
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
 
@@ -29,7 +29,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final List<Map<String, dynamic>> _questions = [
     {
       "title": "您最常出沒的作業海域？",
-      "subtitle": "老船長將優先預載該海域之高精度水文拓撲模型",
+      "subtitle": "老船長將優先鎖定該海域之高精度水文拓撲",
       "key": "region",
       "options": [
         {"icon": "🌊", "label": "北部沿海 (基隆 / 東北角 / 淡水)"},
@@ -41,7 +41,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     },
     {
       "title": "您的主要作釣活動方式？",
-      "subtitle": "系統將自適應計算最適合您下竿的海流與湧浪窗口",
+      "subtitle": "系統將自適應計算最適合您下竿的黃金波峰窗口",
       "key": "style",
       "options": [
         {"icon": "🐟", "label": "浮游磯釣 / 沉底遠投"},
@@ -53,7 +53,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     },
     {
       "title": "出海時最在意的海象風險？",
-      "subtitle": "老船長 AI 預警引擎將為此風險提高安全加權係數",
+      "subtitle": "出海紅綠燈將為此風險提高安全警戒係數",
       "key": "risk",
       "options": [
         {"icon": "⚠️", "label": "瘋狗浪 / 突發深海長湧浪"},
@@ -79,6 +79,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
+  // 岸邊急用一秒跳過通道 (Julie Zhuo 零摩擦設計)
+  Future<void> _skipOnboarding() async {
+    HapticFeedback.lightImpact();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_completed_onboarding', true);
+    await prefs.setBool('has_agreed_maritime_safety_v2', true); // 同步免責同意
+    _navigateToHome();
+  }
+
   void _startSynthesisLoading() async {
     setState(() {
       _currentStep = 3;
@@ -90,8 +99,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
     await prefs.setString('user_pref_style', _selectedStyle ?? '');
     await prefs.setString('user_pref_risk', _selectedRisk ?? '');
     await prefs.setBool('has_completed_onboarding', true);
+    await prefs.setBool('has_agreed_maritime_safety_v2', true); // 整合安全合意，首頁不再彈窗騷擾
 
-    const totalDurationMs = 2100;
+    const totalDurationMs = 1500;
     const intervalMs = 50;
     int elapsed = 0;
 
@@ -99,29 +109,33 @@ class _OnboardingPageState extends State<OnboardingPage> {
       elapsed += intervalMs;
       final ratio = (elapsed / totalDurationMs).clamp(0.0, 1.0);
 
-      setState(() {
-        _progress = ratio;
-        if (ratio > 0.7) {
-          _loadingText = "正在封裝專屬潮汐推論模型...";
-        } else if (ratio > 0.35) {
-          _loadingText = "正在初始化 Gemini 老船長推論模型...";
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _progress = ratio;
+          if (ratio > 0.7) {
+            _loadingText = "專屬出海紅綠燈模型封裝完成！";
+          } else if (ratio > 0.35) {
+            _loadingText = "正在調校海象安全評估神經網絡...";
+          }
+        });
+      }
 
       if (elapsed >= totalDurationMs) {
         timer.cancel();
         HapticFeedback.mediumImpact();
-        _goToPaywall();
+        // 核心突破：直接進入首頁展示價值，不再強拍付費牆
+        _navigateToHome();
       }
     });
   }
 
-  void _goToPaywall() {
+  void _navigateToHome() {
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, __, ___) => const PremiumPage(),
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => const HomePage(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -154,27 +168,44 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 頂部膠囊進度光條
+          // 頂部進度光條與極速跳過按鈕
           Row(
-            children: List.generate(3, (idx) {
-              final isPassed = idx <= _currentStep;
-              return Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 3.5,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: isPassed ? AppColors.pelagicCyan : Colors.white12,
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: isPassed 
-                        ? [BoxShadow(color: AppColors.pelagicCyan.withValues(alpha: 0.5), blurRadius: 6)] 
-                        : null,
-                  ),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: List.generate(3, (idx) {
+                    final isPassed = idx <= _currentStep;
+                    return Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        height: 3.5,
+                        margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                        decoration: BoxDecoration(
+                          color: isPassed ? AppColors.pelagicCyan : Colors.white12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }),
                 ),
-              );
-            }),
+              ),
+              const SizedBox(width: 16),
+              TextButton(
+                onPressed: _skipOnboarding,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  "先看海況", 
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 28),
           Text(
             "STEP 0${_currentStep + 1} OF 03",
             style: const TextStyle(
@@ -189,7 +220,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             q["title"],
             style: GoogleFonts.notoSansTc(
               color: AppColors.textPrimary, 
-              fontSize: 26, 
+              fontSize: 24, 
               fontWeight: FontWeight.w900, 
               height: 1.25,
               letterSpacing: -0.5,
@@ -198,9 +229,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 6),
           Text(
             q["subtitle"],
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.45),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           Expanded(
             child: ListView.separated(
               physics: const BouncingScrollPhysics(),
@@ -212,7 +243,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onTap: () => _onOptionSelected(opt["label"]!),
                   borderRadius: BorderRadius.circular(18),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(18),
@@ -221,18 +252,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     child: Row(
                       children: [
                         Text(opt["icon"]!, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Text(
                             opt["label"]!,
                             style: const TextStyle(
                               color: AppColors.textPrimary, 
-                              fontSize: 14.5, 
+                              fontSize: 14, 
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textTertiary, size: 14),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textTertiary, size: 13),
                       ],
                     ),
                   ),
@@ -256,8 +287,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 130,
-                  height: 130,
+                  width: 120,
+                  height: 120,
                   child: CircularProgressIndicator(
                     value: _progress,
                     strokeWidth: 3.5,
@@ -266,36 +297,36 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(22),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: AppColors.pelagicCyan.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 48),
+                  child: const Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 42),
                 ),
               ],
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 32),
             Text(
               "${(_progress * 100).toInt()} %",
               style: GoogleFonts.rubik(
                 color: AppColors.textPrimary, 
-                fontSize: 32, 
+                fontSize: 30, 
                 fontWeight: FontWeight.w900,
                 letterSpacing: -1,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Text(
               _loadingText,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             const Text(
-              "依據您的個人水文習慣自適應調整中",
-              style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+              "即將為您呈現首頁實時水文與出海紅綠燈",
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5),
             ),
           ],
         ),

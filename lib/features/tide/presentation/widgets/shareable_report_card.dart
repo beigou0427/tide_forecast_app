@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../data/tide_model.dart';
@@ -20,15 +21,15 @@ class ShareableReportCard extends ConsumerWidget {
     final obs = station.observations.isNotEmpty ? station.observations.last : null;
     final nowStr = DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now());
     
-    // 🌟 讀取 VVIP 會員身分
     final premium = ref.watch(premiumProvider);
     final bool isVvip = premium.isFounder || premium.type == SubscriptionType.yearly;
 
     return RepaintBoundary(
       key: boundaryKey,
       child: Container(
-        width: 360,
-        padding: const EdgeInsets.all(20),
+        constraints: const BoxConstraints(maxWidth: 360),
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: isVvip 
               ? const LinearGradient(
@@ -60,38 +61,46 @@ class ShareableReportCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 1. 頂部抬頭與時間 (彈性防溢出)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isVvip ? Colors.amber.withValues(alpha: 0.2) : const Color(0xFF00B4D8).withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: isVvip ? Colors.amber.withValues(alpha: 0.2) : const Color(0xFF00B4D8).withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isVvip ? Icons.workspace_premium_rounded : Icons.anchor_rounded, 
+                          color: isVvip ? Colors.amberAccent : const Color(0xFF00B4D8), 
+                          size: 16,
+                        ),
                       ),
-                      child: Icon(
-                        isVvip ? Icons.workspace_premium_rounded : Icons.anchor_rounded, 
-                        color: isVvip ? Colors.amberAccent : const Color(0xFF00B4D8), 
-                        size: 18,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isVvip ? "潮汐表 PRO 旗艦作戰情報" : "潮汐表 PRO 老船長情報",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isVvip ? Colors.amberAccent : Colors.white, 
+                            fontWeight: FontWeight.w900, 
+                            fontSize: 11.5, 
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isVvip ? "潮汐表 PRO 旗艦作戰情報" : "潮汐表 PRO 老船長海象情報", // 🌟 抬頭對齊潮汐表品牌
-                      style: TextStyle(
-                        color: isVvip ? Colors.amberAccent : Colors.white, 
-                        fontWeight: FontWeight.w900, 
-                        fontSize: 12, 
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 6),
                 Text(
                   nowStr,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9.5),
                 ),
               ],
             ),
@@ -99,7 +108,7 @@ class ShareableReportCard extends ConsumerWidget {
             if (isVvip) ...[
               const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                 decoration: BoxDecoration(
                   color: premium.isFounder 
                       ? Colors.amber.withValues(alpha: 0.15) 
@@ -113,12 +122,12 @@ class ShareableReportCard extends ConsumerWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.shield_rounded, size: 12, color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF)),
+                    Icon(Icons.shield_rounded, size: 11, color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF)),
                     const SizedBox(width: 4),
                     Text(
-                      premium.isFounder ? "👑 創始天尊指揮官 • 專屬鑑測戰報" : "🔱 年度首席領航員 • 專屬特權戰報",
+                      premium.isFounder ? "👑 創始天尊指揮官 • 專屬戰報" : "🔱 年度首席領航員 • 專屬戰報",
                       style: TextStyle(
-                        fontSize: 10, 
+                        fontSize: 9.5, 
                         fontWeight: FontWeight.w900, 
                         color: premium.isFounder ? Colors.amberAccent : const Color(0xFF00E5FF),
                       ),
@@ -129,98 +138,137 @@ class ShareableReportCard extends ConsumerWidget {
             ],
 
             const SizedBox(height: 14),
+
+            // 2. 測站地名與安全分數膠囊
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      station.info.stationName,
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "${station.info.attr} • 官方即時直連",
-                      style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 11),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        station.info.stationName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 18, 
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "${station.info.attr} • 官方即時直連",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 10.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: (ai?.safetyScore ?? 80) >= 70 ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: (ai?.safetyScore ?? 80) >= 70 ? Colors.greenAccent : Colors.redAccent,
+                      width: 0.8,
                     ),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         "${ai?.safetyScore ?? 80}",
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
                       ),
-                      Text("安全指針", style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9)),
+                      Text("安全指針", style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 8.5)),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+
+            const SizedBox(height: 12),
+
+            // 3. AI 專家評估
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 18),
+                  const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       ai?.briefing ?? "海象平穩，適合近岸作業與作釣。",
-                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4),
                     ),
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 14),
+
+            // 4. 水文 4 大指標 (均分佈局)
             if (obs != null)
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMetricItem("浪高", "${obs.waveHeight ?? '--'} m"),
-                  _buildMetricItem("風速", "${obs.windSpeed ?? '--'} m/s"),
-                  _buildMetricItem("潮高", "${obs.tideHeight ?? '--'} m"),
-                  _buildMetricItem("水溫", "${obs.seaTemperature ?? '--'} ℃"),
+                  _buildMetricItem("浪高", "${obs.waveHeight != null ? obs.waveHeight!.toStringAsFixed(1) : '--'} m"),
+                  _buildMetricItem("風速", "${obs.windSpeed != null ? obs.windSpeed!.toStringAsFixed(1) : '--'} m/s"),
+                  _buildMetricItem("潮高", "${obs.tideHeight != null ? obs.tideHeight!.toStringAsFixed(1) : '--'} m"),
+                  _buildMetricItem("水溫", "${obs.seaTemperature != null ? obs.seaTemperature!.toStringAsFixed(1) : '--'} ℃"),
                 ],
               ),
+
             const SizedBox(height: 14),
             Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
             const SizedBox(height: 10),
+
+            // 5. 底部品牌與認證印章
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("出海作釣、潛水必備決策工具", style: TextStyle(color: Colors.white60, fontSize: 10)),
-                    // 🌟 核心對齊：精準引流至 App Store 既有「潮汐表」大詞
-                    Text("App Store 搜尋：「潮汐表」", style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9, fontWeight: FontWeight.bold)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "出海作釣、潛水必備決策工具", 
+                        maxLines: 1, 
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white60, fontSize: 9.5),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        "App Store 搜尋：「潮汐表」", 
+                        maxLines: 1, 
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 8.5, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                   decoration: BoxDecoration(
                     color: isVvip ? Colors.amberAccent : Colors.tealAccent,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     isVvip ? "COMMANDER VERIFIED" : "官方即時數據",
-                    style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900),
+                    style: const TextStyle(color: Colors.black87, fontSize: 8.5, fontWeight: FontWeight.w900),
                   ),
                 ),
               ],
@@ -232,12 +280,20 @@ class ShareableReportCard extends ConsumerWidget {
   }
 
   Widget _buildMetricItem(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-      ],
+    return Expanded(
+      child: Column(
+        children: [
+          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10)),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value, 
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

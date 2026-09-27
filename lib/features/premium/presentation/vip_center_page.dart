@@ -180,7 +180,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               ],
             ),
             const SizedBox(height: 14),
-            _buildCoinWallet(context, coins, isClassic),
+            _buildCoinWallet(context, ref, coins, state, isClassic),
 
             const SizedBox(height: 28),
 
@@ -322,7 +322,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     );
   }
 
-  Widget _buildCoinWallet(BuildContext context, int coins, bool isClassic) {
+  Widget _buildCoinWallet(BuildContext context, WidgetRef ref, int coins, PremiumState state, bool isClassic) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -375,15 +375,231 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("🛠️ 特約釣具店折扣與高階測站單次解鎖功能，將於下個版本開放兌換！"),
-                  backgroundColor: Color(0xFF0077B6),
-                ),
-              );
+              HapticFeedback.lightImpact();
+              _showCoinRedemptionSheet(context, ref, coins, state, isClassic);
             },
             child: const Text("兌換中心", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
           )
+        ],
+      ),
+    );
+  }
+
+  void _showCoinRedemptionSheet(
+    BuildContext context, 
+    WidgetRef ref, 
+    int coins, 
+    PremiumState state,
+    bool isClassic,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, 
+                  height: 4, 
+                  decoration: BoxDecoration(
+                    color: isClassic ? Colors.grey.shade300 : Colors.white24, 
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "老船長幣 · 特權兌換中心",
+                    style: TextStyle(
+                      fontSize: 17, 
+                      fontWeight: FontWeight.w900, 
+                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4), width: 0.5),
+                    ),
+                    child: Text(
+                      "持有：$coins 枚",
+                      style: const TextStyle(color: Color(0xFFB45309), fontSize: 11, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "每日現場回報實況可獲 5 枚代幣，可直接兌換 PRO 旗艦特權天數！",
+                style: TextStyle(fontSize: 11.5, color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary),
+              ),
+              const SizedBox(height: 20),
+
+              _buildRedemptionOption(
+                ctx: ctx,
+                ref: ref,
+                title: "1 日出海作戰通行證",
+                desc: "解鎖 85 站光纖直連、全水文 24 小時無限制使用",
+                coinCost: 15,
+                passDays: 1,
+                currentCoins: coins,
+                state: state,
+                isClassic: isClassic,
+              ),
+              const SizedBox(height: 10),
+              _buildRedemptionOption(
+                ctx: ctx,
+                ref: ref,
+                title: "3 日週末衝刺通行證",
+                desc: "超值推薦！覆蓋週五至週日完整大潮咬度窗口",
+                coinCost: 35,
+                passDays: 3,
+                currentCoins: coins,
+                state: state,
+                isClassic: isClassic,
+                isHighlight: true,
+              ),
+              const SizedBox(height: 10),
+              _buildRedemptionOption(
+                ctx: ctx,
+                ref: ref,
+                title: "7 日黃金釣汛通行證",
+                desc: "整週 PRO 特權免費用！深度活躍釣友首選",
+                coinCost: 70,
+                passDays: 7,
+                currentCoins: coins,
+                state: state,
+                isClassic: isClassic,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRedemptionOption({
+    required BuildContext ctx,
+    required WidgetRef ref,
+    required String title,
+    required String desc,
+    required int coinCost,
+    required int passDays,
+    required int currentCoins,
+    required PremiumState state,
+    required bool isClassic,
+    bool isHighlight = false,
+  }) {
+    final bool canAfford = currentCoins >= coinCost;
+    final Color borderColor = isHighlight ? AppColors.bioGold : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isHighlight 
+            ? AppColors.bioGold.withValues(alpha: isClassic ? 0.08 : 0.1) 
+            : (isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.03)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: isHighlight ? 1.5 : 0.5),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      title, 
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900, 
+                        fontSize: 13.5, 
+                        color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.amber, 
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        "$coinCost 幣", 
+                        style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  desc, 
+                  style: TextStyle(fontSize: 10.5, color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: canAfford ? AppColors.bioGold : (isClassic ? Colors.grey.shade300 : Colors.white12),
+              foregroundColor: canAfford ? Colors.black87 : Colors.white38,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              if (state.isFounder) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("👑 您已具備創始天尊指揮官終身權限，無須消耗代幣！"), backgroundColor: Color(0xFFB45309)),
+                );
+                return;
+              }
+
+              if (!canAfford) {
+                HapticFeedback.vibrate();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("⚠️ 老船長幣不足！還需 ${coinCost - currentCoins} 枚幣，每日現場回報實況即可獲得 5 枚！"),
+                    backgroundColor: AppColors.hazardCoral,
+                  ),
+                );
+                return;
+              }
+
+              HapticFeedback.heavyImpact();
+              // 預先捕獲 messenger 避免跨非同步 Gap 警告
+              final messenger = ScaffoldMessenger.of(context);
+              final bool success = await ref.read(premiumProvider.notifier).redeemCoinsForProPass(coinCost, passDays);
+              
+              if (ctx.mounted) Navigator.pop(ctx);
+
+              if (success && mounted) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text("🎉 成功兌換【$title】！PRO 特權已延長 $passDays 天！"),
+                    backgroundColor: const Color(0xFF0077B6),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            child: Text(canAfford ? "兌換" : "缺幣", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+          ),
         ],
       ),
     );

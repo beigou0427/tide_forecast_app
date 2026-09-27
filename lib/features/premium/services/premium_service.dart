@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'iap_manager.dart';
 
@@ -9,7 +9,7 @@ class PremiumState {
   final SubscriptionType type;
   final DateTime? expiryDate;
   final bool isFounder;
-  final int coinBalance; // 🌟 A 輪重構：引入老船長幣 (代幣經濟)
+  final int coinBalance;
 
   PremiumState({
     required this.isPremium,
@@ -75,7 +75,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       } else {
         final installTime = DateTime.parse(installStr);
         if (now.isBefore(installTime)) {
-          // 🚨 時光機防禦：系統時間回撥，強制封鎖
           await prefs.setBool('is_pro', false);
           await prefs.remove('expiry_date');
           await prefs.setInt('sub_type', SubscriptionType.none.index);
@@ -88,11 +87,10 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       int typeIndex = prefs.getInt('sub_type') ?? 0;
       final expiryStr = prefs.getString('expiry_date');
       final isFounder = prefs.getBool('is_founder') ?? false;
-      final coins = prefs.getInt('captain_coins') ?? 0; // 🌟 讀取代幣餘額
+      final coins = prefs.getInt('captain_coins') ?? 0;
 
       DateTime? expiryDate = expiryStr != null ? DateTime.tryParse(expiryStr) : null;
 
-      // 🚨 離線過期白嫖防禦：過期後徹底降級
       if (isPro && !isFounder && expiryDate != null) {
         if (now.isAfter(expiryDate)) {
           isPro = false;
@@ -154,7 +152,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     );
   }
 
-  // 🌟 新增：發行老船長幣 (Earn)
   Future<void> addCoins(int amount) async {
     final prefs = await SharedPreferences.getInstance();
     final newBalance = state.coinBalance + amount;
@@ -162,7 +159,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     state = state.copyWith(coinBalance: newBalance);
   }
 
-  // 🌟 新增：消費老船長幣 (Burn)
   Future<bool> spendCoins(int amount) async {
     if (state.coinBalance >= amount) {
       final prefs = await SharedPreferences.getInstance();
@@ -172,6 +168,38 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       return true;
     }
     return false;
+  }
+
+  // 🌟 Shishir Mehrotra 代幣經濟閉環：真正兌換 PRO 通行證天數
+  Future<bool> redeemCoinsForProPass(int coins, int passDays) async {
+    if (state.isFounder) return false; // 終身會員無須兌換
+    if (state.coinBalance < coins) return false;
+
+    final bool spent = await spendCoins(coins);
+    if (!spent) return false;
+
+    final now = DateTime.now();
+    // 智慧展期：若原本即為 PRO 且未過期，自當前到期日繼續累加天數
+    final DateTime baseDate = (state.isPremium && state.expiryDate != null && state.expiryDate!.isAfter(now))
+        ? state.expiryDate!
+        : now;
+    final DateTime newExpiry = baseDate.add(Duration(days: passDays));
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_pro', true);
+    await prefs.setString('expiry_date', newExpiry.toIso8601String());
+
+    final SubscriptionType newType = state.type == SubscriptionType.none 
+        ? SubscriptionType.weekly 
+        : state.type;
+    await prefs.setInt('sub_type', newType.index);
+
+    state = state.copyWith(
+      isPremium: true,
+      expiryDate: newExpiry,
+      type: newType,
+    );
+    return true;
   }
 
   Future<void> cancelSubscription() async {

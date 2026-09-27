@@ -8,6 +8,7 @@ import '../providers/tide_provider.dart';
 import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/share_util.dart';
+import '../../../core/utils/solunar_util.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../premium/services/premium_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -28,7 +29,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝：雙軌自適應主座艙 (零溢出高密度人因佈局)
+/// Apple 首席設計工藝：雙軌自適應主座艙 (30天歷史回溯+調和補位版)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -189,11 +190,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ? classicModeColor 
                   : AppColors.abyssBlack.withValues(alpha: 0.88),
               elevation: isClassic ? 1 : 0,
-              // 緊湊收窄側邊按鈕寬度，釋放橫向佈局空間
               leadingWidth: 78,
               leading: Builder(builder: (context) => _buildRegionButton(context, isClassic)),
               centerTitle: true,
-              // 注入 FittedBox 自動縮放防線，徹底消滅標題溢出
               title: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
@@ -223,7 +222,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               actions: [
-                // 1. 戰術日/夜切換鈕 (緊湊高密度佈局)
                 _buildCompactAction(
                   icon: isClassic ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
                   color: isClassic ? Colors.white : AppColors.bioGold,
@@ -233,7 +231,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ref.read(isClassicThemeProvider.notifier).setClassicTheme(!isClassic);
                   },
                 ),
-                // 2. 戰報分享鈕
                 _buildCompactAction(
                   icon: Icons.share_rounded,
                   color: Colors.white,
@@ -245,7 +242,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                           _showShareModal(context, tideViewAsync.value!.stationData);
                         },
                 ),
-                // 3. 收藏切換鈕
                 _buildCompactAction(
                   icon: isFavorited ? Icons.star_rounded : Icons.star_border_rounded,
                   color: isFavorited ? AppColors.bioGold : Colors.white,
@@ -256,7 +252,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ref.invalidate(favoriteStationsProvider);
                   },
                 ),
-                // 4. 日曆選擇鈕
                 _buildCompactAction(
                   icon: Icons.calendar_month_rounded,
                   color: premiumState.isPremium ? AppColors.bioGold : Colors.white,
@@ -303,9 +298,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ? station.observations
                     : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
-                if (!isFuture && dayObservations.isEmpty) {
-                  return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName, isClassic));
-                }
+                // 核心突破：即使沒有該日的感測器快取，也絕不再以 blank 畫面打發用戶，無縫啟用歷史天文回溯
+                final bool isPastWithoutSensor = !isToday && !isFuture && dayObservations.isEmpty;
 
                 final Observation? activeObservation = dayObservations.isNotEmpty
                     ? dayObservations.last
@@ -332,6 +326,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 16),
                       ],
 
+                      // 天文朔望月 phase 對所有日期 100% 精確有效
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
@@ -353,7 +348,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 20),
 
                         _infoCard(context, "預報模式說明", "您正在查看未來預報。圖表已透過航海調和演算法將滿乾潮預測點擬合為平滑走勢曲線。"),
+                      ] else if (isPastWithoutSensor) ...[
+                        // 🌟 歷史天文調和回溯模式：消滅「48小時無資料即死機」
+                        _sectionTitle("🌌 歷史天文調和回溯模式", accentColor: AppColors.bioGold, isClassic: isClassic),
+                        const SizedBox(height: 12),
+                        _buildAstroHindcastCard(context, selectedDate, station.info.stationName, isClassic),
                       ] else if (activeObservation != null) ...[
+                        // 實時或 30 天時間序列金庫沉積的真實觀測
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
                         SafetyAlert(current: activeObservation),
@@ -368,7 +369,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         ],
                         const SizedBox(height: 22),
-                        _sectionTitle(isToday ? "24h 走勢監控" : "歷史走勢圖", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, isClassic: isClassic),
+                        _sectionTitle(isToday ? "24h 走勢監控" : "歷史實測走勢圖", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, isClassic: isClassic),
                         const SizedBox(height: 12),
                         CustomCard(
                           child: TideChartSheet(
@@ -414,7 +415,108 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  // 緊湊型高密度按鈕（徹底消滅 RenderFlex 48px 邊界衝突）
+  // 🌟 歷史天文調和補位卡片（消滅 48 小時截斷遺憾）
+  Widget _buildAstroHindcastCard(BuildContext context, DateTime date, String stationName, bool isClassic) {
+    final solunar = SolunarUtil.calculate(date);
+    final dateStr = DateFormat('yyyy/MM/dd').format(date);
+
+    return CustomCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.bioGold.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.bioGold, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "$dateStr · 天文水文調和推算",
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "此日期早於本地快取建立時間，已啟用天文物理補位",
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
+                width: 0.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "• 當日天體引力屬性：【${solunar.tideCategory} (${solunar.lunarDateStr})】",
+                  style: TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w700, 
+                    color: isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "• 魚群活躍指數推演：【${solunar.fishActivityScore}%】",
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w700, 
+                    color: AppColors.bioGold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "• 老船長出海戰術指引：${solunar.biteWindowAdvice}",
+                  style: TextStyle(
+                    fontSize: 11.5, 
+                    color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "💡 提示：氣象署官方感測器原始電文僅暫存 48 小時。本系統現已啟動後端 30 天時間序列金庫，今後所有測站之浪高、風速與水溫將隨時間自動沉積，提供您完整的實測回溯。",
+            style: TextStyle(
+              fontSize: 10.5, 
+              color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary, 
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCompactAction({
     required IconData icon,
     required Color color,
@@ -752,45 +854,6 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name, bool isClassic) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 80),
-        Icon(Icons.event_busy_rounded, size: 56, color: isClassic ? Colors.grey : AppColors.textTertiary),
-        const SizedBox(height: 16),
-        Text(
-          "$name 歷史水文存檔", 
-          style: TextStyle(
-            fontSize: 17, 
-            fontWeight: FontWeight.w800, 
-            color: isClassic ? Colors.black87 : AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          "氣象署實測數據僅即時保留近 48 小時\n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", 
-          textAlign: TextAlign.center, 
-          style: TextStyle(
-            color: isClassic ? Colors.grey : AppColors.textSecondary, 
-            fontSize: 12, 
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
-            foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
-          child: const Text("返回今日觀測", style: TextStyle(fontWeight: FontWeight.w800)),
-        ),
-      ],
     );
   }
 }

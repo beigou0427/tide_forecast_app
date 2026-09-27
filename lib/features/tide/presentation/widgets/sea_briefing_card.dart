@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 
-/// 🍏 Don Norman × Dieter Rams 哲學重塑：大氣海洋智慧晨報 (Atmospheric Oceanic Surface)
+/// Marty Cagan × Tony Fadell 哲學重塑：出海紅綠燈終極決策儀表
 class SeaBriefingCard extends ConsumerWidget {
   final TideStationData station;
   final double? distance;
@@ -18,37 +18,67 @@ class SeaBriefingCard extends ConsumerWidget {
     final isSpeaking = ref.watch(ttsProvider);
     final score = ai?.safetyScore ?? 80;
     final bool isLight = Theme.of(context).brightness == Brightness.light;
-    final aura = _getAtmosphericAura(score, isLight);
+
+    // 提取關鍵物理數值進行單一決策錨點推算
+    final obs = station.observations.isNotEmpty ? station.observations.last : null;
+    final double waveH = obs?.waveHeight ?? 0.0;
+    final double waveP = obs?.wavePeriod ?? 0.0;
+    final double windS = obs?.windSpeed ?? 0.0;
+
+    // 終極出海決策模型 (Marty Cagan Decision Anchor)
+    final bool isNoGo = score < 40 || waveH >= 2.2 || (waveP >= 10.0 && waveH >= 0.7);
+    final bool isCaution = !isNoGo && (score < 70 || waveH > 1.2 || windS > 7.0);
+
+    Color decisionColor;
+    String decisionBadge;
+    String decisionTitle;
+    String decisionAction;
+    IconData decisionIcon;
+
+    if (isNoGo) {
+      decisionColor = AppColors.hazardCoral;
+      decisionBadge = "NO-GO";
+      decisionTitle = "嚴禁出海 · 致命長湧/巨浪";
+      decisionAction = "外海偵測到致命長湧或巨浪！近岸極易突發蓋礁洗岸瘋狗浪，嚴禁前往外礁！";
+      decisionIcon = Icons.cancel_rounded;
+    } else if (isCaution) {
+      decisionColor = const Color(0xFFFF9500);
+      decisionBadge = "CAUTION";
+      decisionTitle = "警戒作業 · 限安全標點";
+      decisionAction = "潮位變換急促或風浪稍強，建議避開迎風迎浪面，嚴禁無防護下竿。";
+      decisionIcon = Icons.warning_amber_rounded;
+    } else {
+      decisionColor = const Color(0xFF30D158);
+      decisionBadge = "GO";
+      decisionTitle = "黃金窗口 · 作業條件優良";
+      decisionAction = "風浪週期平順且走水流速適中，全島多數近岸水域作業條件優良！";
+      decisionIcon = Icons.check_circle_rounded;
+    }
+
+    final String cleanStationName = station.info.stationName.replaceAll(RegExp(r'\(.*?\)'), '').trim();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        // 🌟 Don Norman 大氣海霧微光圈：告別混濁發焦的厚重漸層
-        gradient: LinearGradient(
-          colors: aura.gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isLight ? Colors.white : AppColors.abyssCard,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: aura.borderColor,
-          width: 0.5,
+          color: isLight ? Colors.grey.shade200 : AppColors.glassBorder,
+          width: isLight ? 1.0 : 0.5,
         ),
-        boxShadow: isLight
-            ? [
-                BoxShadow(
-                  color: aura.accentColor.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                )
-              ]
-            : null,
+        boxShadow: [
+          BoxShadow(
+            color: decisionColor.withValues(alpha: isLight ? 0.08 : 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 測站地名與靈動膠囊語音鍵
+          // 1. 測站地名與語音按鈕
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -57,62 +87,48 @@ class SeaBriefingCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      station.info.stationName,
+                      cleanStationName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: isLight ? AppColors.classicText : AppColors.textPrimary,
-                        fontSize: 18.5,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: -0.4,
                       ),
                     ),
                     if (distance != null) ...[
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.near_me_rounded, 
-                            size: 11, 
-                            color: isLight ? AppColors.marineBlue : AppColors.pelagicCyan,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            "距您約 ${distance!.toStringAsFixed(1)} km",
-                            style: TextStyle(
-                              color: isLight ? Colors.grey.shade600 : AppColors.textSecondary, 
-                              fontSize: 11, 
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        "距您約 ${distance!.toStringAsFixed(1)} km · 實測水文即時判定",
+                        style: TextStyle(
+                          color: isLight ? Colors.grey.shade600 : AppColors.textTertiary, 
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-
               const SizedBox(width: 8),
 
-              // 🌟 靈動語音播報膠囊 (帶有 Taptic 輕觸反饋)
+              // 語音晨報按鈕
               InkWell(
                 onTap: () {
                   HapticFeedback.lightImpact();
                   ref.read(ttsProvider.notifier).toggleBriefing(station);
                 },
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(20),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
                   decoration: BoxDecoration(
                     color: isSpeaking 
-                        ? (isLight ? AppColors.marineBlue : AppColors.bioGold) 
-                        : (isLight ? Colors.white.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.08)),
-                    borderRadius: BorderRadius.circular(30),
+                        ? decisionColor 
+                        : (isLight ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.08)),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSpeaking 
-                          ? Colors.transparent 
-                          : (isLight ? AppColors.marineBlue.withValues(alpha: 0.25) : AppColors.glassBorder),
+                      color: isSpeaking ? Colors.transparent : (isLight ? Colors.grey.shade300 : AppColors.glassBorder),
                       width: 0.5,
                     ),
                   ),
@@ -121,21 +137,16 @@ class SeaBriefingCard extends ConsumerWidget {
                     children: [
                       Icon(
                         isSpeaking ? Icons.graphic_eq_rounded : Icons.volume_up_rounded,
-                        color: isSpeaking 
-                            ? (isLight ? Colors.white : AppColors.abyssBlack) 
-                            : (isLight ? AppColors.marineBlue : AppColors.textPrimary),
-                        size: 15,
+                        color: isSpeaking ? Colors.white : (isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan),
+                        size: 14,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 4),
                       Text(
                         isSpeaking ? "播報中" : "語音晨報",
                         style: TextStyle(
-                          color: isSpeaking 
-                              ? (isLight ? Colors.white : AppColors.abyssBlack) 
-                              : (isLight ? AppColors.marineBlue : AppColors.textPrimary),
-                          fontSize: 11.5,
+                          color: isSpeaking ? Colors.white : (isLight ? const Color(0xFF0077B6) : AppColors.textPrimary),
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -145,86 +156,109 @@ class SeaBriefingCard extends ConsumerWidget {
             ],
           ),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14.0),
-            child: Divider(
-              color: isLight ? Colors.grey.shade200 : AppColors.glassBorder, 
-              height: 0.5,
+          const SizedBox(height: 14),
+
+          // 2. 🌟 Marty Cagan「終極出海紅綠燈」決策看板（一秒決定去不去）
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: decisionColor.withValues(alpha: isLight ? 0.08 : 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: decisionColor.withValues(alpha: isLight ? 0.3 : 0.4),
+                width: 1.0,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 1),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: decisionColor.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(decisionIcon, color: decisionColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              decisionTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: decisionColor,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: decisionColor,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              decisionBadge,
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        decisionAction,
+                        style: TextStyle(
+                          color: isLight ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                          fontSize: 11.5,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // 2. 老船長 AI 專家深度簡報
+          const SizedBox(height: 14),
+
+          // 3. 老船長 AI 專家深度筆記
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: aura.accentColor.withValues(alpha: isLight ? 0.1 : 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.anchor_rounded, color: aura.accentColor, size: 18),
-              ),
-              const SizedBox(width: 12),
+              const Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 16),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          "老船長 AI 專家評估",
-                          style: TextStyle(
-                            color: aura.accentColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: isLight ? Colors.white : Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isLight ? Colors.grey.shade300 : AppColors.glassBorder, 
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Text(
-                            "安全係數 $score 分",
-                            style: TextStyle(
-                              color: isLight ? AppColors.classicText : AppColors.textPrimary, 
-                              fontSize: 9.5, 
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      ai?.briefing ?? "正在連線取得即時 AI 專家分析...",
-                      style: TextStyle(
-                        color: isLight ? const Color(0xFF334155) : AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  ai?.briefing ?? "正在透過氣象署即時感測陣列與 AI 推論出海建議...",
+                  style: TextStyle(
+                    color: isLight ? Colors.blueGrey.shade900 : AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
           ),
 
           if (ai != null && ai.activities.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: ai.activities.map((act) => _buildActivityTag(act, isLight)).toList(),
             ),
           ],
@@ -235,10 +269,10 @@ class SeaBriefingCard extends ConsumerWidget {
 
   Widget _buildActivityTag(String label, bool isLight) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4.5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
       decoration: BoxDecoration(
-        color: isLight ? Colors.white : Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
+        color: isLight ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isLight ? Colors.grey.shade300 : AppColors.glassBorder, 
           width: 0.5,
@@ -247,49 +281,11 @@ class SeaBriefingCard extends ConsumerWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: isLight ? const Color(0xFF475569) : AppColors.textSecondary, 
-          fontSize: 11, 
+          color: isLight ? Colors.blueGrey.shade700 : AppColors.textSecondary, 
+          fontSize: 10.5, 
           fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
-
-  _AtmosphericAura _getAtmosphericAura(int score, bool isLight) {
-    if (isLight) {
-      if (score < 50) {
-        return _AtmosphericAura(
-          gradientColors: const [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
-          borderColor: const Color(0xFFFECDD3),
-          accentColor: AppColors.hazardCoral,
-        );
-      }
-      return _AtmosphericAura(
-        gradientColors: const [Color(0xFFF0F7FD), Color(0xFFE2EFF9)],
-        borderColor: const Color(0xFFBAE6FD),
-        accentColor: AppColors.marineBlue,
-      );
-    }
-
-    // 🌟 深淵模式：冷冽大氣薄霧
-    if (score < 50) {
-      return _AtmosphericAura(
-        gradientColors: const [Color(0xFF260D14), Color(0xFF14060A)],
-        borderColor: AppColors.hazardCoral.withValues(alpha: 0.3),
-        accentColor: AppColors.hazardCoral,
-      );
-    }
-    return _AtmosphericAura(
-      gradientColors: const [Color(0xFF0E1A2B), Color(0xFF09121E)],
-      borderColor: AppColors.glassBorder,
-      accentColor: AppColors.pelagicCyan,
-    );
-  }
-}
-
-class _AtmosphericAura {
-  final List<Color> gradientColors;
-  final Color borderColor;
-  final Color accentColor;
-  _AtmosphericAura({required this.gradientColors, required this.borderColor, required this.accentColor});
 }
