@@ -214,9 +214,21 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
             },
           ),
+          // 🌟 專屬工程模式常駐入口（密碼：beigou）
+          _buildActionTile(
+            icon: Icons.terminal_rounded,
+            title: "工程模式 · 上帝特權",
+            color: AppColors.bioGold,
+            badge: "DEV",
+            isClassic: isClassic,
+            onTap: () {
+              HapticFeedback.heavyImpact();
+              _showSecretAuthDialog(context);
+            },
+          ),
           Divider(height: 1, color: dividerColor),
 
-          // 創辦人上帝模式特權密道：長按 1.5 秒觸發密碼輸入對話框
+          // 創辦人上帝模式特權密道：長按亦可觸發
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 24),
             child: GestureDetector(
