@@ -4,35 +4,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 🍏 Apple 首席設計系統代碼：深淵霓光色系 (The Abyssal Palette)
+/// 🍏 大師級設計系統代碼：冰川深淵與極簡冷冽光譜 (The Master Abyssal Palette)
+/// 遵循 Dieter Rams 減法原則：90% 單色克制，10% 精準訊號
 class AppColors {
-  // 純黑與深淵玻璃底層
-  static const Color abyssBlack = Color(0xFF03070D); // OLED 極致純黑畫布
-  static const Color abyssSurface = Color(0xFF08101A); // 液態玻璃深層基底
-  static const Color abyssCard = Color(0xFF0D1726); // 卡片主體懸浮層 (深藍黑)
+  // 冰川深淵底層
+  static const Color abyssBlack = Color(0xFF02060D); // 極致深海純黑畫布
+  static const Color abyssSurface = Color(0xFF080F19); // 次層透光基底
+  static const Color abyssCard = Color(0xFF0D1724); // 浮島主體層
   
-  // 核心靈魂光譜
-  static const Color pelagicCyan = Color(0xFF00E5FF); // 第一主角光：遠洋霓光青
-  static const Color marineBlue = Color(0xFF0077B6); // 經典老船長藍
-  static const Color bioGold = Color(0xFFFFD700); // 第二主角光：生物熒光金
-  static const Color hazardCoral = Color(0xFFFF453A); // 警示赤潮珊瑚紅
+  // 🌟 單一主角靈魂光：冰川天青 (取代原本俗氣的刺眼電競青)
+  static const Color pelagicCyan = Color(0xFF38BDF8); // 輕盈、通透、極簡冷冽藍
+  static const Color marineBlue = Color(0xFF0284C7); // 航海沉穩藍
   
-  // 材質與玻璃折射
-  static const Color glassBorder = Color(0x26FFFFFF); // 0.5pt 水晶折射邊界 (15% 霧白)
-  static const Color glassShimmer = Color(0x0DFFFFFF); // 表面微光 (5% 白)
+  // 🌟 克制輔助光：香檳琥珀金與警戒珊瑚紅 (僅用於例外與極限訊號)
+  static const Color bioGold = Color(0xFFEAB308); // 香檳琥珀金 (爆咬/VVIP)
+  static const Color hazardCoral = Color(0xFFF43F5E); // 警戒珊瑚紅 (長湧/危險)
   
-  // 字體層級系統
-  static const Color textPrimary = Color(0xFFF5F5F7); // 標題主文字 (96% 白)
-  static const Color textSecondary = Color(0x99EBEBF5); // 輔助說明文字 (60% 白)
-  static const Color textTertiary = Color(0x4DEBEBF5); // 刻度與次要標籤 (30% 白)
+  // 光學水晶與微光切面
+  static const Color glassBorder = Color(0x1AFFFFFF); // 0.5pt 極致透光微光切面 (10% 霧白)
+  static const Color glassSurface = Color(0x08FFFFFF); // 微透流體層 (3% 白)
+  
+  // Apple 典範文字灰階層級 (Typography Contrast Ratio > 7:1)
+  static const Color textPrimary = Color(0xFFF8FAFC); // 100% 冰白
+  static const Color textSecondary = Color(0xFF94A3B8); // 60% 沉靜石板灰
+  static const Color textTertiary = Color(0xFF64748B); // 40% 弱化刻度灰
 
-  // 🌟 VIP 專屬經典白藍色系
-  static const Color classicBg = Color(0xFFF8FBFF);
+  // VIP 經典復古白藍專用
+  static const Color classicBg = Color(0xFFF8FAFC);
   static const Color classicCard = Colors.white;
-  static const Color classicText = Color(0xFF1E293B);
+  static const Color classicText = Color(0xFF0F172A);
 }
 
-// 🌟 VIP 介面切換狀態機 (持久化記憶到手機硬碟)
+// VIP 介面風格狀態機 (保持雙主題切換特權)
 final isClassicThemeProvider = StateNotifierProvider<ThemeNotifier, bool>((ref) {
   return ThemeNotifier();
 });
@@ -57,7 +60,7 @@ class ThemeNotifier extends StateNotifier<bool> {
 }
 
 class AppTheme {
-  // 🌟 旗艦：深淵 OLED 極致純黑主題 (預設)
+  // 🌟 大師級深淵旗艦主題
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
@@ -110,7 +113,7 @@ class AppTheme {
     );
   }
 
-  // 🌟 復古：經典白藍老船長原版主題 (VIP 特權切換)
+  // 經典白藍老船長主題
   static ThemeData get classicLightTheme {
     return ThemeData(
       useMaterial3: true,

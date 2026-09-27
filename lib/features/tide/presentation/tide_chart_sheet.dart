@@ -1,15 +1,16 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/tide_model.dart';
 import '../../../../core/theme/app_theme.dart';
 
-/// 🍏 Apple 首席設計工藝：航海調和擬合潮汐走勢圖 (Harmonic Oceanic Tide Surface)
+/// 🍏 Mike Matas 哲學重塑：活體流體潮汐光學圖表 (Living Oceanic Tidal Surface)
 class TideChartSheet extends StatelessWidget {
   final List<Observation> observations;
-  final List<TideForecast>? futureForecasts; // 🌟 支援未來 30 天預報點
-  final DateTime? targetDate;                 // 🌟 目標日期
+  final List<TideForecast>? futureForecasts;
+  final DateTime? targetDate;
 
   const TideChartSheet({
     super.key,
@@ -20,7 +21,7 @@ class TideChartSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 炸彈 2 拆彈核心：若無實測資料 (未來模式)，自動啟動航海餘弦調和擬合引擎
+    final bool isLight = Theme.of(context).brightness == Brightness.light;
     final bool isFutureMode = observations.isEmpty && 
                              futureForecasts != null && 
                              futureForecasts!.isNotEmpty;
@@ -30,9 +31,14 @@ class TideChartSheet extends StatelessWidget {
         : observations;
 
     if (effectiveObs.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 200,
-        child: Center(child: Text("目前無圖表觀測或預報數據", style: TextStyle(color: AppColors.textTertiary))),
+        child: Center(
+          child: Text(
+            "目前無圖表觀測或預報數據", 
+            style: TextStyle(color: isLight ? Colors.grey.shade500 : AppColors.textTertiary),
+          ),
+        ),
       );
     }
 
@@ -41,7 +47,7 @@ class TideChartSheet extends StatelessWidget {
                                effectiveObs.any((o) => o.tideHeight == null) &&
                                effectiveObs.any((o) => o.waveHeight != null);
 
-    // 峰值與黃金咬度計算
+    // 峰值與黃金咬度計算 (嚴格守衛 left <= right)
     int peakIndex = -1;
     double maxVal = double.negativeInfinity;
     for (int i = 0; i < effectiveObs.length; i++) {
@@ -81,6 +87,11 @@ class TideChartSheet extends StatelessWidget {
       }
     }
 
+    // 🌟 主波形線條色彩：未來為香檳金，即時為冰川天青
+    final Color waveLineColor = isFutureMode 
+        ? AppColors.bioGold 
+        : (isLight ? AppColors.marineBlue : AppColors.pelagicCyan);
+
     return Column(
       children: [
         Padding(
@@ -91,16 +102,23 @@ class TideChartSheet extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 12, 
+                    width: 10, 
                     height: 3, 
-                    color: isFutureMode ? AppColors.bioGold : (useWaveHeight ? Colors.indigoAccent : AppColors.pelagicCyan),
+                    decoration: BoxDecoration(
+                      color: waveLineColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     isFutureMode 
                         ? "30 天未來潮位推算 (m)" 
-                        : (useWaveHeight ? "實測波高趨勢 (m)" : "實測潮位趨勢 (m)"),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                        : (useWaveHeight ? "實測波高走勢 (m)" : "實測潮位走勢 (m)"),
+                    style: TextStyle(
+                      fontSize: 12, 
+                      fontWeight: FontWeight.w700, 
+                      color: isLight ? Colors.grey.shade700 : AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -110,13 +128,33 @@ class TideChartSheet extends StatelessWidget {
                     Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.bioGold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                      child: const Text("🔥 黃金咬度標示中", style: TextStyle(fontSize: 10, color: AppColors.bioGold, fontWeight: FontWeight.bold)),
+                      decoration: BoxDecoration(
+                        color: AppColors.bioGold.withValues(alpha: isLight ? 0.12 : 0.15), 
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: AppColors.bioGold.withValues(alpha: isLight ? 0.25 : 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: const Text(
+                        "🔥 爆咬黃金期", 
+                        style: TextStyle(fontSize: 9.5, color: AppColors.bioGold, fontWeight: FontWeight.w800),
+                      ),
                     ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(4)),
-                    child: Text(chartDate, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+                    decoration: BoxDecoration(
+                      color: isLight ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.06), 
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      chartDate, 
+                      style: TextStyle(
+                        fontSize: 10.5, 
+                        color: isLight ? Colors.grey.shade600 : AppColors.textTertiary, 
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               )
@@ -126,16 +164,17 @@ class TideChartSheet extends StatelessWidget {
         
         Container(
           height: 220,
-          padding: const EdgeInsets.only(right: 20, top: 10),
+          padding: const EdgeInsets.only(right: 18, top: 12),
           child: LineChart(
             LineChartData(
+              // 🌟 Mike Matas 減法：黃金咬度薄霧紗幕 (取代生硬黃色膠帶)
               rangeAnnotations: RangeAnnotations(
                 verticalRangeAnnotations: [
                   if (goldenStartX != null && goldenEndX != null && goldenStartX < goldenEndX)
                     VerticalRangeAnnotation(
                       x1: goldenStartX,
                       x2: goldenEndX,
-                      color: AppColors.bioGold.withValues(alpha: 0.15),
+                      color: AppColors.bioGold.withValues(alpha: isLight ? 0.08 : 0.12),
                     ),
                 ],
               ),
@@ -144,15 +183,15 @@ class TideChartSheet extends StatelessWidget {
                   if (peakIndex >= 0 && peakIndex < effectiveObs.length && maxVal != double.negativeInfinity)
                     VerticalLine(
                       x: peakIndex.toDouble(),
-                      color: AppColors.bioGold,
-                      strokeWidth: 1.5,
-                      dashArray: [5, 5],
+                      color: AppColors.bioGold.withValues(alpha: 0.8),
+                      strokeWidth: 1.0,
+                      dashArray: [4, 4],
                       label: VerticalLineLabel(
                         show: true,
                         alignment: Alignment.topRight,
-                        padding: const EdgeInsets.only(bottom: 5, left: 5),
-                        labelResolver: (_) => isFutureMode ? "預測滿潮" : "實測滿水",
-                        style: const TextStyle(color: AppColors.bioGold, fontWeight: FontWeight.bold, fontSize: 10),
+                        padding: const EdgeInsets.only(bottom: 6, left: 6),
+                        labelResolver: (_) => isFutureMode ? "預報滿水" : "實測滿潮",
+                        style: const TextStyle(color: AppColors.bioGold, fontWeight: FontWeight.w800, fontSize: 9.5),
                       )
                     )
                 ]
@@ -162,7 +201,7 @@ class TideChartSheet extends StatelessWidget {
                 drawVerticalLine: false,
                 horizontalInterval: 1,
                 getDrawingHorizontalLine: (value) => FlLine(
-                  color: AppColors.glassBorder,
+                  color: isLight ? Colors.grey.shade200 : AppColors.glassBorder,
                   strokeWidth: 0.5,
                 ),
               ),
@@ -173,7 +212,7 @@ class TideChartSheet extends StatelessWidget {
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 30,
+                    reservedSize: 28,
                     interval: 4, 
                     getTitlesWidget: (value, meta) {
                       final int index = value.toInt();
@@ -181,8 +220,14 @@ class TideChartSheet extends StatelessWidget {
                         final String timeStr = DateFormat('HH:mm').format(effectiveObs[index].dateTime);
                         return SideTitleWidget(
                           axisSide: meta.axisSide,
-                          space: 8,
-                          child: Text(timeStr, style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                          space: 6,
+                          child: Text(
+                            timeStr, 
+                            style: TextStyle(
+                              fontSize: 10, 
+                              color: isLight ? Colors.grey.shade500 : AppColors.textTertiary,
+                            ),
+                          ),
                         );
                       }
                       return const SizedBox.shrink();
@@ -195,10 +240,14 @@ class TideChartSheet extends StatelessWidget {
                     getTitlesWidget: (value, meta) {
                       return Text(
                         "${value.toStringAsFixed(1)}m",
-                        style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                        style: TextStyle(
+                          fontSize: 10, 
+                          color: isLight ? Colors.grey.shade500 : AppColors.textTertiary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       );
                     },
-                    reservedSize: 35,
+                    reservedSize: 34,
                   ),
                 ),
               ),
@@ -212,41 +261,53 @@ class TideChartSheet extends StatelessWidget {
                     return FlSpot(e.key.toDouble(), yValue);
                   }).toList(),
                   isCurved: true, 
-                  curveSmoothness: 0.35, 
-                  color: isFutureMode ? AppColors.bioGold : AppColors.pelagicCyan,
-                  barWidth: 3,
+                  curveSmoothness: 0.38, 
+                  color: waveLineColor,
+                  barWidth: 2.5,
                   isStrokeCapRound: true,
                   dotData: const FlDotData(show: false), 
+                  // 🌟 Mike Matas 深海水波漸層：高光柔和沉降
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        (isFutureMode ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.25),
+                        waveLineColor.withValues(alpha: isLight ? 0.12 : 0.18),
                         Colors.transparent,
                       ],
                     ),
                   ),
                 ),
               ],
+              // 🌟 浮動毛玻璃觸控探針 Tooltip
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: AppColors.abyssCard,
+                  tooltipBgColor: isLight ? Colors.white : AppColors.abyssCard,
+                  tooltipRoundedRadius: 12,
+                  tooltipBorder: BorderSide(
+                    color: isLight ? Colors.grey.shade200 : AppColors.glassBorder,
+                    width: 0.5,
+                  ),
                   getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                     return touchedBarSpots.map((barSpot) {
                       final obs = effectiveObs[barSpot.x.toInt()];
                       final String fullTime = DateFormat('MM/dd HH:mm').format(obs.dateTime);
                       return LineTooltipItem(
                         "$fullTime\n",
-                        const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12),
+                        TextStyle(
+                          color: isLight ? Colors.grey.shade600 : AppColors.textSecondary, 
+                          fontWeight: FontWeight.w600, 
+                          fontSize: 11,
+                        ),
                         children: [
                           TextSpan(
                             text: "${barSpot.y.toStringAsFixed(2)} m",
                             style: TextStyle(
-                              color: isFutureMode ? AppColors.bioGold : AppColors.pelagicCyan, 
-                              fontWeight: FontWeight.bold, 
+                              color: waveLineColor, 
+                              fontWeight: FontWeight.w900, 
                               fontSize: 14,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
@@ -262,7 +323,6 @@ class TideChartSheet extends StatelessWidget {
     );
   }
 
-  // 🌟 航海經典餘弦調和潮位擬合演算法 (Cosine Harmonic Tidal Synthesis)
   List<Observation> _synthesizeFutureCurve(List<TideForecast> forecasts, DateTime targetDay) {
     if (forecasts.isEmpty) return [];
 
@@ -297,7 +357,6 @@ class TideChartSheet extends StatelessWidget {
         final double h1 = (double.tryParse(prev.tideHeight) ?? 100.0) / 100.0;
         final double h2 = (double.tryParse(next.tideHeight) ?? 100.0) / 100.0;
 
-        // 餘弦平滑諧波擬合公式
         heightInMeters = (h1 + h2) / 2.0 + ((h1 - h2) / 2.0) * math.cos(math.pi * ratio);
       } else if (sorted.isNotEmpty) {
         final closest = sorted.reduce((a, b) => 

@@ -24,7 +24,7 @@ final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
 
-// 🌟 核心防禦：優先從本地內嵌資產載入 85 站權威拓撲，杜絕雲端快取污染
+// 🌟 85 站本地神盾資產庫
 final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   try {
     final localJsonStr = await rootBundle.loadString('assets/stations_config.json');
@@ -44,12 +44,14 @@ final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
   return AppConstants.fallbackStations;
 });
 
-// 🌟 升級修復：讀取 Onboarding 問卷偏好，並持久化記憶使用者的最後選擇
+// 🌟 啟動偏好就緒狀態標誌
+final isStationInitializedProvider = StateProvider<bool>((ref) => false);
+
 class CurrentStationNotifier extends Notifier<String> {
   @override
   String build() {
     _loadPreference();
-    return "C6AH2"; // 預設值，讀取完成後會自動更新
+    return "C6AH2";
   }
 
   Future<void> _loadPreference() async {
@@ -59,18 +61,18 @@ class CurrentStationNotifier extends Notifier<String> {
       
       if (!hasInit) {
         final region = prefs.getString('user_pref_region') ?? '';
-        String targetId = "C6AH2"; // 預設北部
+        String targetId = "C6AH2";
         
         if (region.contains('北')) {
-          targetId = "C6AH2"; // 富貴角
+          targetId = "C6AH2";
         } else if (region.contains('西')) {
-          targetId = "C4F01"; // 臺中港
+          targetId = "C4F01";
         } else if (region.contains('南')) {
-          targetId = "C4P01"; // 高雄港
+          targetId = "C4P01";
         } else if (region.contains('東')) {
-          targetId = "C4T01"; // 花蓮港
+          targetId = "C4T01";
         } else if (region.contains('島')) {
-          targetId = "C4W02"; // 澎湖
+          targetId = "C4W02";
         }
         
         state = targetId;
@@ -82,7 +84,10 @@ class CurrentStationNotifier extends Notifier<String> {
           state = savedId;
         }
       }
-    } catch (_) {}
+    } catch (_) {} finally {
+      // 標記偏好已完全載入
+      ref.read(isStationInitializedProvider.notifier).state = true;
+    }
   }
 
   @override
@@ -136,8 +141,15 @@ class TideViewData {
 }
 
 final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
-  final api = ref.watch(tideApiServiceProvider);
+  final isInit = ref.watch(isStationInitializedProvider);
   final stationId = ref.watch(currentStationIdProvider);
+
+  // 🌟 183 幀掉幀消滅手術：在開機 15ms 偏好尚未讀取完畢前，暫緩發起多餘的 C6AH2 廢請求！
+  if (!isInit) {
+    await Future.delayed(const Duration(milliseconds: 30));
+  }
+
+  final api = ref.watch(tideApiServiceProvider);
   final locationAsync = ref.watch(userLocationProvider);
   final isPremium = ref.watch(premiumProvider).isPremium;
 
@@ -154,9 +166,6 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
         }
       } catch (_) {}
     }
-
-    // 🚨 Google CMO 評分飛輪重構：徹底拔除此處隨機切換測站時騷擾用戶的舊觸發器！
-    // 評分視窗 100% 轉由釣獲大物與賺得代幣的高潮頂峰接管！
 
     final now = DateTime.now();
     for (final f in stationData.forecasts) {
