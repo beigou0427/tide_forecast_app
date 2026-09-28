@@ -9,6 +9,7 @@ import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/share_util.dart';
 import '../../../core/utils/solunar_util.dart';
+import '../../../core/utils/bite_prediction_engine.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../premium/services/premium_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -29,7 +30,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝：雙軌自適應主座艙 (30天歷史回溯+調和補位版)
+/// Apple 首席設計工藝：雙軌自適應主座艙 (含 10x 魚種爆咬預警雷達)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -298,7 +299,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ? station.observations
                     : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
-                // 核心突破：即使沒有該日的感測器快取，也絕不再以 blank 畫面打發用戶，無縫啟用歷史天文回溯
                 final bool isPastWithoutSensor = !isToday && !isFuture && dayObservations.isEmpty;
 
                 final Observation? activeObservation = dayObservations.isNotEmpty
@@ -326,8 +326,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // 天文朔望月 phase 對所有日期 100% 精確有效
                       SolunarCard(selectedDate: selectedDate),
+                      const SizedBox(height: 20),
+
+                      // 🌟 Ken Norton 10x 魚種水溫驟變爆咬預警雷達
+                      _buildBiteRadarSection(context, station, selectedDate, isClassic),
                       const SizedBox(height: 20),
 
                       if (isFuture) ...[
@@ -349,12 +352,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 
                         _infoCard(context, "預報模式說明", "您正在查看未來預報。圖表已透過航海調和演算法將滿乾潮預測點擬合為平滑走勢曲線。"),
                       ] else if (isPastWithoutSensor) ...[
-                        // 🌟 歷史天文調和回溯模式：消滅「48小時無資料即死機」
                         _sectionTitle("🌌 歷史天文調和回溯模式", accentColor: AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
                         _buildAstroHindcastCard(context, selectedDate, station.info.stationName, isClassic),
                       ] else if (activeObservation != null) ...[
-                        // 實時或 30 天時間序列金庫沉積的真實觀測
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
                         SafetyAlert(current: activeObservation),
@@ -415,7 +416,166 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  // 🌟 歷史天文調和補位卡片（消滅 48 小時截斷遺憾）
+  // 🌟 Ken Norton「10 倍好」魚種水溫驟變爆咬雷達看板
+  Widget _buildBiteRadarSection(BuildContext context, TideStationData station, DateTime date, bool isClassic) {
+    final bite = BitePredictionEngine.predict(stationData: station, targetDate: date);
+    final Color titleColor = isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary;
+
+    return CustomCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: AppColors.bioGold.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.phishing_rounded, color: AppColors.bioGold, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "10x 標竿魚種爆咬預警雷達",
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w900,
+                          color: titleColor,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        "水溫變化率 ΔT · 氣壓趨勢 ΔP 專利推演",
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: AppColors.bioGold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 0.5),
+                ),
+                child: Text(
+                  "${bite.overallBiteScore} 分 · ${bite.biteLevel.substring(0, 2)}",
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.bioGold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            decoration: BoxDecoration(
+              color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 13, color: AppColors.bioGold),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    bite.primaryWindow,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, isClassic)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeciesRow(SpeciesBiteIndex species, bool isClassic) {
+    final bool isHot = species.biteProbability >= 80;
+    final Color badgeColor = isHot ? AppColors.bioGold : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                species.speciesName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    species.triggerReason,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      "${species.biteProbability}% ${species.statusBadge}",
+                      style: TextStyle(color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            species.tacticalTip,
+            style: TextStyle(
+              fontSize: 10.5,
+              color: isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAstroHindcastCard(BuildContext context, DateTime date, String stationName, bool isClassic) {
     final solunar = SolunarUtil.calculate(date);
     final dateStr = DateFormat('yyyy/MM/dd').format(date);
