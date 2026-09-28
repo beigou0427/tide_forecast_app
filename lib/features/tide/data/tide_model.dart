@@ -47,8 +47,15 @@
 class AIExpertBriefing {
   final String briefing;
   final int safetyScore;
+  final double? waveEnergyFlux; // 🌟 工業級波能通量動能 (kW/m)
   final List<String> activities;
-  AIExpertBriefing({required this.briefing, required this.safetyScore, required this.activities});
+
+  AIExpertBriefing({
+    required this.briefing, 
+    required this.safetyScore, 
+    this.waveEnergyFlux,
+    required this.activities
+  });
 
   factory AIExpertBriefing.fromMap(Map<String, dynamic> map) {
     final rawScore = map['safety_score'];
@@ -59,9 +66,18 @@ class AIExpertBriefing {
       parsedScore = (int.tryParse(rawScore.toString()) ?? 80).clamp(0, 100);
     }
 
+    final rawFlux = map['wave_energy_flux'];
+    double? parsedFlux;
+    if (rawFlux is num) {
+      parsedFlux = rawFlux.toDouble();
+    } else if (rawFlux != null) {
+      parsedFlux = double.tryParse(rawFlux.toString());
+    }
+
     return AIExpertBriefing(
       briefing: map['briefing']?.toString() ?? "海象平穩，注意防曬與補水。",
       safetyScore: parsedScore,
+      waveEnergyFlux: parsedFlux,
       activities: List<String>.from(map['activities'] ?? []),
     );
   }
@@ -84,7 +100,6 @@ class StationInfo {
     final rawLat = json['lat'] ?? json['Latitude'] ?? json['GeoLocation']?['Latitude'];
     final rawLng = json['lng'] ?? json['Longitude'] ?? json['GeoLocation']?['Longitude'];
 
-    // 核心地理防線：防止 0.0 幾內亞灣 Null Island 造成萬里漂移
     final double? parsedLatNum = double.tryParse(rawLat?.toString() ?? '');
     final double? parsedLngNum = double.tryParse(rawLng?.toString() ?? '');
 
@@ -108,7 +123,7 @@ class StationInfo {
 
 class Observation {
   final DateTime dateTime;
-  final double? tideHeight, waveHeight, windSpeed, wavePeriod, seaTemperature, currentSpeed, windDirection, airTemperature, airPressure;
+  final double? tideHeight, waveHeight, windSpeed, wavePeriod, waveEnergyFlux, seaTemperature, currentSpeed, windDirection, airTemperature, airPressure;
   final String? tideLevel;
 
   Observation({
@@ -118,6 +133,7 @@ class Observation {
     this.waveHeight, 
     this.windSpeed,
     this.wavePeriod, 
+    this.waveEnergyFlux, // 🌟 專利波能通量物理指標
     this.seaTemperature, 
     this.currentSpeed, 
     this.windDirection, 
@@ -131,13 +147,23 @@ class Observation {
     final wave = json['Wave'] ?? {};
     final anemometer = e['PrimaryAnemometer'] ?? {};
 
+    final parsedWaveH = _n(e['WaveHeight'] ?? wave['WaveHeight']);
+    final parsedWaveP = _n(e['WavePeriod'] ?? wave['WavePeriod']);
+
+    // 🌟 Jensen Huang 物理引擎前端備援：P ≈ 0.49 * H^2 * T
+    double? flux = _n(json['wave_energy_flux'] ?? wave['WaveEnergyFlux'] ?? e['WaveEnergyFlux']);
+    if (flux == null && parsedWaveH != null && parsedWaveP != null) {
+      flux = double.parse((0.49 * (parsedWaveH * parsedWaveH) * parsedWaveP).toStringAsFixed(2));
+    }
+
     return Observation(
       dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? DateTime.now().toIso8601String()),
       tideHeight: _n(e['TideHeight'] ?? tide['TideHeight']),
       tideLevel: (e['TideLevel'] ?? tide['TideLevel'])?.toString(),
-      waveHeight: _n(e['WaveHeight'] ?? wave['WaveHeight']),
+      waveHeight: parsedWaveH,
       windSpeed: _n(e['WindSpeed'] ?? json['WindSpeed'] ?? anemometer['WindSpeed']),
-      wavePeriod: _n(e['WavePeriod'] ?? wave['WavePeriod']),
+      wavePeriod: parsedWaveP,
+      waveEnergyFlux: flux,
       seaTemperature: _n(e['SeaTemperature'] ?? json['SeaTemperature']),
       currentSpeed: _n(e['CurrentSpeed'] ?? json['CurrentSpeed']),
       windDirection: _n(e['WindDirection'] ?? json['WindDirection'] ?? anemometer['WindDirection']),
