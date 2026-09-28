@@ -1,11 +1,11 @@
-import requests
+﻿import requests
 import json
 import os
 import time
 import re
 from datetime import datetime, timezone, timedelta
 
-# 🌟 引入 Gemini AI SDK
+# 引入 Gemini AI SDK
 import google.generativeai as genai
 
 CWA_API_KEY = os.environ.get("CWA_KEY", "CWA-7B44D117-3255-4D71-9974-B3A93B937D51")
@@ -15,7 +15,6 @@ if GEMINI_KEY:
 
 TZ_TAIWAN = timezone(timedelta(hours=8))
 
-# 🌟 氣象署 85 測站權威水文拓撲字典
 MASTER_STATIONS_META = {
     "46694A": {"name": "新北貢寮 龍洞資料浮標 (46694A)", "region": "北部", "isBuoy": True, "lat": 25.037, "lng": 121.926, "type": "資料浮標", "agency": "中央氣象署"},
     "C6AH2":  {"name": "新北石門 富貴角資料浮標 (C6AH2)", "region": "北部", "isBuoy": True, "lat": 25.302, "lng": 121.534, "type": "資料浮標", "agency": "中央氣象署"},
@@ -101,7 +100,7 @@ def resolve_station_meta(sid, raw_name, county, town, attr):
 def safe_float(v, default=None):
     if v is None: return default
     s = str(v).strip()
-    if s in ('None', '-99', '-999', '', 'nan', 'null'): return default
+    if s in ('None', '-99', '-999', '', 'nan', 'null', 'Infinity'): return default
     try: return float(s)
     except: return default
 
@@ -117,13 +116,59 @@ def get_observation_list(loc):
         if isinstance(obs, list): obs_list = obs
     return sorted(obs_list, key=lambda x: str(x.get('DateTime') or x.get('DataTime') or ''))
 
+def merge_and_prune_history(existing_filepath, new_loc, days=30):
+    new_obs = get_observation_list(new_loc)
+    old_obs = []
+
+    if os.path.exists(existing_filepath):
+        try:
+            with open(existing_filepath, 'r', encoding='utf-8') as ef:
+                old_data = json.load(ef)
+                old_obs = get_observation_list(old_data.get('obs', {}))
+        except:
+            old_obs = []
+
+    merged_map = {}
+    for item in old_obs:
+        dt = item.get('DateTime') or item.get('DataTime')
+        if dt: merged_map[dt] = item
+
+    for item in new_obs:
+        dt = item.get('DateTime') or item.get('DataTime')
+        if dt: merged_map[dt] = item
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    filtered = []
+    for dt_str, item in merged_map.items():
+        try:
+            s = str(dt_str).strip()
+            if s.endswith('Z'):
+                item_dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+            elif '+' in s or ('-' in s[10:]):
+                item_dt = datetime.fromisoformat(s)
+            else:
+                item_dt = datetime.strptime(s[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S').replace(tzinfo=TZ_TAIWAN)
+            
+            if item_dt >= cutoff:
+                filtered.append(item)
+        except:
+            filtered.append(item)
+
+    filtered.sort(key=lambda x: str(x.get('DateTime') or x.get('DataTime') or ''))
+
+    merged_loc = dict(new_loc)
+    merged_loc['StationObsTimes'] = {'StationObsTime': filtered}
+    return merged_loc, filtered
+
 def sanitize_observation(obs_item):
     we = obs_item.get('WeatherElements') or obs_item.get('WeatherElement') or {}
     wave = obs_item.get('Wave') or {}
     raw_wave = we.get('WaveHeight') if we.get('WaveHeight') is not None else wave.get('WaveHeight')
+    raw_period = we.get('WavePeriod') if we.get('WavePeriod') is not None else wave.get('WavePeriod')
     
     return {
         "wave_height": safe_float(raw_wave),
+        "wave_period": safe_float(raw_period),
         "wind_speed": safe_float(we.get('WindSpeed')),
         "sea_temp": safe_float(we.get('SeaTemperature')),
         "air_temp": safe_float(we.get('AirTemperature') or we.get('Temperature')),
@@ -133,9 +178,14 @@ def sanitize_observation(obs_item):
 def check_observation_staleness(data_time_str):
     if not data_time_str: return True, -1, "OFFLINE"
     try:
-        s = str(data_time_str).strip().replace('Z', '+00:00')
-        if '+' in s or '-' in s[10:]: dt = datetime.fromisoformat(s).astimezone(TZ_TAIWAN)
-        else: dt = datetime.strptime(s[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S').replace(tzinfo=TZ_TAIWAN)
+        s = str(data_time_str).strip()
+        if s.endswith('Z'):
+            dt = datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone(TZ_TAIWAN)
+        elif '+' in s or ('-' in s[10:]):
+            dt = datetime.fromisoformat(s).astimezone(TZ_TAIWAN)
+        else:
+            dt = datetime.strptime(s[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S').replace(tzinfo=TZ_TAIWAN)
+            
         diff_hours = (datetime.now(TZ_TAIWAN) - dt).total_seconds() / 3600.0
         if diff_hours <= 6.0: return False, round(diff_hours, 1), "REALTIME"
         elif diff_hours <= 24.0: return False, round(diff_hours, 1), "SATELLITE_ACTIVE"
@@ -193,57 +243,88 @@ def parse_forecast_times(fl):
                 results.append({"DateTime": dt, "Tide": tide_type, "TideHeights": t.get('TideHeights', {})})
     return results
 
-def analyze_safety_heuristic(sanitized_metrics, station_name=""):
-    wave_h = sanitized_metrics.get("wave_height") or 0.8
-    wind_s = sanitized_metrics.get("wind_speed") or 5.0
-    
-    score = 88
-    briefing = "海況平穩，風浪週期適中，全島多數近岸水域作業條件優良。"
-    acts = ["浮游磯釣", "路亞遠投", "沿岸採集"]
-    
-    if wave_h > 2.5 or wind_s > 10.0:
-        score, briefing, acts = 35, "風強浪大，外海長湧浪逼近，嚴禁外礁與無防護水上作業。", ["港內整理裝備", "室內觀浪"]
-    elif wave_h > 1.5 or wind_s > 7.5:
-        score, briefing, acts = 65, "風浪稍強，潮位變換走水急促，作釣請務必穿著合格救生衣與防滑釘鞋。", ["港區內搞搞", "背風灣作釣"]
+# 🌟 第 1 層：Andrej Karpathy 確定性海事物理引擎 (100% 數學確定性，0 延遲，0 幻覺風險)
+def compute_deterministic_physics(sanitized_metrics):
+    wave_h = sanitized_metrics.get("wave_height")
+    wave_p = sanitized_metrics.get("wave_period") or 5.0
+    wind_s = sanitized_metrics.get("wind_speed")
 
-    # 🌟 死穴 5 修復：結構化輸出約束 + Regex 貪婪切片，徹底粉碎 JSONDecodeError！
+    if wave_h is None or wind_s is None:
+        return 25, "HALT", "感測器離線 · 水文未明", "實時海象感測器維護中或訊號中斷，現場水文不明，嚴禁盲目登礁作業！", ["室內休整", "岸邊安全觀察"]
+    
+    # 致命長湧瘋狗浪物理熔斷
+    if wave_p >= 10.0 and wave_h >= 0.7:
+        return 20, "HALT", "致命長湧 · 嚴禁外礁", "外海偵測到深層長週期能量湧浪！近岸極易突發無預警蓋礁洗岸瘋狗浪，嚴禁外礁與消波塊作業！", ["室內休整", "港內整理釣具"]
+    
+    # 極端大浪強風熔斷
+    if wave_h >= 2.5 or wind_s >= 11.0:
+        return 25, "HALT", "巨浪強風 · 嚴禁出海", "實測浪高或陣風已達危險警戒上限，走水猛烈且浪拍防波堤，請即刻撤離無防護作業區！", ["港內觀浪", "安全撤離"]
+
+    if wave_h > 1.5 or wind_s > 7.5:
+        return 65, "ADVISORY", "水文戒備 · 限背風港區", "風浪稍強，潮位變換走水急促，作釣請務必穿著合格救生衣與防滑釘鞋，建議尋找背風標點。", ["港區內搞搞", "背風灣作釣"]
+
+    if wave_h > 1.2 or wind_s > 6.0:
+        return 75, "ADVISORY", "風力推升 · 謹慎下竿", "海面波紋明顯帶動水流，請注意腳下礁石濕滑，作釣維持基本防護。", ["沿岸磯釣", "路亞拋投"]
+
+    return 88, "OPERATIONAL", "海象平穩 · 條件優良", "海況平穩，風浪週期適中，全島多數近岸水域作業條件優良，請維持基本防護。", ["浮游磯釣", "岸拋路亞", "沿岸採集"]
+
+# 🌟 第 2 層：LLM 語義解耦生成（僅調用 gemini-flash-lite-latest 進行在地台味語料編譯）
+def analyze_safety_heuristic(sanitized_metrics, station_name=""):
+    # 物理引擎權威計算：安全分由物理公式嚴格錨定，LLM 無權竄改！
+    score, tier, status_desc, default_briefing, default_acts = compute_deterministic_physics(sanitized_metrics)
+    
+    wave_h = sanitized_metrics.get("wave_height")
+    wave_p = sanitized_metrics.get("wave_period") or 5.0
+    wind_s = sanitized_metrics.get("wind_speed")
+
+    briefing = default_briefing
+    acts = default_acts
+
+    # 嚴格遵守 AI 開發守則：永不加數字版號，永遠使用 latest 結尾
     if GEMINI_KEY:
         try:
-            # 🚨 絕對遵守 AI 開發守則：嚴禁加上數字版號，永遠使用 latest 結尾
             model = genai.GenerativeModel(
                 'gemini-flash-lite-latest',
                 generation_config={"response_mime_type": "application/json"}
             )
             prompt = f"""
-            你是一位台灣資深討海人與磯釣老船長。請根據以下即時水文數據，評估目前海象的安全度，並給出專業建議。
+            你是一位台灣資深討海人與磯釣老船長。
+            海事物理引擎已權威判定此測站海象安全指標如下：
             測站：{station_name}
-            浪高：{wave_h} 公尺
-            風速：{wind_s} 公尺/秒
-            
-            請輸出純 JSON 物件：
-            "briefing": (字串，老船長口吻30字以內專業出海建議)
-            "safety_score": (整數 0~100)
-            "activities": (字串陣列，例如 ["浮游磯釣", "岸拋路亞"]，最多 3 個)
+            實測浪高：{wave_h if wave_h is not None else "未知/斷線"} 公尺
+            湧浪週期：{wave_p} 秒
+            實測風速：{wind_s if wind_s is not None else "未知/斷線"} 公尺/秒
+            權威作業等級：【{tier} - {status_desc}】
+            權威安全評分：{score} 分 (嚴禁修改此評分)
+
+            請發揮老船長生動、專業、洗鍊的在地口吻，輸出純 JSON 物件：
+            "briefing": (字串，30字以內的老船長海象分析與出海作業提醒)
+            "activities": (字串陣列，針對此海況最合適的 1~3 項作業活動)
             """
             response = model.generate_content(prompt)
             raw_text = response.text.strip()
             
-            # 🚨 核心防禦：正則表達式強行截取最外層大括號，徹底抹除 LLM 前後客套話！
-            match = re.search(r'\{[\s\S]*\}', raw_text)
-            if match:
-                clean_json_str = match.group(0)
+            start_idx = raw_text.find('{')
+            end_idx = raw_text.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                clean_json_str = raw_text[start_idx:end_idx + 1]
                 ai_data = json.loads(clean_json_str)
-                return {
-                    "briefing": str(ai_data.get("briefing", briefing)),
-                    "safety_score": int(ai_data.get("safety_score", score)),
-                    "activities": list(ai_data.get("activities", acts))
-                }
-            else:
-                print(f"⚠️ [{station_name}] 未能匹配到合法 JSON 結構，安全降級為傳統演算法")
+                generated_briefing = ai_data.get("briefing")
+                generated_acts = ai_data.get("activities")
+                
+                if generated_briefing and isinstance(generated_briefing, str):
+                    briefing = generated_briefing.strip()
+                if generated_acts and isinstance(generated_acts, list) and len(generated_acts) > 0:
+                    acts = [str(a) for a in generated_acts[:3]]
         except Exception as e:
-            print(f"⚠️ [{station_name}] Gemini 推論失敗: {e}，安全降級為傳統演算法")
+            print(f"⚠️ [{station_name}] Gemini 語義編譯降級為基底語料: {e}")
 
-    return {"briefing": briefing, "safety_score": score, "activities": acts}
+    # 分數 100% 來自確定性物理引擎，語意來自 LLM，安全與體驗兼備
+    return {
+        "briefing": briefing, 
+        "safety_score": score, 
+        "activities": acts
+    }
 
 def main():
     out_dir = "deploy_api"
@@ -274,8 +355,10 @@ def main():
             sid, loc.get('StationName') or "", loc.get('CountyName') or "", loc.get('TownName') or "", loc.get('StationAttribute') or loc.get('attr') or ""
         )
 
-        obs_times = get_observation_list(loc)
-        latest_obs = obs_times[-1] if obs_times else {}
+        edge_filepath = os.path.join(out_dir, f"edge_{sid}.json")
+
+        merged_loc, merged_obs_times = merge_and_prune_history(edge_filepath, loc, days=30)
+        latest_obs = merged_obs_times[-1] if merged_obs_times else {}
         sanitized = sanitize_observation(latest_obs)
         
         data_time_str = latest_obs.get('DateTime') or latest_obs.get('DataTime') or latest_obs.get('ObsTime')
@@ -286,12 +369,12 @@ def main():
             best_match = min(parsed_forecasts, key=lambda f: (f['lat'] - lat)**2 + (f['lng'] - lng)**2)
             station_forecasts = best_match['times']
 
-        # 傳入測站名稱以利 Gemini 推理在地化特徵
         ai_advice = analyze_safety_heuristic(sanitized, name)
-        time.sleep(4.2) # 🌟 節流閥：避開每分鐘 15 次免費限制
+        if GEMINI_KEY:
+            time.sleep(4.2)
         
         station_snapshot = {
-            "obs": loc,
+            "obs": merged_loc,
             "forecasts": station_forecasts,
             "ai_expert": ai_advice,
             "station_info": {
@@ -304,20 +387,21 @@ def main():
             }
         }
         
-        with open(os.path.join(out_dir, f"edge_{sid}.json"), "w", encoding="utf-8") as f:
+        with open(edge_filepath, "w", encoding="utf-8") as f:
             json.dump(station_snapshot, f, ensure_ascii=False)
 
         stations_config.append({
             "id": sid, "name": name, "region": region, "stationType": station_type,
             "agency": agency, "isBuoy": is_buoy, "lat": lat, "lng": lng,
-            "syncStatus": sync_status, "isHealthy": not is_stale
+            "syncStatus": sync_status, "isHealthy": not is_stale,
+            "historyPoints": len(merged_obs_times)
         })
 
     with open(os.path.join(out_dir, "stations_config.json"), "w", encoding="utf-8") as f:
         json.dump(stations_config, f, ensure_ascii=False)
 
     counts = Counter(s['region'] for s in stations_config)
-    print("\n🎉 【全台灣 85 測站 AI 預運算完畢】")
+    print("\n🎉 【全台灣 85 測站 物理/LLM 雙層架構運算完畢】")
     for r in ["北部", "西部", "南部", "東部", "離島"]:
         print(f" • {r}海域: {counts.get(r, 0)} 個測站")
 

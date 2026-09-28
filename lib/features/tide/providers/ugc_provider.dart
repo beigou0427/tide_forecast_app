@@ -28,24 +28,29 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
   Future<void> _loadReports() async {
     final now = DateTime.now();
 
-    // 1. 離線優先：0ms 秒開本機 6 小時內有效快取
+    // 1. 離線優先：0ms 秒開本機快取，並過濾未來時間竄改（時鐘偏斜防線）
     final rawList = _prefs?.getStringList(_storageKey) ?? [];
     List<UgcReportItem> localReports = rawList
         .map((e) => UgcReportItem.fromJson(e))
         .where((item) {
           final diff = now.difference(item.timestamp);
-          return diff.inMinutes >= -5 && diff.inMinutes <= 360;
+          // 嚴格限制：不允許超過未來 2 分鐘，且在過去 6 小時內
+          return diff.inMinutes >= -2 && diff.inMinutes <= 360;
         })
         .toList();
 
     state = localReports..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    // 2. 雲端同步：強制倒序獲取「最新」100 筆一線情報
+    // 2. 雲端同步：Leslie Lamport 雙向時鐘邊界防衛查詢
     try {
       final sixHoursAgo = now.subtract(const Duration(hours: 6));
+      // 容許最多 2 分鐘時鐘漂移，徹底阻斷惡意手動調快時鐘的「幽靈置頂情報」
+      final maxAllowedTime = now.add(const Duration(minutes: 2));
+
       final snapshot = await _firestore
           .collection('public_ugc_reports')
           .where('timestamp', isGreaterThan: sixHoursAgo.toIso8601String())
+          .where('timestamp', isLessThanOrEqualTo: maxAllowedTime.toIso8601String())
           .orderBy('timestamp', descending: true)
           .limit(100)
           .get();
@@ -53,6 +58,7 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
       if (snapshot.docs.isNotEmpty) {
         final cloudReports = snapshot.docs
             .map((doc) => UgcReportItem.fromMap(doc.data()))
+            .where((item) => !item.timestamp.isAfter(maxAllowedTime))
             .toList();
 
         final Map<String, UgcReportItem> mergedMap = {};
@@ -68,7 +74,7 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
 
         state = mergedList;
         _saveToDisk(mergedList);
-        debugPrint("📡 [真·Waze雷達] 成功倒序同步全台 ${cloudReports.length} 筆最新實況！");
+        debugPrint("📡 [真·Waze雷達] 經因果定序檢驗，成功同步全台 ${cloudReports.length} 筆實況！");
       }
     } catch (e) {
       debugPrint("⚠️ [UGC雷達] 雲端同步暫時離線，平滑維持本機情報: $e");
@@ -140,8 +146,12 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
       initialUpvotes = 3;
     }
 
+    // 分散式唯一識別碼：杜絕毫秒碰撞 (Collision-Free UUID)
+    final newDocRef = _firestore.collection('public_ugc_reports').doc();
+    final String distributedId = newDocRef.id;
+
     final newItem = UgcReportItem(
-      id: "ugc_${DateTime.now().millisecondsSinceEpoch}",
+      id: distributedId,
       stationId: stationId,
       timestamp: DateTime.now(),
       type: type,
@@ -154,8 +164,8 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     _saveToDisk(updated);
 
     try {
-      await _firestore.collection('public_ugc_reports').doc(newItem.id).set(newItem.toMap());
-      debugPrint("📢 [真·Waze雷達] 釣況情報已廣播至雲端雷達！");
+      await newDocRef.set(newItem.toMap());
+      debugPrint("📢 [真·Waze雷達] 釣況情報已廣播至雲端雷達 (ID: $distributedId)！");
     } catch (e) {
       debugPrint("⚠️ [真·Waze雷達] 雲端廣播暫時無法送達，保留於本機快取: $e");
     }
@@ -179,7 +189,6 @@ class UgcReportNotifier extends StateNotifier<List<UgcReportItem>> {
     state = updated;
     _saveToDisk(updated);
 
-    // 雲端點讚原子安全遞增
     try {
       await _firestore.collection('public_ugc_reports').doc(reportId).set({
         'upvotes': FieldValue.increment(1),

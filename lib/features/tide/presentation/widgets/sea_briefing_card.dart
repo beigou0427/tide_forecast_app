@@ -5,7 +5,7 @@ import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 
-/// Marty Cagan × Tony Fadell 哲學重塑：出海紅綠燈終極決策儀表
+/// Don Norman 認知防錯與海事工程重塑：客觀水文作業許可階梯 (Operational Limits)
 class SeaBriefingCard extends ConsumerWidget {
   final TideStationData station;
   final double? distance;
@@ -19,15 +19,14 @@ class SeaBriefingCard extends ConsumerWidget {
     final score = ai?.safetyScore ?? 80;
     final bool isLight = Theme.of(context).brightness == Brightness.light;
 
-    // 提取關鍵物理數值進行單一決策錨點推算
     final obs = station.observations.isNotEmpty ? station.observations.last : null;
     final double waveH = obs?.waveHeight ?? 0.0;
     final double waveP = obs?.wavePeriod ?? 0.0;
     final double windS = obs?.windSpeed ?? 0.0;
 
-    // 終極出海決策模型 (Marty Cagan Decision Anchor)
-    final bool isNoGo = score < 40 || waveH >= 2.2 || (waveP >= 10.0 && waveH >= 0.7);
-    final bool isCaution = !isNoGo && (score < 70 || waveH > 1.2 || windS > 7.0);
+    // 海事航空級客觀作業限制判定（杜絕綠色 GO 誘發認知懈怠）
+    final bool isHalt = score < 40 || waveH >= 2.2 || (waveP >= 10.0 && waveH >= 0.7);
+    final bool isAdvisory = !isHalt && (score < 70 || waveH > 1.2 || windS > 7.0);
 
     Color decisionColor;
     String decisionBadge;
@@ -35,24 +34,25 @@ class SeaBriefingCard extends ConsumerWidget {
     String decisionAction;
     IconData decisionIcon;
 
-    if (isNoGo) {
+    if (isHalt) {
       decisionColor = AppColors.hazardCoral;
-      decisionBadge = "NO-GO";
-      decisionTitle = "嚴禁出海 · 致命長湧/巨浪";
-      decisionAction = "外海偵測到致命長湧或巨浪！近岸極易突發蓋礁洗岸瘋狗浪，嚴禁前往外礁！";
-      decisionIcon = Icons.cancel_rounded;
-    } else if (isCaution) {
+      decisionBadge = "HALT";
+      decisionTitle = "極端危險 · 嚴禁外礁登礁";
+      decisionAction = "外海偵測到致命長週期長湧或巨浪！具極端蓋礁瘋狗浪風險，嚴禁無防護水上作業！";
+      decisionIcon = Icons.dangerous_rounded;
+    } else if (isAdvisory) {
       decisionColor = const Color(0xFFFF9500);
-      decisionBadge = "CAUTION";
-      decisionTitle = "警戒作業 · 限安全標點";
-      decisionAction = "潮位變換急促或風浪稍強，建議避開迎風迎浪面，嚴禁無防護下竿。";
+      decisionBadge = "ADVISORY";
+      decisionTitle = "水文戒備 · 需穿著合格裝備";
+      decisionAction = "潮位變換急促或風浪稍強，建議避開迎風迎浪面，僅限具備避風條件之安全標點。";
       decisionIcon = Icons.warning_amber_rounded;
     } else {
-      decisionColor = const Color(0xFF30D158);
-      decisionBadge = "GO";
-      decisionTitle = "黃金窗口 · 作業條件優良";
-      decisionAction = "風浪週期平順且走水流速適中，全島多數近岸水域作業條件優良！";
-      decisionIcon = Icons.check_circle_rounded;
+      // 航空級專業冷靜藍（取代絕對綠色，保持警惕心智模型）
+      decisionColor = isLight ? AppColors.marineBlue : AppColors.pelagicCyan;
+      decisionBadge = "OPERATIONAL";
+      decisionTitle = "常態水文許可 · 仍須安全戒備";
+      decisionAction = "實測波高與風力處於常態作業水準。自然水域變幻莫測，請全程著合格救生衣與釘鞋。";
+      decisionIcon = Icons.shield_rounded;
     }
 
     final String cleanStationName = station.info.stationName.replaceAll(RegExp(r'\(.*?\)'), '').trim();
@@ -100,7 +100,7 @@ class SeaBriefingCard extends ConsumerWidget {
                     if (distance != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        "距您約 ${distance!.toStringAsFixed(1)} km · 實測水文即時判定",
+                        "距您約 ${distance!.toStringAsFixed(1)} km · 實測水文即時監控",
                         style: TextStyle(
                           color: isLight ? Colors.grey.shade600 : AppColors.textTertiary, 
                           fontSize: 11,
@@ -158,7 +158,7 @@ class SeaBriefingCard extends ConsumerWidget {
 
           const SizedBox(height: 14),
 
-          // 2. 🌟 Marty Cagan「終極出海紅綠燈」決策看板（一秒決定去不去）
+          // 2. 🌟 Don Norman 海事級客觀作業許可看板（杜絕虛假安全感）
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -196,7 +196,7 @@ class SeaBriefingCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: decisionColor,
-                                fontSize: 14.5,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.2,
                               ),
@@ -210,7 +210,7 @@ class SeaBriefingCard extends ConsumerWidget {
                             ),
                             child: Text(
                               decisionBadge,
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+                              style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
                             ),
                           ),
                         ],
