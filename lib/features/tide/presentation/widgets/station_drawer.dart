@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/constants.dart';
 import '../../providers/tide_provider.dart';
@@ -214,7 +215,21 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
             },
           ),
-          // 🌟 專屬工程模式常駐入口（密碼：beigou）
+
+          // 🌟 Claire Hughes Johnson 客服支援與退款申訴管道 (SLA 24H 履約)
+          _buildActionTile(
+            icon: Icons.support_agent_rounded,
+            title: "客服支援與問題回報",
+            color: Colors.orangeAccent,
+            badge: "24H",
+            isClassic: isClassic,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showSupportModal(context, isClassic);
+            },
+          ),
+
+          // 工程模式常駐入口
           _buildActionTile(
             icon: Icons.terminal_rounded,
             title: "工程模式 · 上帝特權",
@@ -228,7 +243,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           ),
           Divider(height: 1, color: dividerColor),
 
-          // 創辦人上帝模式特權密道：長按亦可觸發
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 24),
             child: GestureDetector(
@@ -246,6 +260,169 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 🌟 Claire Hughes Johnson 爭議與客訴吸收面板
+  void _showSupportModal(BuildContext context, bool isClassic) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) {
+        final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+        final Color cardBg = isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04);
+        final Color borderColor = isClassic ? Colors.grey.shade200 : AppColors.glassBorder;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, 
+                  height: 4, 
+                  decoration: BoxDecoration(
+                    color: isClassic ? Colors.grey.shade300 : Colors.white24, 
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Colors.orangeAccent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.support_agent_rounded, color: Colors.orangeAccent, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    "官方客服與問題反映中心",
+                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: titleColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "老船長營運團隊承諾於 24 小時內親自審理您的問題，絕不讓您求助無門。",
+                style: TextStyle(fontSize: 11.5, color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary),
+              ),
+              const SizedBox(height: 18),
+
+              // 管道 1：Email 直達工程團隊
+              _buildSupportOptionTile(
+                title: "聯繫技術團隊 / 回報測站水文異常",
+                desc: "附帶當前測站 ID 與設備資訊，工程師即刻排查修復",
+                icon: Icons.mark_email_read_rounded,
+                color: const Color(0xFF0077B6),
+                isClassic: isClassic,
+                onTap: () async {
+                  final Uri emailUri = Uri.parse(
+                    "mailto:support@beigou.app?subject=%E3%80%90TidePro%E5%AE%A2%E6%9C%8D%E5%B7%A5%E5%96%AE%E3%80%91%E6%B8%AC%E7%AB%99%E6%B0%B4%E6%96%87%E8%88%87%E4%BD%BF%E7%94%A8%E5%8F%8D%E6%98%A0&body=%E6%82%A8%E5%A5%BD%EF%BC%8C%E6%88%91%E5%9C%A8%E4%BD%BF%E7%94%A8%E6%BD%AE%E6%B1%90%E8%A1%A8%20Pro%20%E6%99%82%E9%81%87%E5%88%B0%E4%BB%A5%E4%B8%8B%E5%95%8F%E9%A1%8C%EF%BC%9A%0A%0A%E3%80%90%E7%99%BC%E7%94%9F%E6%B8%AC%E7%AB%99%E3%80%91%EF%BC%9A${widget.currentId}%0A%E3%80%90%E5%95%8F%E9%A1%8C%E6%8F%8F%E8%BF%B0%E3%80%91%EF%BC%9A",
+                  );
+                  if (await canLaunchUrl(emailUri)) {
+                    await launchUrl(emailUri);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+
+              // 管道 2：訂閱條款與 Apple 官方退訂/退款指南
+              _buildSupportOptionTile(
+                title: "訂閱條款說明與退訂指南",
+                desc: "說明如何至 Apple ID 取消自動續訂與申請消費爭議處理",
+                icon: Icons.receipt_long_rounded,
+                color: AppColors.bioGold,
+                isClassic: isClassic,
+                onTap: () async {
+                  final Uri subGuide = Uri.parse("https://support.apple.com/HT202039");
+                  if (await canLaunchUrl(subGuide)) {
+                    await launchUrl(subGuide, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              const SizedBox(height: 14),
+
+              Text(
+                "⚠️ 消費者保障告知：所有訂閱購買均經由 Apple StoreKit 官方加密通道，您可隨時於 App Store 帳號中取消續訂，保障您的消費者權益。",
+                style: TextStyle(fontSize: 10, color: isClassic ? Colors.grey.shade500 : AppColors.textTertiary, height: 1.35),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSupportOptionTile({
+    required String title,
+    required String desc,
+    required IconData icon,
+    required Color color,
+    required bool isClassic,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title, 
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800, 
+                      fontSize: 13,
+                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    desc, 
+                    style: TextStyle(
+                      fontSize: 10.5, 
+                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded, 
+              size: 16, 
+              color: isClassic ? Colors.grey : AppColors.textTertiary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -720,7 +897,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  // 通關密碼驗證視窗 (beigou)
   void _showSecretAuthDialog(BuildContext context) {
     final textCtrl = TextEditingController();
     showDialog(
@@ -784,7 +960,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  // 上帝模式身分切換面板
   void _showGodModeSwitchSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,

@@ -1,8 +1,8 @@
-﻿name: 每日 8 次全台 85 測站海象與 AI 自動同步 (含 MLOps 質檢閘門)
+﻿name: 每日 8 次全台 85 測站海象與 AI 自動同步 (含 MLOps 質檢閘門與 SRE 心跳)
 on:
   workflow_dispatch:
   schedule:
-    # 成本優化：每 3 小時執行一次
+    # 週末與平日全天候高頻水文巡航 (每 3 小時一次)
     - cron: '0 */3 * * *'
 jobs:
   tide-job:
@@ -18,11 +18,14 @@ jobs:
         run: |
           pip install requests
           pip install google-generativeai
-      - name: 執行全台 85 測站數據抓取與 AI 大腦邊緣快照生成
+
+      # 🌟 Gwynne Shotwell 故障自癒：遭遇氣象署網路抖動時自動發起二度重試
+      - name: 執行全台 85 測站數據抓取與 AI 大腦邊緣快照生成 (含 SRE 自動重試)
         env:
           CWA_KEY: ${{ secrets.CWA_KEY }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-        run: python tide_backend/tide_engine.py
+        run: |
+          python tide_backend/tide_engine.py || (echo '⚠️ 初次連線氣象署異常，等待 15 秒後執行 SRE 自動二度重試...' && sleep 15 && python tide_backend/tide_engine.py)
 
       # 發布前強制執行物理規律、感測器斷線防線與結構化質檢閘門
       - name: 🛡️ MLOps 質檢閘門：檢驗 85 站 AI 結構、數值邊界與海事物理防線
@@ -91,10 +94,10 @@ jobs:
               
               is_sensor_offline = (raw_h is None or str(raw_h).strip() in ('None', '-99', '-999', 'nan', ''))
               
-              # 🚨 關鍵生命安全防護：若感測器斷線，嚴禁給出超過 35 分的虛假安全分
+              # 斷線時嚴禁給出超過 35 分的高分
               if is_sensor_offline and score > 35:
                   safety_drift_count += 1
-                  print(f'🚨 [斷線安全漂移] {ef}: 感測器離線無數據，AI 卻給出高分 {score}，存在誘人登礁溺水風險！')
+                  print(f'🚨 [斷線安全漂移] {ef}: 感測器離線無數據，AI 卻給出高分 {score}！')
                   continue
 
               try:
@@ -103,12 +106,11 @@ jobs:
               except:
                   h, p = 0.0, 0.0
 
-              # 🚨 長週期長湧瘋狗浪防線：若週期 >= 10s 且浪高 >= 0.7m，安全分嚴禁超過 35 分！
+              # 長週期長湧瘋狗浪防線：若週期 >= 10s 且浪高 >= 0.7m，安全分嚴禁超過 35 分！
               if p >= 10.0 and h >= 0.7 and score > 35:
                   safety_drift_count += 1
-                  print(f'🚨 [長湧安全漂移] {ef}: 浪高 {h}m、週期 {p}s 具致命長湧瘋狗浪風險，AI 給出不安全高分 {score}！')
+                  print(f'🚨 [長湧安全漂移] {ef}: 浪高 {h}m、週期 {p}s 具致命長湧瘋狗浪風險，AI 給出高分 {score}！')
               
-              # 🚨 巨浪防線：浪高 >= 2.5m 時安全分嚴禁超過 40 分
               if h >= 2.5 and score > 40:
                   safety_drift_count += 1
                   print(f'🚨 [巨浪安全漂移] {ef}: 浪高 {h}m 屬危險海象，AI 給分過高 {score}！')
@@ -116,10 +118,41 @@ jobs:
           print(f'📊 [MLOps 質檢報告] 通過率：{(85 - hallucination_count)/85*100:.1f}% | 結構異常：{hallucination_count} 站 | 物理安全漂移：{safety_drift_count} 站 | 坐標異常：{coord_error_count} 站')
 
           if hallucination_count > 10 or safety_drift_count > 0 or coord_error_count > 0:
-              print('❌ [MLOps 阻斷發布] 偵測到重大 AI 幻覺、坐標漂移或物理安全防線失守，強制終止發布，保護外礁釣客生命安全！')
+              print('❌ [MLOps 阻斷發布] 偵測到重大 AI 幻覺、坐標漂移或物理安全防線失守，強制終止發布！')
               sys.exit(1)
 
-          print('✅ [MLOps 質檢通過] 85 測站 AI 輸出完全符合海洋物理學、地理拓撲與生命安全約束，核准發布至生產環境！')
+          print('✅ [MLOps 質檢通過] 85 測站 AI 輸出完全符合海洋物理學、地理拓撲與生命安全約束！')
+          "
+
+      # 🌟 Gwynne Shotwell 航太看門狗：產出即時 SRE 心跳報告 (Canary Heartbeat)
+      - name: 🛰️ 生成 SRE 看門狗健康心跳 (Canary Heartbeat)
+        run: |
+          python -c "
+          import json, os, glob
+          from datetime import datetime, timezone, timedelta
+          tz_tw = timezone(timedelta(hours=8))
+          now_tw = datetime.now(tz_tw)
+
+          deploy_dir = 'deploy_api'
+          edge_files = glob.glob(os.path.join(deploy_dir, 'edge_*.json'))
+          archive_files = glob.glob(os.path.join(deploy_dir, 'archive_*.json'))
+
+          health = {
+              'system_name': 'TidePro Marine Telemetry Engine',
+              'status': 'OPERATIONAL' if len(edge_files) == 85 else 'DEGRADED',
+              'heartbeat_utc': datetime.now(timezone.utc).isoformat(),
+              'heartbeat_taipei': now_tw.isoformat(),
+              'total_stations': len(edge_files),
+              'total_archives': len(archive_files),
+              'circuit_breaker': False,
+              'canary_version': '2.2.0-mission-critical',
+              'run_id': os.environ.get('GITHUB_RUN_ID', 'local'),
+              'run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT', '1')
+          }
+
+          with open(os.path.join(deploy_dir, 'health_status.json'), 'w', encoding='utf-8') as f:
+              json.dump(health, f, indent=2, ensure_ascii=False)
+          print('✅ [SpaceX 看門狗] health_status.json 心跳檔案生成完畢，供客戶端與外部 APM 探針監測！')
           "
 
       - name: 發布至 GitHub Pages (api-data 分支)
@@ -129,3 +162,8 @@ jobs:
           publish_branch: api-data
           publish_dir: ./deploy_api
           enable_jekyll: false
+
+      - name: 🚨 SRE 故障升級通報 (Failure Alert)
+        if: failure()
+        run: |
+          echo "::error title=航太級水文管線中斷::全台 85 測站同步管線異常中斷！請即刻檢視 SRE 質檢日誌與 CWA API 配額！"

@@ -1,3 +1,4 @@
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +10,8 @@ import '../../../../shared/widgets/custom_card.dart';
 import '../../../../core/services/review_service.dart';
 import '../../../../core/theme/app_theme.dart';
 
-/// 🍏 Apple 首席設計工藝：深海聲吶實況雷達 (Oceanic Sonar Radar Telemetry)
-class UgcRadarCard extends ConsumerWidget {
+/// Sheryl Sandberg 平台營運合規：具備真實工單與即時封鎖之 Waze 海況雷達
+class UgcRadarCard extends ConsumerStatefulWidget {
   final String stationId;
   final String stationName;
   final double? waveHeight;
@@ -25,20 +26,76 @@ class UgcRadarCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UgcRadarCard> createState() => _UgcRadarCardState();
+}
+
+class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
+  final Set<String> _blockedAuthors = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBlockedAuthors();
+  }
+
+  Future<void> _loadBlockedAuthors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('blocked_ugc_authors') ?? [];
+      if (mounted) {
+        setState(() {
+          _blockedAuthors.addAll(list);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _blockAuthor(String authorTag) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _blockedAuthors.add(authorTag);
+    });
+    await prefs.setStringList('blocked_ugc_authors', _blockedAuthors.toList());
+  }
+
+  // 🌟 Apple Guideline 1.2 權威履約：將檢舉工單寫入 Firestore 審查資料庫
+  Future<void> _submitReportTicket(UgcReportItem report, String reason) async {
+    try {
+      await FirebaseFirestore.instance.collection('ugc_moderation_queue').add({
+        'report_id': report.id,
+        'station_id': report.stationId,
+        'condition_label': report.label,
+        'author_tag': report.userTag,
+        'reported_timestamp': report.timestamp.toIso8601String(),
+        'reason': reason,
+        'created_at': FieldValue.serverTimestamp(),
+        'status': 'PENDING_REVIEW', // 待審查狀態，供後台 24 小時處理
+      });
+      debugPrint("🛡️ [UGC 合規] 檢舉工單已安全遞交至審核佇列 (ID: ${report.id})");
+    } catch (e) {
+      debugPrint("⚠️ [UGC 合規] 檢舉寫入異常: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.watch(ugcReportProvider);
-    final stationReports = ref.read(ugcReportProvider.notifier).getReportsForStation(
-      stationId,
-      waveHeight: waveHeight,
-      windSpeed: windSpeed,
+    final allStationReports = ref.read(ugcReportProvider.notifier).getReportsForStation(
+      widget.stationId,
+      waveHeight: widget.waveHeight,
+      windSpeed: widget.windSpeed,
     );
+
+    // 即時過濾被封鎖黑名單用戶發布的情報
+    final visibleReports = allStationReports
+        .where((r) => !_blockedAuthors.contains(r.userTag))
+        .toList();
 
     return CustomCard(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部雷達標題與靈動回報按鈕
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -99,8 +156,7 @@ class UgcRadarCard extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // 2. 實況情報卡片流
-          ...stationReports.take(3).map((report) => _buildReportTile(context, ref, report)),
+          ...visibleReports.take(3).map((report) => _buildReportTile(context, ref, report)),
         ],
       ),
     );
@@ -112,7 +168,6 @@ class UgcRadarCard extends ConsumerWidget {
     final bool isAiSentinel = report.userTag.contains("AI");
     final bool isVvip = report.userTag.contains("領航員") || report.userTag.contains("指揮官");
 
-    // 🌟 階級感知光譜
     final Color accentColor = isVvip 
         ? AppColors.bioGold 
         : (isAiSentinel ? AppColors.pelagicCyan : const Color(0xFFFF9500));
@@ -203,17 +258,51 @@ class UgcRadarCard extends ConsumerWidget {
                   padding: EdgeInsets.zero,
                   color: AppColors.abyssCard,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-                  onSelected: (value) {
+                  onSelected: (value) async {
                     HapticFeedback.selectionClick();
                     if (value == 'report') {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已收到您的檢舉，審核團隊將於 24 小時內處理。"), backgroundColor: AppColors.abyssCard));
+                      await _submitReportTicket(report, "用戶於前端標記不實海象或不當內容");
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("🛡️ 檢舉工單已立案，審核團隊將於 24 小時內完成處理。"), 
+                            backgroundColor: AppColors.abyssCard,
+                          ),
+                        );
+                      }
                     } else if (value == 'block') {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已封鎖此用戶，將不再顯示其發佈的實況。"), backgroundColor: AppColors.abyssCard));
+                      await _blockAuthor(report.userTag);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("🚫 已封鎖【${report.userTag}】，已為您即時隱藏其所有通報內容。"), 
+                            backgroundColor: AppColors.abyssCard,
+                          ),
+                        );
+                      }
                     }
                   },
                   itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(value: 'report', child: Text('檢舉不當內容', style: TextStyle(fontSize: 13, color: AppColors.hazardCoral, fontWeight: FontWeight.bold))),
-                    const PopupMenuItem<String>(value: 'block', child: Text('封鎖此用戶', style: TextStyle(fontSize: 13, color: AppColors.textPrimary))),
+                    const PopupMenuItem<String>(
+                      value: 'report', 
+                      child: Row(
+                        children: [
+                          Icon(Icons.flag_rounded, size: 16, color: AppColors.hazardCoral),
+                          SizedBox(width: 8),
+                          Text('檢舉不當/虛假情報', style: TextStyle(fontSize: 12.5, color: AppColors.hazardCoral, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'block', 
+                      child: Row(
+                        children: [
+                          Icon(Icons.block_rounded, size: 16, color: AppColors.textSecondary),
+                          SizedBox(width: 8),
+                          Text('封鎖此通報者', style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
             ],
@@ -263,7 +352,7 @@ class UgcRadarCard extends ConsumerWidget {
               const SizedBox(height: 16),
 
               Text(
-                "一鍵通報 [$stationName] 現場水況",
+                "一鍵通報 [${widget.stationName}] 現場水況",
                 style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary, letterSpacing: -0.3),
               ),
               const SizedBox(height: 4),
@@ -277,7 +366,7 @@ class UgcRadarCard extends ConsumerWidget {
                   return InkWell(
                     onTap: () async {
                       HapticFeedback.mediumImpact();
-                      ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
+                      ref.read(ugcReportProvider.notifier).reportCondition(widget.stationId, type);
                       
                       final prefs = await SharedPreferences.getInstance();
                       final lastRewardEpoch = prefs.getInt('last_coin_reward_epoch') ?? 0;
@@ -326,6 +415,12 @@ class UgcRadarCard extends ConsumerWidget {
                     ),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 14),
+              // Apple Guideline 1.2 法律公告
+              const Text(
+                "⚠️ 社群公約：依據 App Store 規範，嚴禁發布虛假危險海況、違規廣告或不當言論。違規通報經審核確認將立即刪除並永久封鎖通報權限。",
+                style: TextStyle(fontSize: 10, color: AppColors.textTertiary, height: 1.35),
               ),
             ],
           ),
