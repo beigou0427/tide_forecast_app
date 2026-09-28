@@ -67,7 +67,6 @@ class CircuitBreaker {
     if (_state == CircuitState.halfOpen || _failureCount >= failureThreshold) {
       _state = CircuitState.open;
       _lastStateChange = now;
-      // 指數退避搭配隨機抖動 (Full Jitter)，打散驚群雪崩峰值
       final randomJitterMs = (now.millisecond % 5000);
       final newSeconds = math.min(300, (_currentResetDuration.inSeconds * 1.5).toInt());
       _currentResetDuration = Duration(seconds: newSeconds, milliseconds: randomJitterMs);
@@ -81,15 +80,16 @@ class TideApiService {
   static const String _edgeUrl = "https://beigou0427.github.io/tide_forecast_app";
   static const String _cachePrefix = "tide_offline_cache_";
   static const String _sigPrefix = "tide_cache_sig_";
+  static const String _archivePrefix = "tide_archive_cache_";
 
   // 全域 SRE 斷路器執行個體
   static final CircuitBreaker _edgeBreaker = CircuitBreaker(name: "EdgeCDN", failureThreshold: 3);
   static final CircuitBreaker _cwaBreaker = CircuitBreaker(name: "CwaOfficial", failureThreshold: 3);
 
+  /// 1. 熱資料快照獲取（首頁秒開：約 10 KB）
   Future<TideStationData> fetchData(String stationId, {bool isPremium = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. 本地離線快取與防篡改簽章檢驗
     final cachedStr = prefs.getString('$_cachePrefix$stationId');
     final cachedSig = prefs.getString('$_sigPrefix$stationId');
     Map<String, dynamic> localCacheJson = {};
@@ -107,7 +107,6 @@ class TideApiService {
 
     Map<String, dynamic> edgeJson = {};
 
-    // 2. 邊緣快照專線 (SRE 斷路器防衛)
     if (_edgeBreaker.canExecute()) {
       try {
         final t = DateTime.now().millisecondsSinceEpoch;
@@ -117,7 +116,7 @@ class TideApiService {
           throw SecurityException("未授權之伺服器網域請求: ${edgeUri.host}");
         }
 
-        debugPrint("📡 [TideApi] 正在以專線抓取邊緣快照 -> $edgeUri");
+        debugPrint("📡 [TideApi] 正在以專線抓取極輕量熱快照 (10KB) -> $edgeUri");
         final edgeResponse = await http.get(edgeUri).timeout(const Duration(milliseconds: 3500));
         
         if (edgeResponse.statusCode == 200) {
@@ -142,7 +141,6 @@ class TideApiService {
       edgeJson = localCacheJson;
     }
 
-    // 3. 非 VIP 權益直接返回邊緣或本地快照
     if (!isPremium) {
       if (edgeJson.isNotEmpty) {
         return TideStationData.fromEdgeJson(edgeJson);
@@ -153,7 +151,7 @@ class TideApiService {
       throw Exception("外海訊號微弱，且本站尚無離線存檔。請稍後移至收訊良好處重試。");
     }
 
-    // 4. VIP 氣象署官方直連專線 (SRE 斷路器防衛)
+    // VIP 氣象署官方直連專線
     if (_cwaBreaker.canExecute()) {
       try {
         debugPrint("💎 [VIP 直連] 向氣象署專線請求站點 $stationId 即時數據...");
@@ -231,6 +229,42 @@ class TideApiService {
     }
 
     throw Exception("外海訊號微弱且無離線快取，請移至收訊良好處重試。");
+  }
+
+  /// 🌟 2. Werner Vogels 冷歷史時間序列「按需非同步懶加載」（約 250 KB）
+  Future<List<Observation>> fetchArchiveObservations(String stationId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = "$_archivePrefix$stationId";
+    final cachedStr = prefs.getString(cacheKey);
+
+    Map<String, dynamic> archiveJson = {};
+
+    try {
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final archiveUri = Uri.parse("$_edgeUrl/archive_$stationId.json?t=$t");
+
+      if (!SecurityUtil.isAuthorizedHost(archiveUri)) {
+        throw SecurityException("未授權之伺服器網域: ${archiveUri.host}");
+      }
+
+      debugPrint("📦 [TideApi:冷存儲] 按需非同步拉取 30 天歷史數據 -> $archiveUri");
+      final res = await http.get(archiveUri).timeout(const Duration(milliseconds: 4000));
+      
+      if (res.statusCode == 200) {
+        archiveJson = await compute(_parseAndDecodeJson, res.body);
+        await prefs.setString(cacheKey, res.body);
+      } else if (cachedStr != null && cachedStr.isNotEmpty) {
+        archiveJson = await compute(_parseAndDecodeJson, cachedStr);
+      }
+    } catch (e) {
+      debugPrint("⚠️ [TideApi] 冷歷史時間序列連線逾時 ($e)，回退至本機歷史快取");
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        archiveJson = await compute(_parseAndDecodeJson, cachedStr);
+      }
+    }
+
+    final rawObs = archiveJson['observations'] as List? ?? [];
+    return rawObs.map((i) => Observation.fromProxy(i as Map<String, dynamic>)).toList();
   }
 
   Future<TideStationData> fetchHistoryOfficial(String sid, String s, String e) async => throw UnimplementedError();

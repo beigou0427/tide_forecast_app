@@ -8,8 +8,6 @@ import '../providers/tide_provider.dart';
 import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/share_util.dart';
-import '../../../core/utils/solunar_util.dart';
-import '../../../core/utils/bite_prediction_engine.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../premium/services/premium_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -28,9 +26,11 @@ import 'widgets/solunar_card.dart';
 import 'widgets/wind_compass_card.dart';
 import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
+import 'widgets/bite_radar_section.dart';
+import 'widgets/astro_hindcast_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝：雙軌自適應主座艙 (含 10x 魚種爆咬預警雷達)
+/// Apple 首席設計工藝：雙軌自適應主座艙 (Martin Fowler 元件化解耦版)
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -329,8 +329,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
-                      // 🌟 Ken Norton 10x 魚種水溫驟變爆咬預警雷達
-                      _buildBiteRadarSection(context, station, selectedDate, isClassic),
+                      // 🌟 Martin Fowler 重構解耦：獨立之 10x 標竿魚種水溫驟變爆咬預警元件
+                      BiteRadarSection(
+                        station: station,
+                        selectedDate: selectedDate,
+                        isClassic: isClassic,
+                      ),
                       const SizedBox(height: 20),
 
                       if (isFuture) ...[
@@ -354,7 +358,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ] else if (isPastWithoutSensor) ...[
                         _sectionTitle("🌌 歷史天文調和回溯模式", accentColor: AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
-                        _buildAstroHindcastCard(context, selectedDate, station.info.stationName, isClassic),
+                        // 🌟 Martin Fowler 重構解耦：獨立之歷史天文調和回溯補位卡片
+                        AstroHindcastCard(
+                          selectedDate: selectedDate,
+                          stationName: station.info.stationName,
+                          isClassic: isClassic,
+                        ),
                       ] else if (activeObservation != null) ...[
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
@@ -413,267 +422,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
             )
           : null,
-    );
-  }
-
-  // 🌟 Ken Norton「10 倍好」魚種水溫驟變爆咬雷達看板
-  Widget _buildBiteRadarSection(BuildContext context, TideStationData station, DateTime date, bool isClassic) {
-    final bite = BitePredictionEngine.predict(stationData: station, targetDate: date);
-    final Color titleColor = isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary;
-
-    return CustomCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppColors.bioGold.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.phishing_rounded, color: AppColors.bioGold, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "10x 標竿魚種爆咬預警雷達",
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w900,
-                          color: titleColor,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        "水溫變化率 ΔT · 氣壓趨勢 ΔP 專利推演",
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                decoration: BoxDecoration(
-                  color: AppColors.bioGold.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 0.5),
-                ),
-                child: Text(
-                  "${bite.overallBiteScore} 分 · ${bite.biteLevel.substring(0, 2)}",
-                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.bioGold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-            decoration: BoxDecoration(
-              color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.access_time_rounded, size: 13, color: AppColors.bioGold),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    bite.primaryWindow,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, isClassic)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeciesRow(SpeciesBiteIndex species, bool isClassic) {
-    final bool isHot = species.biteProbability >= 80;
-    final Color badgeColor = isHot ? AppColors.bioGold : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
-          width: 0.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                species.speciesName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: isClassic ? AppColors.classicText : AppColors.textPrimary,
-                ),
-              ),
-              Row(
-                children: [
-                  Text(
-                    species.triggerReason,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      "${species.biteProbability}% ${species.statusBadge}",
-                      style: TextStyle(color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            species.tacticalTip,
-            style: TextStyle(
-              fontSize: 10.5,
-              color: isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAstroHindcastCard(BuildContext context, DateTime date, String stationName, bool isClassic) {
-    final solunar = SolunarUtil.calculate(date);
-    final dateStr = DateFormat('yyyy/MM/dd').format(date);
-
-    return CustomCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.bioGold.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.bioGold, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "$dateStr · 天文水文調和推算",
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: isClassic ? AppColors.classicText : AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "此日期早於本地快取建立時間，已啟用天文物理補位",
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
-                width: 0.5,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "• 當日天體引力屬性：【${solunar.tideCategory} (${solunar.lunarDateStr})】",
-                  style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.w700, 
-                    color: isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "• 魚群活躍指數推演：【${solunar.fishActivityScore}%】",
-                  style: const TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.w700, 
-                    color: AppColors.bioGold,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "• 老船長出海戰術指引：${solunar.biteWindowAdvice}",
-                  style: TextStyle(
-                    fontSize: 11.5, 
-                    color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "💡 提示：氣象署官方感測器原始電文僅暫存 48 小時。本系統現已啟動後端 30 天時間序列金庫，今後所有測站之浪高、風速與水溫將隨時間自動沉積，提供您完整的實測回溯。",
-            style: TextStyle(
-              fontSize: 10.5, 
-              color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary, 
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
