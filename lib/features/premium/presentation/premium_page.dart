@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/premium_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../tide/presentation/home_page.dart';
 import 'vip_center_page.dart';
 
@@ -17,7 +18,6 @@ class PremiumPage extends ConsumerStatefulWidget {
 }
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
-  // 預設選中具備 7 天免費試用的主力 ARR 方案「年度指揮官計畫 (Index 2)」
   int _selectedTier = 2; 
   List<ProductDetails> _storeProducts = [];
 
@@ -162,13 +162,52 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13, height: 1.4),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+
+                    // 🌟 Seth Godin 部落裂變：車長主揪必備 · 釣友艦隊同行共享專案卡
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.bioGold.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 1.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.bioGold.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.directions_car_rounded, color: AppColors.bioGold, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "車長必備：整車釣友艦隊同行共享", 
+                                  style: TextStyle(color: AppColors.bioGold, fontWeight: FontWeight.w900, fontSize: 13),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  "「年度指揮官計畫」完整相容 Apple 家人共享機制，一人訂閱，整車作釣夥伴全員自動解鎖 PRO 特權！", 
+                                  style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
                     if (premiumState.isPremium) ...[
                       _buildUnlockedCard(premiumState),
                       const SizedBox(height: 24),
                     ] else ...[
-                      // 1. 週費方案：NT$ 60 / 週 (單次衝刺體驗)
                       _buildTierCard(
                         index: 0,
                         title: "週費體驗版",
@@ -179,7 +218,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       ),
                       const SizedBox(height: 10),
 
-                      // 2. 月費方案：NT$ 120 / 月 (季節釣汛首選)
                       _buildTierCard(
                         index: 1,
                         title: "月度專業版",
@@ -190,19 +228,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       ),
                       const SizedBox(height: 10),
 
-                      // 3. 年費方案：NT$ 990 / 年 (Peter Thiel & Luca Maestri 主力 ARR 引擎)
                       _buildTierCard(
                         index: 2,
                         title: "年度指揮官計畫",
                         price: AppConstants.priceYearly,
                         unit: " / 年",
-                        subDesc: "主力推薦 · 每月僅約 NT\$ 82，現省 31%",
-                        badge: "🔥 7天免費試用",
+                        subDesc: "主力推薦 · 支援 Apple 多人共享 · 每月僅約 NT\$ 82",
+                        badge: "🔥 7天免費試用 · 支援多人共享",
                         isHighlight: true,
                       ),
                       const SizedBox(height: 10),
 
-                      // 4. 終身方案：NT$ 2,990 / 永久 (高毛利創始席位)
                       _buildTierCard(
                         index: 3,
                         title: "終身創始席次",
@@ -215,6 +251,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       const SizedBox(height: 20),
                     ],
 
+                    _buildFeatureRow(Icons.groups_rounded, "支援 Apple 家人共享 · 整車釣友艦隊全員同行享有 PRO 特權"),
                     _buildFeatureRow(Icons.bolt_rounded, "85 測站光纖直連專線 (0 延遲刷新)"),
                     _buildFeatureRow(Icons.phishing_rounded, "10x 標竿魚種 (黑毛/軟絲/紅甘/黑鯛) 水溫爆咬預警"),
                     _buildFeatureRow(Icons.history_toggle_off_rounded, "30 天時間序列金庫與歷史天文調和回測"),
@@ -222,7 +259,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     _buildFeatureRow(Icons.notifications_active_outlined, "滿潮前 30 分鐘主動突發長湧瘋狗浪警報"),
                     const SizedBox(height: 20),
 
-                    // Apple Guideline 3.1.2 嚴格合規宣告
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -230,7 +266,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        "【訂閱與免費試用須知】\n我們為「年度指揮官計畫 (NT\$ 990 / 年)」提供 7 天免費試用期。確認購買或試用期結束時，費用將由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或 7 天試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
+                        "【訂閱與免費試用須知】\n我們為「年度指揮官計畫 (NT\$ 990 / 年)」提供 7 天免費試用期，並完整支援 Apple 家人共享。確認購買或試用期結束時，費用將由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或 7 天試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10, height: 1.4),
                       ),
                     ),
@@ -294,7 +330,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         fit: BoxFit.scaleDown,
                         child: Text(
                           _selectedTier == 2 
-                              ? "開啟 7 天免費試用 (年費 ${AppConstants.priceYearly})"
+                              ? "開啟 7 天免費試用 (年費 ${AppConstants.priceYearly} · 支援多人共享)"
                               : (_selectedTier == 3 
                                   ? "搶購終身創始席次 (${AppConstants.priceLifetime})" 
                                   : (_selectedTier == 1 

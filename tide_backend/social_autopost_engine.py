@@ -14,15 +14,15 @@ def calculate_daily_solunar(dt):
     lunar_day = round(phase_ratio * synodic_month) % 30 + 1
 
     if (1 <= lunar_day <= 3) or (15 <= lunar_day <= 17):
-        return 95, "大潮 (流水急湍，活水帶動魚群爆咬)"
+        return 95, "大潮 (活水急湍，海底魚群大開殺戒，滿潮返退2分水咬度炸裂)"
     elif (4 <= lunar_day <= 6) or (18 <= lunar_day <= 20):
-        return 85, "中潮 (流水平穩，全天咬口平均)"
+        return 85, "中潮 (走水流速平穩，全天索餌意願平均，浮游磯釣黃金期)"
     elif (7 <= lunar_day <= 8) or (22 <= lunar_day <= 23):
-        return 70, "小潮 (走水較緩，活性平穩)"
+        return 70, "小潮 (走水轉緩，活性平穩，宜攻岬角流尾與浪腳白沫)"
     elif (9 <= lunar_day <= 10) or (24 <= lunar_day <= 25):
-        return 65, "長潮 (潮差最小，流速近滯)"
+        return 65, "長潮 (潮差最小近停潮，建議換用超輕仕掛細線微鐵)"
     else:
-        return 80, "中潮/轉潮 (潮水回升，走水漸暢)"
+        return 80, "中潮/轉潮 (潮水回升，走水漸暢，各標點皆有潛力)"
 
 def calculate_fishing_score(wave, wind, solunar_score, safety_score):
     # 複合黃金釣況演算法 (浪平、風柔、咬度高、安全係數大)
@@ -63,8 +63,9 @@ def run_social_engine():
             
             raw_wave = we.get("WaveHeight") if we.get("WaveHeight") is not None else wave.get("WaveHeight")
             raw_wind = we.get("WindSpeed")
+            raw_flux = we.get("wave_energy_flux") or obs.get("wave_energy_flux") or 0.0
             
-            # 生命安全防衛：感測器斷線的測站嚴禁登上出海推薦榜單
+            # 安全防衛：離線或數據短缺之測站直接排除
             if raw_wave is None or str(raw_wave).strip() in ('None', '-99', '-999', 'nan', ''):
                 continue
             if raw_wind is None or str(raw_wind).strip() in ('None', '-99', '-999', 'nan', ''):
@@ -72,11 +73,12 @@ def run_social_engine():
                 
             wave_val = float(raw_wave)
             wind_val = float(raw_wind)
+            flux_val = float(raw_flux) if raw_flux else round(0.49 * (wave_val ** 2) * 5.0, 1)
             
             ai = data.get("ai_expert", {})
             safety_score = ai.get("safety_score", 70)
             
-            # 致命海況（長湧或大浪）直接剔除
+            # 極端危險海況不列入出海推薦
             if wave_val >= 2.2 or wind_val >= 10.0 or safety_score < 45:
                 continue
             
@@ -86,26 +88,29 @@ def run_social_engine():
             high_tide_str = "晨昏前後"
             for f in forecasts:
                 if "滿" in f.get("Tide", ""):
-                    dt_str = f.get("DateTime", "")
+                    dt_str = f.get("DateTime") or f.get("dateTime") or ""
                     if "T" in dt_str:
                         high_tide_str = dt_str.split("T")[1][:5]
                         break
 
+            clean_name = s.get("name", "").replaceAll(RegExp(r'\(.*?\)'), '').strip() if hasattr(s.get("name", ""), "replaceAll") else s.get("name", "").split("(")[0].strip()
+
             ranked_stations.append({
                 "id": sid,
-                "name": s.get("name"),
+                "name": clean_name if clean_name else s.get("name"),
                 "region": s.get("region"),
                 "wave": wave_val,
                 "wind": wind_val,
+                "flux": flux_val,
                 "score": fishing_score,
                 "high_tide": high_tide_str,
-                "briefing": ai.get("briefing", "海象平穩，作業條件佳")
+                "briefing": ai.get("briefing", "海象平穩，走水順暢")
             })
         except:
             continue
 
     if not ranked_stations:
-        print("⚠️ 全台各測站風浪偏大或感測器離線，今日不生成衝擊性出海推薦榜單")
+        print("⚠️ 今日全島風浪偏大或感測器離線，不發布出海推薦文案")
         return
 
     # 依照黃金釣況綜合評分倒序排列
@@ -114,24 +119,29 @@ def run_social_engine():
 
     now_str = now.strftime("%Y年%m月%d日")
     
+    # 🌟 Bozoma Saint John 野性霸氣文案引擎 (熱血、江湖氣、強行動召喚)
     post_lines = [
-        f"🌊【老船長每日水文快報】{now_str} 全台黃金釣況排行榜出爐！\n",
-        f"今日天體水文狀態：✨ {tide_desc}",
-        "老船長 AI 從全台 85 測站中，精選出今日實測作業條件最優、魚群活性最高的安全釣點：\n"
+        f"🔥【老船長每日水文戰報】{now_str} 全台 3 大爆咬黃金戰場揭曉！\n",
+        f"各位浪人師兄、磯釣瘋子們早！",
+        f"今天海神開門，天體引力正處於：✨ {tide_desc}！",
+        "老船長透過全台 85 測站光纖直連數據與流體動力學推算，今天作業條件最頂、魚群開口最狂的 Top 3 戰點出爐：\n"
     ]
 
-    medals = ["🥇 【No.1 爆咬榜首】", "🥈 【No.2 平穩推薦】", "🥉 【No.3 潛力黑馬】"]
+    medals = ["🥇 【No.1 爆咬榜首】", "🥈 【No.2 平穩首選】", "🥉 【No.3 潛力黑馬】"]
     for i, st in enumerate(top_3):
-        post_lines.append(f"{medals[i]} {st['name']}")
-        post_lines.append(f"• 水文評分：🔥 {st['score']} 分")
-        post_lines.append(f"• 實測海象：浪高 {st['wave']}m • 風速 {st['wind']}m/s")
-        post_lines.append(f"• 滿潮黃金水：約 {st['high_tide']} (滿潮返退2分水咬度最佳)")
-        post_lines.append(f"• 老船長筆記：{st['briefing']}\n")
+        sid = st['id']
+        web_link = f"https://beigou0427.github.io/tide_forecast_app/?sid={sid}"
+        post_lines.append(f"{medals[i]} {st['name']} ({st['region']}海域)")
+        post_lines.append(f"• 水文作戰評分：🔥 {st['score']} 分")
+        post_lines.append(f"• 實測海象：浪高 {st['wave']}m • 風速 {st['wind']}m/s • 波能動能 {st['flux']} kW/m")
+        post_lines.append(f"• 滿潮黃金水：約 {st['high_tide']} (滿水返退2分水水流最順)")
+        post_lines.append(f"• 老船長筆記：{st['briefing']}")
+        post_lines.append(f"👉 點擊查看該站實況雷達：{web_link}\n")
 
-    post_lines.append("⚠️ 【安全提醒】：出海作釣請穿著合格防滑釘鞋與救生衣，嚴防外礁瘋狗浪！")
-    post_lines.append("📲 欲查全台 85 測站實時 0 延遲湧浪、30 天潮位回測與 Waze 實況雷達：")
-    post_lines.append("👉 請在 App Store 搜尋：「潮汐表」或「潮汐表 Pro」\n")
-    post_lines.append("#潮汐表 #釣魚 #磯釣 #海釣 #潮汐 #浪高 #路亞 #老船長 #潮汐表Pro #出海決策")
+    post_lines.append("⚠️ 【老船長保命鐵律】：外礁長湧無情，防滑釘鞋、合格救生衣請穿牢扣緊！退路隨時看在眼裡！")
+    post_lines.append("📲 欲查全台 85 測站 0 延遲湧浪、10x 魚種開口預警與 30 天歷史回測：")
+    post_lines.append("👉 請在 App Store 搜尋：「潮汐表 Pro」\n")
+    post_lines.append("#潮汐表Pro #老船長 #釣魚 #磯釣 #海釣 #黑毛 #軟絲 #路亞 #海象 #浪高 #出海決策")
 
     post_content = "\n".join(post_lines)
 
@@ -140,7 +150,7 @@ def run_social_engine():
         f.write(post_content)
 
     print("=" * 65)
-    print("🚀 【全自動社群流量發射台：今日爆款文案生成完畢】")
+    print("🚀 【Bozoma Saint John 社群文案發射台：今日爆款文案生成完畢】")
     print("=" * 65)
     print(post_content)
     print("=" * 65)

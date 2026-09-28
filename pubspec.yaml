@@ -1,7 +1,7 @@
-name: tide_forecast_app
-description: "專業海象與潮汐預報系統"
+﻿name: tide_forecast_app
+description: "潮汐表 Pro - 釣魚海象浪高與風速預報，老船長 AI 出海決策"
 publish_to: 'none'
-version: 2.0.0+1
+version: 2.5.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -35,8 +35,6 @@ dependencies:
   firebase_messaging: ^16.7.0
   image_picker: ^1.1.2
   cloud_firestore: ^6.10.0
-  
-  # 🌟 依賴衝突解決：升級至 13.6.0 完美對齊 Firebase 底層
   firebase_storage: ^13.6.0
   cached_network_image: ^3.4.1
 

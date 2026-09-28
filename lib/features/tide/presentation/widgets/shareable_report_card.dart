@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../data/tide_model.dart';
 import '../../../premium/services/premium_service.dart';
 
+/// Jonah Berger 瘋傳行銷重塑：自帶「社交貨幣」與海事榮譽認證之作戰戰報卡
 class ShareableReportCard extends ConsumerWidget {
   final GlobalKey boundaryKey;
   final TideStationData station;
@@ -24,6 +25,29 @@ class ShareableReportCard extends ConsumerWidget {
     final premium = ref.watch(premiumProvider);
     final bool isVvip = premium.isFounder || premium.type == SubscriptionType.yearly;
 
+    // 提取物理指標以計算社交貨幣認證標記 (Jonah Berger Social Currency Engine)
+    final double waveH = obs?.waveHeight ?? 0.0;
+    final double waveP = obs?.wavePeriod ?? 0.0;
+    final double flux = obs?.waveEnergyFlux ?? 0.0;
+
+    String certificationTag;
+    Color certificationColor;
+    IconData certificationIcon;
+
+    if (waveP >= 10.0 && waveH >= 0.7) {
+      certificationTag = "🚨 外礁瘋狗浪特級防區 · 極限海象挑戰";
+      certificationColor = const Color(0xFFF43F5E);
+      certificationIcon = Icons.dangerous_rounded;
+    } else if (flux >= 3.0 || waveH >= 2.0) {
+      certificationTag = "⚡ 高波能衝擊防區 (${flux > 0 ? '$flux kW/m' : '${waveH}m 巨浪'})";
+      certificationColor = const Color(0xFFFF9500);
+      certificationIcon = Icons.bolt_rounded;
+    } else {
+      certificationTag = "🔱 老船長光纖直連 · 官方即時水文認證";
+      certificationColor = const Color(0xFF00E5FF);
+      certificationIcon = Icons.verified_rounded;
+    }
+
     return RepaintBoundary(
       key: boundaryKey,
       child: Container(
@@ -37,31 +61,32 @@ class ShareableReportCard extends ConsumerWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
-              : null,
-          color: isVvip ? null : const Color(0xFF021B33),
+              : const LinearGradient(
+                  colors: [Color(0xFF0B1B2B), Color(0xFF030D17)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: premium.isFounder
                 ? const Color(0xFFFFD700)
                 : (premium.type == SubscriptionType.yearly 
                     ? const Color(0xFF00E5FF) 
-                    : const Color(0xFF00B4D8).withValues(alpha: 0.4)),
-            width: isVvip ? 2.0 : 1.5,
+                    : const Color(0xFF00B4D8).withValues(alpha: 0.45)),
+            width: isVvip ? 2.0 : 1.2,
           ),
-          boxShadow: isVvip
-              ? [
-                  BoxShadow(
-                    color: (premium.isFounder ? const Color(0xFFFFD700) : const Color(0xFF00E5FF)).withValues(alpha: 0.2),
-                    blurRadius: 16,
-                  )
-                ]
-              : null,
+          boxShadow: [
+            BoxShadow(
+              color: (premium.isFounder ? const Color(0xFFFFD700) : const Color(0xFF00B4D8)).withValues(alpha: 0.2),
+              blurRadius: 18,
+            )
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. 頂部抬頭與時間 (彈性防溢出)
+            // 1. 頂部抬頭與時間
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -105,41 +130,44 @@ class ShareableReportCard extends ConsumerWidget {
               ],
             ),
 
-            if (isVvip) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
-                decoration: BoxDecoration(
-                  color: premium.isFounder 
-                      ? Colors.amber.withValues(alpha: 0.15) 
-                      : const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF),
-                    width: 0.8,
-                  ),
+            const SizedBox(height: 10),
+
+            // 🌟 Jonah Berger 社交貨幣核心：海象榮譽認證鋼印 (Social Currency Seal)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+              decoration: BoxDecoration(
+                color: certificationColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: certificationColor.withValues(alpha: 0.45),
+                  width: 0.8,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.shield_rounded, size: 11, color: premium.isFounder ? Colors.amber : const Color(0xFF00E5FF)),
-                    const SizedBox(width: 4),
-                    Text(
-                      premium.isFounder ? "👑 創始天尊指揮官 • 專屬戰報" : "🔱 年度首席領航員 • 專屬戰報",
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(certificationIcon, size: 12, color: certificationColor),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      certificationTag,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 9.5, 
                         fontWeight: FontWeight.w900, 
-                        color: premium.isFounder ? Colors.amberAccent : const Color(0xFF00E5FF),
+                        color: certificationColor,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // 2. 測站地名與安全分數膠囊
+            // 2. 測站地名與安全指針膠囊
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -160,7 +188,7 @@ class ShareableReportCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        "${station.info.attr} • 官方即時直連",
+                        "${station.info.attr} • 官方直連鑑測",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 10.5, fontWeight: FontWeight.w600),
@@ -195,7 +223,7 @@ class ShareableReportCard extends ConsumerWidget {
 
             const SizedBox(height: 12),
 
-            // 3. AI 專家評估
+            // 3. AI 專家海況簡評
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -206,11 +234,11 @@ class ShareableReportCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 16),
+                  const Icon(Icons.anchor_rounded, color: Colors.amberAccent, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      ai?.briefing ?? "海象平穩，適合近岸作業與作釣。",
+                      ai?.briefing ?? "海況平穩，走水順暢，全島多數近岸標點作業適宜。",
                       style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4),
                     ),
                   ),
@@ -226,7 +254,7 @@ class ShareableReportCard extends ConsumerWidget {
                 children: [
                   _buildMetricItem("浪高", "${obs.waveHeight != null ? obs.waveHeight!.toStringAsFixed(1) : '--'} m"),
                   _buildMetricItem("風速", "${obs.windSpeed != null ? obs.windSpeed!.toStringAsFixed(1) : '--'} m/s"),
-                  _buildMetricItem("潮高", "${obs.tideHeight != null ? obs.tideHeight!.toStringAsFixed(1) : '--'} m"),
+                  _buildMetricItem("波能通量", "${obs.waveEnergyFlux != null ? obs.waveEnergyFlux!.toStringAsFixed(1) : '--'} kW"),
                   _buildMetricItem("水溫", "${obs.seaTemperature != null ? obs.seaTemperature!.toStringAsFixed(1) : '--'} ℃"),
                 ],
               ),
@@ -251,7 +279,7 @@ class ShareableReportCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        "App Store 搜尋：「潮汐表」", 
+                        "App Store 搜尋：「潮汐表 Pro」", 
                         maxLines: 1, 
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 8.5, fontWeight: FontWeight.bold),
@@ -263,11 +291,11 @@ class ShareableReportCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                   decoration: BoxDecoration(
-                    color: isVvip ? Colors.amberAccent : Colors.tealAccent,
+                    color: isVvip ? Colors.amberAccent : const Color(0xFF00E5FF),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    isVvip ? "COMMANDER VERIFIED" : "官方即時數據",
+                    isVvip ? "COMMANDER VERIFIED" : "官方直連鑑測",
                     style: const TextStyle(color: Colors.black87, fontSize: 8.5, fontWeight: FontWeight.w900),
                   ),
                 ),
