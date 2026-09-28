@@ -1,11 +1,15 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/bite_prediction_engine.dart';
 import '../../../../shared/widgets/custom_card.dart';
 import '../../data/tide_model.dart';
+import '../../../premium/services/premium_service.dart';
+import '../../../premium/presentation/premium_page.dart';
 
-/// Martin Fowler 重構解耦：獨立之 10x 標竿魚種水溫驟變爆咬預警元件
-class BiteRadarSection extends StatelessWidget {
+/// David Wehner 商業轉化漏斗重塑：具備價值紅線之 10x 標竿魚種爆咬預警雷達
+class BiteRadarSection extends ConsumerWidget {
   final TideStationData station;
   final DateTime selectedDate;
   final bool isClassic;
@@ -18,7 +22,8 @@ class BiteRadarSection extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isPro = ref.watch(premiumProvider).isPremium;
     final bite = BitePredictionEngine.predict(stationData: station, targetDate: selectedDate);
     final Color titleColor = isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary;
 
@@ -103,7 +108,16 @@ class BiteRadarSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, isClassic)),
+
+          // 🌟 商業價值分階：PRO 會員解鎖全 4 魚種；免費用戶解鎖第 1 魚種，其餘 3 種引導試用
+          if (isPro) ...[
+            ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, isClassic)),
+          ] else ...[
+            if (bite.speciesIndices.isNotEmpty)
+              _buildSpeciesRow(bite.speciesIndices.first, isClassic),
+            const SizedBox(height: 4),
+            _buildLockedSpeciesTeaser(context, isClassic),
+          ],
         ],
       ),
     );
@@ -170,6 +184,73 @@ class BiteRadarSection extends StatelessWidget {
               fontSize: 10.5,
               color: isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary,
               height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🌟 David Wehner 付費牆高轉化引導卡 (Freemium Value Lock)
+  Widget _buildLockedSpeciesTeaser(BuildContext context, bool isClassic) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.bioGold.withValues(alpha: isClassic ? 0.06 : 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.bioGold.withValues(alpha: 0.3), 
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lock_rounded, size: 14, color: AppColors.bioGold),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  "🔒 已為 PRO 指揮官解鎖其餘 3 大標竿魚種：",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: isClassic ? const Color(0xFFB45309) : AppColors.bioGold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "• 軟絲透抽（木蝦抱餌率）• 紅甘煙仔虎（急流掠食點）• 黑鯛石斑（底層推浪開口度）",
+            style: TextStyle(
+              fontSize: 11,
+              color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.bioGold,
+                foregroundColor: Colors.black87,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.bolt_rounded, size: 16),
+              label: const Text(
+                "開啟 7 天免費試用 · 完整解鎖魚種戰術",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
+              },
             ),
           ),
         ],

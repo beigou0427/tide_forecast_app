@@ -6,21 +6,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/catch_log_model.dart';
+import '../../../core/utils/constants.dart';
+import '../../premium/services/premium_service.dart';
 
 final catchLogProvider = StateNotifierProvider<CatchLogNotifier, List<CatchLogItem>>((ref) {
-  return CatchLogNotifier();
+  return CatchLogNotifier(ref);
 });
 
 class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   static const String _storageKey = "catch_logs_v1";
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final Ref ref;
   
   SharedPreferences? _prefs;
   String _deviceId = "unknown_device";
   Timer? _diskFlushTimer;
 
-  CatchLogNotifier() : super([]) {
+  CatchLogNotifier(this.ref) : super([]) {
     _initSync();
   }
 
@@ -49,7 +52,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
     }
   }
 
-  // 同步調用磁碟寫入，避免異步落盤在生命週期結束時被腰斬
   void _flushToDisk() {
     if (_prefs == null) return;
     try {
@@ -78,6 +80,9 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
           .get();
       final cloudLogs = snapshot.docs.map((doc) => CatchLogItem.fromMap(doc.data())).toList();
 
+      final isPro = ref.read(premiumProvider).isPremium;
+      int cloudPhotosCount = cloudLogs.where((e) => e.imageUrl != null).length;
+
       final cloudIds = cloudLogs.map((e) => e.id).toSet();
       for (final localItem in state) {
         if (!cloudIds.contains(localItem.id)) {
@@ -89,8 +94,12 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
               .set(localItem.toMap());
         }
         
+        // 🌟 Ruth Porat 單位經濟學防禦：免費用戶限制雲端相簿 5 張上限
         if (localItem.imagePath != null && localItem.imageUrl == null) {
-          await _uploadImageAndSync(localItem);
+          if (isPro || cloudPhotosCount < AppConstants.maxFreeCloudCatchLogs) {
+            await _uploadImageAndSync(localItem);
+            cloudPhotosCount++;
+          }
         }
       }
 
@@ -127,8 +136,9 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
           .collection('catch_logs')
           .doc(item.id)
           .set(item.toMap());
+          
       if (item.imagePath != null && item.imageUrl == null) {
-        _uploadImageAndSync(item);
+        await _uploadImageAndSync(item);
       }
     } catch (e) {
       debugPrint("⚠️ [Firestore] 日誌上傳失敗: $e");
@@ -137,6 +147,15 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
 
   Future<void> _uploadImageAndSync(CatchLogItem item) async {
     try {
+      final isPro = ref.read(premiumProvider).isPremium;
+      final currentCloudPhotos = state.where((e) => e.imageUrl != null && e.imageUrl!.isNotEmpty).length;
+
+      // 🌟 Ruth Porat 成本邊界守衛：免費用戶超過 5 張停止上傳雲端，照片安全保留於本機沙盒
+      if (!isPro && currentCloudPhotos >= AppConstants.maxFreeCloudCatchLogs) {
+        debugPrint("🛡️ [Ruth Porat COGS防線] 免費用戶雲端相簿已達上限 (${AppConstants.maxFreeCloudCatchLogs} 張)，相片保留於本地沙盒，保護伺服器成本");
+        return;
+      }
+
       final file = File(item.imagePath!);
       if (!await file.exists()) return;
 
@@ -144,7 +163,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
       final uploadTask = await storageRef.putFile(file);
       final downloadUrl = await uploadTask.ref.getDownloadURL();
 
-      // 檢查此筆日誌是否在非同步上傳期間被用戶刪除
       final bool isStillAlive = state.any((e) => e.id == item.id);
       if (!isStillAlive) {
         debugPrint("🛡️ [防孤兒檔案] 用戶已在此期間刪除日誌，清理檔案");
@@ -154,7 +172,6 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
         return;
       }
 
-      // 原子化更新匹配的項目，避免覆蓋其他並行操作
       state = [
         for (final existing in state)
           if (existing.id == item.id)
@@ -217,7 +234,7 @@ class CatchLogNotifier extends StateNotifier<List<CatchLogItem>> {
   @override
   void dispose() {
     _diskFlushTimer?.cancel();
-    _flushToDisk(); // 銷毀時同步落盤，杜絕異步中斷
+    _flushToDisk();
     super.dispose();
   }
 }

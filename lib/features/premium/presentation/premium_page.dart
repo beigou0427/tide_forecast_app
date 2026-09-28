@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,7 +17,7 @@ class PremiumPage extends ConsumerStatefulWidget {
 }
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
-  // 🌟 預設選中具備 7 天免費試用的主力方案「年度指揮官 (Index 2)」
+  // 預設選中具備 7 天免費試用的主力 ARR 方案「年度指揮官計畫 (Index 2)」
   int _selectedTier = 2; 
   List<ProductDetails> _storeProducts = [];
 
@@ -158,7 +158,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "掌握全台 85 測站實時湧浪、30 天潮汐深度回測與 AI 漁獲窗口",
+                      "掌握全台 85 測站光纖直連、10x 魚種爆咬預警與無限雲端相簿",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13, height: 1.4),
                     ),
@@ -168,60 +168,61 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       _buildUnlockedCard(premiumState),
                       const SizedBox(height: 24),
                     ] else ...[
-                      // 🌟 1. 週費方案：NT$ 30 / 週 (衝動出海散客)
+                      // 1. 週費方案：NT$ 60 / 週 (單次衝刺體驗)
                       _buildTierCard(
                         index: 0,
-                        title: "週費衝刺版",
-                        price: "NT\$ 30",
+                        title: "週費體驗版",
+                        price: AppConstants.priceWeekly,
                         unit: " / 週",
-                        subDesc: "週末衝刺必備，換算年費需 NT\$ 1,560",
-                        badge: "週末散客",
+                        subDesc: "單次週末出海衝刺體驗",
+                        badge: "短期體驗",
                       ),
                       const SizedBox(height: 10),
 
-                      // 🌟 2. 月費方案：NT$ 60 / 月 (精準對齊 App Store 現有文案)
+                      // 2. 月費方案：NT$ 120 / 月 (季節釣汛首選)
                       _buildTierCard(
                         index: 1,
                         title: "月度專業版",
-                        price: "NT\$ 60",
+                        price: AppConstants.priceMonthly,
                         unit: " / 月",
-                        subDesc: "季節釣汛首選，換算年費需 NT\$ 720",
-                        badge: "釣汛首選",
+                        subDesc: "當季黑毛/軟絲釣汛首選，換算年費需 NT\$ 1,440",
+                        badge: "單月靈活",
                       ),
                       const SizedBox(height: 10),
 
-                      // 🌟 3. 年費方案：NT$ 550 / 年 (主力推薦，對齊商店文案＋7 天免費試用)
+                      // 3. 年費方案：NT$ 990 / 年 (Peter Thiel & Luca Maestri 主力 ARR 引擎)
                       _buildTierCard(
                         index: 2,
                         title: "年度指揮官計畫",
-                        price: "NT\$ 550",
+                        price: AppConstants.priceYearly,
                         unit: " / 年",
-                        subDesc: "每月僅約 NT\$ 45，現省 25%",
+                        subDesc: "主力推薦 · 每月僅約 NT\$ 82，現省 31%",
                         badge: "🔥 7天免費試用",
                         isHighlight: true,
                       ),
                       const SizedBox(height: 10),
 
-                      // 🌟 4. 終身方案：NT$ 1,490 / 永久 (核心硬核粉絲專屬)
+                      // 4. 終身方案：NT$ 2,990 / 永久 (高毛利創始席位)
                       _buildTierCard(
                         index: 3,
-                        title: "終身買斷席次",
-                        price: "NT\$ 1,490",
+                        title: "終身創始席次",
+                        price: AppConstants.priceLifetime,
                         unit: " / 永久",
-                        subDesc: "一次付費，終身享受全功能更新",
-                        badge: "⚡ 限量席位",
+                        subDesc: "限量 100 席 · 覆蓋 10 年物理 AI 高頻算力與更新",
+                        badge: "⚡ 創始天尊",
                         isGold: true,
                       ),
                       const SizedBox(height: 20),
                     ],
 
-                    _buildFeatureRow(Icons.bolt, "VIP 氣象署即時直連專線 (0 延遲刷新)"),
-                    _buildFeatureRow(Icons.auto_awesome, "Gemini Flash-Lite 老船長綜合海象推理"),
-                    _buildFeatureRow(Icons.history_toggle_off, "30 天完整風浪水溫回測與未來遠期預報"),
-                    _buildFeatureRow(Icons.notifications_active_outlined, "滿乾潮前 30 分鐘主動突發湧浪安全警示"),
+                    _buildFeatureRow(Icons.bolt_rounded, "85 測站光纖直連專線 (0 延遲刷新)"),
+                    _buildFeatureRow(Icons.phishing_rounded, "10x 標竿魚種 (黑毛/軟絲/紅甘/黑鯛) 水溫爆咬預警"),
+                    _buildFeatureRow(Icons.history_toggle_off_rounded, "30 天時間序列金庫與歷史天文調和回測"),
+                    _buildFeatureRow(Icons.cloud_upload_rounded, "突破 5 張上限：無限張數雲端高畫質相簿備份"),
+                    _buildFeatureRow(Icons.notifications_active_outlined, "滿潮前 30 分鐘主動突發長湧瘋狗浪警報"),
                     const SizedBox(height: 20),
 
-                    // 🌟 Apple Guideline 3.1.2 嚴格合規宣告 (完全吻合商店說明文字)
+                    // Apple Guideline 3.1.2 嚴格合規宣告
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -229,7 +230,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        "【訂閱與免費試用須知】\n我們為「年度指揮官計畫」提供 7 天免費試用期。確認購買或試用期結束時，費用將由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或 7 天試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
+                        "【訂閱與免費試用須知】\n我們為「年度指揮官計畫 (NT\$ 990 / 年)」提供 7 天免費試用期。確認購買或試用期結束時，費用將由您的 Apple ID 帳戶收取。訂閱會自動續訂，除非在當前計費週期（或 7 天試用期）結束前至少 24 小時關閉自動續訂。帳戶將在當前週期結束前 24 小時內收取續訂費用。購買後您可隨時至 App Store 帳號設定管理或取消訂閱。免費試用期任何未使用的部分，將在您購買該訂閱時作廢。",
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10, height: 1.4),
                       ),
                     ),
@@ -250,9 +251,10 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         Text("  •  ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
                         InkWell(
                           onTap: () async {
+                            final messenger = ScaffoldMessenger.of(context);
                             await ref.read(iapManagerProvider).restorePurchases();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已向 App Store 送出恢復購買請求")));
+                            if (mounted) {
+                              messenger.showSnackBar(const SnackBar(content: Text("已向 App Store 送出恢復購買請求")));
                             }
                           },
                           child: Text("恢復購買", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, decoration: TextDecoration.underline)),
@@ -291,14 +293,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          // 🌟 按鈕文案依選取項目動態切換
                           _selectedTier == 2 
-                              ? "開啟 7 天免費試用 (年費 NT\$ 550)"
+                              ? "開啟 7 天免費試用 (年費 ${AppConstants.priceYearly})"
                               : (_selectedTier == 3 
-                                  ? "搶購終身創始席次 (NT\$ 1,490)" 
+                                  ? "搶購終身創始席次 (${AppConstants.priceLifetime})" 
                                   : (_selectedTier == 1 
-                                      ? "立即訂閱月度版 (NT\$ 60 / 月)" 
-                                      : "開啟週度體驗 (NT\$ 30 / 週)")),
+                                      ? "立即訂閱月度版 (${AppConstants.priceMonthly} / 月)" 
+                                      : "開啟週度體驗 (${AppConstants.priceWeekly} / 週)")),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
                       ),

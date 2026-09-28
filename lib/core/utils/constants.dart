@@ -1,4 +1,4 @@
-import 'security_util.dart';
+﻿import 'security_util.dart';
 
 class StationModel {
   final String id;
@@ -21,7 +21,7 @@ class StationModel {
     this.agency = "中央氣象署",
   });
 
-  // 8 大基準口岸站免費，其餘 77 席深海/外礁站標註為 PRO 專屬
+  // 8 大基準口岸站免費開放，其餘 77 席深海/外礁站標註為 PRO 專屬
   bool get isProOnly => !AppConstants.freeStationIds.contains(id);
 
   factory StationModel.fromJson(Map<String, dynamic> json) {
@@ -47,12 +47,11 @@ class AppConstants {
   static const String dsObservation = "O-B0075-002";
   static const String dsForecast = "F-A0021-001";
   
-  // 🌟 App Store Connect 商品 ID 對齊
-  // (請在蘋果後台為 Monthly 與 Yearly 加上「推介優惠：7 天免費試用」)
-  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";     // 內部福利發送專用
-  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";   // 月度航海員 (含7天試用)
-  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";     // 年度指揮官 (含7天試用)
-  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime"; // 終身創始席次 (買斷無試用)
+  // 🌟 CFO 商業定價權矩陣 (Apple StoreKit Product IDs)
+  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";     // 內部福利/散客體驗 (NT$ 60 / 週)
+  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";   // 月度航海員 (NT$ 120 / 月)
+  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";     // 年度指揮官主力 (NT$ 990 / 年 · 含7天試用)
+  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime"; // 終身創始席次 (NT$ 2,990 / 永久買斷)
   
   static const Set<String> iapProductIds = {
     iapProWeekly,
@@ -60,6 +59,15 @@ class AppConstants {
     iapProYearly,
     iapProLifetime,
   };
+
+  // 🌟 Peter Thiel 實質定價常數 (供全域 UI 與付費牆顯示)
+  static const String priceWeekly = "NT\$ 60";
+  static const String priceMonthly = "NT\$ 120";
+  static const String priceYearly = "NT\$ 990";
+  static const String priceLifetime = "NT\$ 2,990";
+
+  // 🌟 Ruth Porat 單位經濟學防禦：免費用戶雲端相簿儲存上限 (超過需訂閱 PRO，防堵 COGS 膨脹)
+  static const int maxFreeCloudCatchLogs = 5;
 
   // 8 大免費體驗基準測站 (大港口岸)
   static const Set<String> freeStationIds = {

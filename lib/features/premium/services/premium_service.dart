@@ -57,13 +57,24 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       final prefs = await SharedPreferences.getInstance();
 
       final bool alreadyMigrated = prefs.getBool('has_migrated_founder') ?? false;
-      final bool oldIsPro = prefs.getBool('is_pro') ?? false;
+      bool isPro = prefs.getBool('is_pro') ?? false;
+      int typeIndex = prefs.getInt('sub_type') ?? 0;
+      bool isFounder = prefs.getBool('is_founder') ?? false;
 
-      if (!alreadyMigrated && oldIsPro) {
+      // 🌟 老闆英明決策：現行年度訂閱 (Yearly) 老客戶無痛直升「終身創始天尊指揮官」祖父條款
+      final bool isCurrentYearly = isPro && (typeIndex == SubscriptionType.yearly.index);
+      final bool isOldProUnmigrated = !alreadyMigrated && isPro;
+
+      if (isCurrentYearly || isOldProUnmigrated) {
+        isFounder = true;
+        isPro = true;
+        typeIndex = SubscriptionType.lifetime.index;
+        final founderExpiry = DateTime(2099, 12, 31);
+        
         await prefs.setBool('is_founder', true);
         await prefs.setBool('is_pro', true);
-        await prefs.setInt('sub_type', SubscriptionType.lifetime.index);
-        await prefs.setString('expiry_date', DateTime(2099, 12, 31).toIso8601String());
+        await prefs.setInt('sub_type', typeIndex);
+        await prefs.setString('expiry_date', founderExpiry.toIso8601String());
         await prefs.setBool('has_migrated_founder', true);
       }
 
@@ -83,14 +94,12 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
         }
       }
 
-      bool isPro = prefs.getBool('is_pro') ?? false;
-      int typeIndex = prefs.getInt('sub_type') ?? 0;
       final expiryStr = prefs.getString('expiry_date');
-      final isFounder = prefs.getBool('is_founder') ?? false;
       final coins = prefs.getInt('captain_coins') ?? 0;
 
       DateTime? expiryDate = expiryStr != null ? DateTime.tryParse(expiryStr) : null;
 
+      // 離線過期防禦（創始會員永久豁免降級）
       if (isPro && !isFounder && expiryDate != null) {
         if (now.isAfter(expiryDate)) {
           isPro = false;
@@ -170,16 +179,14 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     return false;
   }
 
-  // 🌟 Shishir Mehrotra 代幣經濟閉環：真正兌換 PRO 通行證天數
   Future<bool> redeemCoinsForProPass(int coins, int passDays) async {
-    if (state.isFounder) return false; // 終身會員無須兌換
+    if (state.isFounder) return false;
     if (state.coinBalance < coins) return false;
 
     final bool spent = await spendCoins(coins);
     if (!spent) return false;
 
     final now = DateTime.now();
-    // 智慧展期：若原本即為 PRO 且未過期，自當前到期日繼續累加天數
     final DateTime baseDate = (state.isPremium && state.expiryDate != null && state.expiryDate!.isAfter(now))
         ? state.expiryDate!
         : now;
