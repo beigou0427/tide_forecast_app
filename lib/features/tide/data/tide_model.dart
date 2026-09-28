@@ -1,10 +1,12 @@
 ﻿class TideStationData {
+  final int schemaVersion; // 🌟 Filippo Passerini 企業資料契約版本號 (Schema v2)
   final StationInfo info;
   final List<Observation> observations;
   final List<TideForecast> forecasts;
   final AIExpertBriefing? aiBriefing;
 
   TideStationData({
+    this.schemaVersion = 2,
     required this.info, 
     required this.observations, 
     this.forecasts = const [], 
@@ -12,15 +14,18 @@
   });
 
   factory TideStationData.fromEdgeJson(Map<String, dynamic> json) {
+    // 契約版本識別 (相容 v1 與 v2)
+    final int version = json['schema_version'] as int? ?? (json['version'] as int? ?? 1);
+
     final obsNode = (json['obs'] is Map) ? json['obs'] as Map<String, dynamic> : {};
     final stationInfoNode = (json['station_info'] is Map) ? json['station_info'] as Map<String, dynamic> : {};
 
     final Map<String, dynamic> mergedInfo = Map<String, dynamic>.from(obsNode['info'] ?? obsNode);
     if (stationInfoNode.isNotEmpty) {
-      mergedInfo['StationName'] = stationInfoNode['friendly_name'] ?? mergedInfo['StationName'];
+      mergedInfo['StationName'] = stationInfoNode['friendly_name'] ?? stationInfoNode['name'] ?? mergedInfo['StationName'];
       mergedInfo['lat'] = stationInfoNode['lat'] ?? mergedInfo['lat'];
       mergedInfo['lng'] = stationInfoNode['lng'] ?? mergedInfo['lng'];
-      mergedInfo['attr'] = stationInfoNode['station_type'] ?? mergedInfo['attr'];
+      mergedInfo['attr'] = stationInfoNode['station_type'] ?? stationInfoNode['attr'] ?? mergedInfo['attr'];
       mergedInfo['CountyName'] = stationInfoNode['region'] ?? mergedInfo['CountyName'];
     }
 
@@ -31,11 +36,14 @@
       obsRaw = obsNode['StationObsTimes'];
     } else if (obsNode['Observation'] is List) {
       obsRaw = obsNode['Observation'];
+    } else if (json['observations'] is List) {
+      obsRaw = json['observations'] as List;
     }
 
     final List forecastRaw = json['forecasts'] as List? ?? obsNode['forecasts'] as List? ?? [];
 
     return TideStationData(
+      schemaVersion: version,
       info: StationInfo.fromMap(mergedInfo),
       observations: obsRaw.map((i) => Observation.fromProxy(i as Map<String, dynamic>)).toList(),
       forecasts: forecastRaw.map((f) => TideForecast.fromOfficial(f as Map<String, dynamic>)).toList(), 
@@ -47,7 +55,7 @@
 class AIExpertBriefing {
   final String briefing;
   final int safetyScore;
-  final double? waveEnergyFlux; // 🌟 工業級波能通量動能 (kW/m)
+  final double? waveEnergyFlux;
   final List<String> activities;
 
   AIExpertBriefing({
@@ -58,7 +66,8 @@ class AIExpertBriefing {
   });
 
   factory AIExpertBriefing.fromMap(Map<String, dynamic> map) {
-    final rawScore = map['safety_score'];
+    // 資料契約相容：支援 safety_score 與 hazard_index 雙重欄位
+    final rawScore = map['safety_score'] ?? map['safetyScore'] ?? map['hazard_index'];
     int parsedScore = 80;
     if (rawScore is num) {
       parsedScore = rawScore.toInt().clamp(0, 100);
@@ -66,7 +75,7 @@ class AIExpertBriefing {
       parsedScore = (int.tryParse(rawScore.toString()) ?? 80).clamp(0, 100);
     }
 
-    final rawFlux = map['wave_energy_flux'];
+    final rawFlux = map['wave_energy_flux'] ?? map['waveEnergyFlux'] ?? map['energy_flux'];
     double? parsedFlux;
     if (rawFlux is num) {
       parsedFlux = rawFlux.toDouble();
@@ -75,10 +84,10 @@ class AIExpertBriefing {
     }
 
     return AIExpertBriefing(
-      briefing: map['briefing']?.toString() ?? "海象平穩，注意防曬與補水。",
+      briefing: (map['briefing'] ?? map['advice'] ?? "海象平穩，注意防曬與補水。").toString(),
       safetyScore: parsedScore,
       waveEnergyFlux: parsedFlux,
-      activities: List<String>.from(map['activities'] ?? []),
+      activities: List<String>.from(map['activities'] ?? map['suggested_activities'] ?? []),
     );
   }
 }
@@ -110,9 +119,9 @@ class StationInfo {
     final String finalLng = isLngValid ? parsedLngNum.toString() : '121.926';
 
     return StationInfo(
-      stationName: json['friendly_name'] ?? json['StationName'] ?? json['Station']?['StationID'] ?? '未知測站',
-      countyName: json['CountyName'] ?? '',
-      townName: json['TownName'] ?? '',
+      stationName: json['friendly_name'] ?? json['name'] ?? json['StationName'] ?? json['Station']?['StationID'] ?? '未知測站',
+      countyName: json['CountyName'] ?? json['county'] ?? '',
+      townName: json['TownName'] ?? json['town'] ?? '',
       lat: finalLat,
       lng: finalLng,
       attr: json['station_type'] ?? json['attr'] ?? json['StationAttribute'] ?? '一般測站',
@@ -133,7 +142,7 @@ class Observation {
     this.waveHeight, 
     this.windSpeed,
     this.wavePeriod, 
-    this.waveEnergyFlux, // 🌟 專利波能通量物理指標
+    this.waveEnergyFlux, 
     this.seaTemperature, 
     this.currentSpeed, 
     this.windDirection, 
@@ -147,28 +156,29 @@ class Observation {
     final wave = json['Wave'] ?? {};
     final anemometer = e['PrimaryAnemometer'] ?? {};
 
-    final parsedWaveH = _n(e['WaveHeight'] ?? wave['WaveHeight']);
-    final parsedWaveP = _n(e['WavePeriod'] ?? wave['WavePeriod']);
+    // 契約向下相容解析：支援大寫、小寫與巢狀物件
+    final parsedWaveH = _n(json['wave_height'] ?? e['WaveHeight'] ?? wave['WaveHeight']);
+    final parsedWaveP = _n(json['wave_period'] ?? e['WavePeriod'] ?? wave['WavePeriod']);
 
-    // 🌟 Jensen Huang 物理引擎前端備援：P ≈ 0.49 * H^2 * T
-    double? flux = _n(json['wave_energy_flux'] ?? wave['WaveEnergyFlux'] ?? e['WaveEnergyFlux']);
+    // 專利波能通量多版本相容：P ≈ 0.49 * H^2 * T
+    double? flux = _n(json['wave_energy_flux'] ?? json['energy_flux'] ?? wave['WaveEnergyFlux'] ?? e['WaveEnergyFlux']);
     if (flux == null && parsedWaveH != null && parsedWaveP != null) {
       flux = double.parse((0.49 * (parsedWaveH * parsedWaveH) * parsedWaveP).toStringAsFixed(2));
     }
 
     return Observation(
-      dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? DateTime.now().toIso8601String()),
-      tideHeight: _n(e['TideHeight'] ?? tide['TideHeight']),
-      tideLevel: (e['TideLevel'] ?? tide['TideLevel'])?.toString(),
+      dateTime: DateTime.parse(json['DateTime'] ?? json['DataTime'] ?? json['timestamp'] ?? DateTime.now().toIso8601String()),
+      tideHeight: _n(json['tide_height'] ?? e['TideHeight'] ?? tide['TideHeight']),
+      tideLevel: (json['tide_level'] ?? e['TideLevel'] ?? tide['TideLevel'])?.toString(),
       waveHeight: parsedWaveH,
-      windSpeed: _n(e['WindSpeed'] ?? json['WindSpeed'] ?? anemometer['WindSpeed']),
+      windSpeed: _n(json['wind_speed'] ?? e['WindSpeed'] ?? json['WindSpeed'] ?? anemometer['WindSpeed']),
       wavePeriod: parsedWaveP,
       waveEnergyFlux: flux,
-      seaTemperature: _n(e['SeaTemperature'] ?? json['SeaTemperature']),
-      currentSpeed: _n(e['CurrentSpeed'] ?? json['CurrentSpeed']),
-      windDirection: _n(e['WindDirection'] ?? json['WindDirection'] ?? anemometer['WindDirection']),
-      airTemperature: _n(e['AirTemperature'] ?? e['Temperature']),
-      airPressure: _n(e['AirPressure'] ?? e['StationPressure']),
+      seaTemperature: _n(json['sea_temp'] ?? e['SeaTemperature'] ?? json['SeaTemperature']),
+      currentSpeed: _n(json['current_speed'] ?? e['CurrentSpeed'] ?? json['CurrentSpeed']),
+      windDirection: _n(json['wind_direction'] ?? e['WindDirection'] ?? json['WindDirection'] ?? anemometer['WindDirection']),
+      airTemperature: _n(json['air_temp'] ?? e['AirTemperature'] ?? e['Temperature']),
+      airPressure: _n(json['air_pressure'] ?? e['AirPressure'] ?? e['StationPressure']),
     );
   }
 
@@ -201,9 +211,9 @@ class TideForecast {
   factory TideForecast.fromOfficial(Map<String, dynamic> json) {
     final heights = json['TideHeights'] ?? {};
     return TideForecast(
-      dateTime: DateTime.parse(json['DateTime'] ?? json['dateTime'] ?? DateTime.now().toIso8601String()),
+      dateTime: DateTime.parse(json['DateTime'] ?? json['dateTime'] ?? json['time'] ?? DateTime.now().toIso8601String()),
       tideType: json['Tide']?.toString() ?? json['tideType']?.toString() ?? '',
-      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? json['tideHeight'] ?? '--').toString(),
+      tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? json['tideHeight'] ?? json['height'] ?? '--').toString(),
     );
   }
 }

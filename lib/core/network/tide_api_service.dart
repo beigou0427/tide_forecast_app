@@ -47,7 +47,7 @@ class CircuitBreaker {
         debugPrint("⚡ [SRE 斷路器:$name] 進入 Half-Open 探針試驗狀態");
         return true;
       }
-      return false; // 0ms 立即熔斷，保護伺服器與手機電力
+      return false;
     }
     return true;
   }
@@ -75,18 +75,22 @@ class CircuitBreaker {
   }
 }
 
-/// Apple 首席架構：零掉幀異步水文數據服務 (Zero-Jank Oceanic API Service)
+/// Dawn Cappelli 企業級資訊治理架構：去影子 IT、多節點容災轉移水文服務
 class TideApiService {
-  static const String _edgeUrl = "https://beigou0427.github.io/tide_forecast_app";
+  // 🌟 Dawn Cappelli 企業級多節點容災叢集 (去個人單點相依性)
+  static const List<String> _edgeNodes = [
+    "https://beigou0427.github.io/tide_forecast_app", // 主要邊緣節點
+    "https://tide-pro-enterprise.github.io/tide_forecast_app", // 企業組織級備援叢集
+  ];
+
   static const String _cachePrefix = "tide_offline_cache_";
   static const String _sigPrefix = "tide_cache_sig_";
   static const String _archivePrefix = "tide_archive_cache_";
 
-  // 全域 SRE 斷路器執行個體
-  static final CircuitBreaker _edgeBreaker = CircuitBreaker(name: "EdgeCDN", failureThreshold: 3);
+  static final CircuitBreaker _edgeBreaker = CircuitBreaker(name: "MultiEdgeCDN", failureThreshold: 3);
   static final CircuitBreaker _cwaBreaker = CircuitBreaker(name: "CwaOfficial", failureThreshold: 3);
 
-  /// 1. 熱資料快照獲取（首頁秒開：約 10 KB）
+  /// 1. 熱資料快照獲取（支援多節點自動故障轉移 Failover）
   Future<TideStationData> fetchData(String stationId, {bool isPremium = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -107,37 +111,45 @@ class TideApiService {
 
     Map<String, dynamic> edgeJson = {};
 
+    // 🌟 多節點輪詢容災轉移 (Failover Pipeline)
     if (_edgeBreaker.canExecute()) {
-      try {
-        final t = DateTime.now().millisecondsSinceEpoch;
-        final edgeUri = Uri.parse("$_edgeUrl/edge_$stationId.json?t=$t");
+      for (final nodeBase in _edgeNodes) {
+        try {
+          final t = DateTime.now().millisecondsSinceEpoch;
+          final edgeUri = Uri.parse("$nodeBase/edge_$stationId.json?t=$t");
 
-        if (!SecurityUtil.isAuthorizedHost(edgeUri)) {
-          throw SecurityException("未授權之伺服器網域請求: ${edgeUri.host}");
-        }
+          if (!SecurityUtil.isAuthorizedHost(edgeUri)) {
+            debugPrint("⚠️ [資安警告] 跳過未授權網域: ${edgeUri.host}");
+            continue;
+          }
 
-        debugPrint("📡 [TideApi] 正在以專線抓取極輕量熱快照 (10KB) -> $edgeUri");
-        final edgeResponse = await http.get(edgeUri).timeout(const Duration(milliseconds: 3500));
-        
-        if (edgeResponse.statusCode == 200) {
-          _edgeBreaker.recordSuccess();
-          edgeJson = await compute(_parseAndDecodeJson, edgeResponse.body);
+          debugPrint("📡 [TideApi] 正在向邊緣節點請求水文快照 -> $edgeUri");
+          final edgeResponse = await http.get(edgeUri).timeout(const Duration(milliseconds: 3000));
           
-          final rawBody = jsonEncode(edgeJson);
-          final signature = SecurityUtil.generateTamperProofSignature('cache_$stationId', rawBody);
-          await prefs.setString('$_cachePrefix$stationId', rawBody);
-          await prefs.setString('$_sigPrefix$stationId', signature);
-        } else {
-          _edgeBreaker.recordFailure();
-          edgeJson = localCacheJson;
+          if (edgeResponse.statusCode == 200) {
+            _edgeBreaker.recordSuccess();
+            edgeJson = await compute(_parseAndDecodeJson, edgeResponse.body);
+            
+            // 寫入本地快取並更新簽章
+            final rawBody = jsonEncode(edgeJson);
+            final signature = SecurityUtil.generateTamperProofSignature('cache_$stationId', rawBody);
+            await prefs.setString('$_cachePrefix$stationId', rawBody);
+            await prefs.setString('$_sigPrefix$stationId', signature);
+            break; // 連線成功，終止節點輪詢
+          } else {
+            debugPrint("⚠️ [節點回應異常] HTTP ${edgeResponse.statusCode}，嘗試備援節點...");
+          }
+        } catch (nodeErr) {
+          debugPrint("⚠️ [節點轉移探測] 節點 $nodeBase 連線受阻 ($nodeErr)，切換次要節點...");
         }
-      } catch (edgeError) {
+      }
+
+      if (edgeJson.isEmpty) {
         _edgeBreaker.recordFailure();
-        debugPrint("⚠️ [TideApi] 邊緣節點連線異常 ($edgeError)，平滑啟動本地快取防禦！");
         edgeJson = localCacheJson;
       }
     } else {
-      debugPrint("🛡️ [SRE 斷路器生效] EdgeCDN 處於熔斷保護期，0ms 極速切換本地快取！");
+      debugPrint("🛡️ [SRE 斷路器生效] 邊緣叢集處於熔斷保護期，0ms 極速切換本地快取！");
       edgeJson = localCacheJson;
     }
 
@@ -192,6 +204,7 @@ class TideApiService {
             mergedObs['region'] = stationInfo['region'] ?? edgeObs['region'] ?? "北部";
 
             final mergedJson = {
+              "schema_version": 2, // 企業契約 Schema v2
               "obs": mergedObs,
               "station_info": stationInfo,
               "forecasts": edgeJson['forecasts'] ?? localCacheJson['forecasts'] ?? [],
@@ -231,7 +244,7 @@ class TideApiService {
     throw Exception("外海訊號微弱且無離線快取，請移至收訊良好處重試。");
   }
 
-  /// 🌟 2. Werner Vogels 冷歷史時間序列「按需非同步懶加載」（約 250 KB）
+  /// 2. 冷歷史時間序列「多節點容災懶加載」
   Future<List<Observation>> fetchArchiveObservations(String stationId) async {
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = "$_archivePrefix$stationId";
@@ -239,28 +252,28 @@ class TideApiService {
 
     Map<String, dynamic> archiveJson = {};
 
-    try {
-      final t = DateTime.now().millisecondsSinceEpoch;
-      final archiveUri = Uri.parse("$_edgeUrl/archive_$stationId.json?t=$t");
+    for (final nodeBase in _edgeNodes) {
+      try {
+        final t = DateTime.now().millisecondsSinceEpoch;
+        final archiveUri = Uri.parse("$nodeBase/archive_$stationId.json?t=$t");
 
-      if (!SecurityUtil.isAuthorizedHost(archiveUri)) {
-        throw SecurityException("未授權之伺服器網域: ${archiveUri.host}");
-      }
+        if (!SecurityUtil.isAuthorizedHost(archiveUri)) {
+          continue;
+        }
 
-      debugPrint("📦 [TideApi:冷存儲] 按需非同步拉取 30 天歷史數據 -> $archiveUri");
-      final res = await http.get(archiveUri).timeout(const Duration(milliseconds: 4000));
-      
-      if (res.statusCode == 200) {
-        archiveJson = await compute(_parseAndDecodeJson, res.body);
-        await prefs.setString(cacheKey, res.body);
-      } else if (cachedStr != null && cachedStr.isNotEmpty) {
-        archiveJson = await compute(_parseAndDecodeJson, cachedStr);
-      }
-    } catch (e) {
-      debugPrint("⚠️ [TideApi] 冷歷史時間序列連線逾時 ($e)，回退至本機歷史快取");
-      if (cachedStr != null && cachedStr.isNotEmpty) {
-        archiveJson = await compute(_parseAndDecodeJson, cachedStr);
-      }
+        debugPrint("📦 [TideApi:冷存儲] 透過容災叢集拉取 30 天歷史數據 -> $archiveUri");
+        final res = await http.get(archiveUri).timeout(const Duration(milliseconds: 3500));
+        
+        if (res.statusCode == 200) {
+          archiveJson = await compute(_parseAndDecodeJson, res.body);
+          await prefs.setString(cacheKey, res.body);
+          break; // 成功獲取冷存儲資料，跳出備援輪詢
+        }
+      } catch (_) {}
+    }
+
+    if (archiveJson.isEmpty && cachedStr != null && cachedStr.isNotEmpty) {
+      archiveJson = await compute(_parseAndDecodeJson, cachedStr);
     }
 
     final rawObs = archiveJson['observations'] as List? ?? [];

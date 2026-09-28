@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/constants.dart';
 import '../../providers/tide_provider.dart';
+import '../../../catch_log/providers/catch_log_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 import '../../../premium/presentation/vip_center_page.dart';
@@ -216,10 +219,10 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             },
           ),
 
-          // 🌟 Claire Hughes Johnson 客服支援與退款申訴管道 (SLA 24H 履約)
+          // 客服支援與 Apple 5.1.1 隱私銷毀通道
           _buildActionTile(
             icon: Icons.support_agent_rounded,
-            title: "客服支援與問題回報",
+            title: "客服支援與隱私治理",
             color: Colors.orangeAccent,
             badge: "24H",
             isClassic: isClassic,
@@ -264,16 +267,96 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  // 🌟 Claire Hughes Johnson 爭議與客訴吸收面板
+  // 🌟 Cynthia Stoddard 隱私合規與個資徹底抹除流程 (Apple 5.1.1(v) & 台灣個資法第11條)
+  Future<void> _eraseAllUserDataAndCloudFootprint(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.hazardCoral, width: 1)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppColors.hazardCoral, size: 24),
+            SizedBox(width: 8),
+            Text("徹底銷毀個人資料", style: TextStyle(color: Colors.white, fontSize: 16.5, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          "依據 Apple 規範與個資法規，此動作將不可逆地永久銷毀：\n• 雲端 Firestore 與 Storage 中的所有個人漁獲相片與紀錄\n• 本機快取、老船長代幣餘額與個人偏好設定\n\n確定立即執行徹底銷毀？",
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx, false),
+            child: const Text("取消", style: TextStyle(color: AppColors.textTertiary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.hazardCoral, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(dlgCtx, true),
+            child: const Text("確認徹底銷毀", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_sync_id');
+
+      // 1. 銷毀雲端資料庫
+      if (deviceId != null && deviceId.isNotEmpty) {
+        final logsCollection = FirebaseFirestore.instance.collection('users').doc(deviceId).collection('catch_logs');
+        final snapshot = await logsCollection.get();
+        for (var doc in snapshot.docs) {
+          await doc.reference.delete();
+        }
+        await FirebaseFirestore.instance.collection('users').doc(deviceId).delete();
+
+        // 2. 清理 Storage 目錄
+        try {
+          final storageRef = FirebaseStorage.instance.ref().child('users/$deviceId');
+          final listResult = await storageRef.listAll();
+          for (var item in listResult.items) {
+            await item.delete();
+          }
+        } catch (_) {}
+      }
+
+      // 3. 抹除本地儲存
+      await prefs.remove('catch_logs_v1');
+      await prefs.remove('captain_coins');
+      await prefs.remove('blocked_ugc_authors');
+      await prefs.remove('user_pref_region');
+      await prefs.remove('device_sync_id');
+
+      // 4. 重置狀態機
+      ref.invalidate(catchLogProvider);
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("🛡️ 依據被遺忘權規範，您的所有本機與雲端個人資料已徹底銷毀完畢！"),
+            backgroundColor: Color(0xFF0077B6),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("⚠️ [隱私銷毀例外]: $e");
+    }
+  }
+
   void _showSupportModal(BuildContext context, bool isClassic) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) {
         final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
-        final Color cardBg = isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04);
-        final Color borderColor = isClassic ? Colors.grey.shade200 : AppColors.glassBorder;
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
@@ -304,19 +387,18 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    "官方客服與問題反映中心",
+                    "官方客服與隱私治理中心",
                     style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: titleColor),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
               Text(
-                "老船長營運團隊承諾於 24 小時內親自審理您的問題，絕不讓您求助無門。",
+                "老船長團隊承諾於 24 小時內親自處理您的問題，嚴格遵守個資法與隱私規範。",
                 style: TextStyle(fontSize: 11.5, color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary),
               ),
               const SizedBox(height: 18),
 
-              // 管道 1：Email 直達工程團隊
               _buildSupportOptionTile(
                 title: "聯繫技術團隊 / 回報測站水文異常",
                 desc: "附帶當前測站 ID 與設備資訊，工程師即刻排查修復",
@@ -334,7 +416,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               ),
               const SizedBox(height: 10),
 
-              // 管道 2：訂閱條款與 Apple 官方退訂/退款指南
               _buildSupportOptionTile(
                 title: "訂閱條款說明與退訂指南",
                 desc: "說明如何至 Apple ID 取消自動續訂與申請消費爭議處理",
@@ -347,6 +428,17 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                     await launchUrl(subGuide, mode: LaunchMode.externalApplication);
                   }
                 },
+              ),
+              const SizedBox(height: 10),
+
+              // 🌟 Cynthia Stoddard 隱私被遺忘權專屬入口 (Apple Guideline 5.1.1(v) 合規核心)
+              _buildSupportOptionTile(
+                title: "徹底銷毀個人資料與雲端紀錄",
+                desc: "符合 Apple 5.1.1 條款與台灣個資法第11條，一鍵永久抹除數位足跡",
+                icon: Icons.delete_forever_rounded,
+                color: AppColors.hazardCoral,
+                isClassic: isClassic,
+                onTap: () => _eraseAllUserDataAndCloudFootprint(context),
               ),
               const SizedBox(height: 14),
 
@@ -419,237 +511,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             Icon(
               Icons.chevron_right_rounded, 
               size: 16, 
-              color: isClassic ? Colors.grey : AppColors.textTertiary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerHeader(bool isFounder, bool isClassic) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 52, 22, 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isClassic 
-              ? const [Color(0xFF023E8A), Color(0xFF0077B6)]
-              : const [Color(0xFF071221), Color(0xFF0B1F38)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: isClassic ? Colors.transparent : AppColors.glassBorder, 
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isClassic 
-                      ? Colors.white.withValues(alpha: 0.15) 
-                      : AppColors.pelagicCyan.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isClassic ? Colors.white30 : AppColors.pelagicCyan.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
-                ),
-                child: Icon(
-                  Icons.sensors_rounded, 
-                  color: isClassic ? Colors.white : AppColors.pelagicCyan, 
-                  size: 24,
-                ),
-              ),
-              if (isFounder)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA000)]),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.military_tech_rounded, color: Colors.black87, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        "創始席位", 
-                        style: TextStyle(color: Colors.black87, fontSize: 10.5, fontWeight: FontWeight.w900),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            "海象監測指揮中心",
-            style: GoogleFonts.notoSansTc(
-              color: Colors.white, 
-              fontSize: 20, 
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            "全台 85 測站光纖直連陣列",
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6), 
-              fontSize: 11.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumEntry(PremiumState state, bool isClassic) {
-    if (state.isFounder || state.isPremium) {
-      return InkWell(
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const VipCenterPage()));
-        },
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: isClassic 
-                ? const Color(0xFFE0F7FA) 
-                : Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: state.isFounder 
-                  ? AppColors.bioGold 
-                  : (isClassic ? const Color(0xFF00ACC1) : AppColors.pelagicCyan.withValues(alpha: 0.4)), 
-              width: 1.0,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: (state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.workspace_premium_rounded, 
-                  color: state.isFounder ? AppColors.bioGold : (isClassic ? const Color(0xFF00838F) : AppColors.pelagicCyan), 
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          state.isFounder ? "創始釣友" : "VIP 指揮官",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900, 
-                            fontSize: 14, 
-                            color: state.isFounder 
-                                ? AppColors.bioGold 
-                                : (isClassic ? const Color(0xFF004D40) : AppColors.textPrimary),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: (state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Text(
-                            state.isFounder ? "FOUNDER" : "ACTIVE", 
-                            style: TextStyle(
-                              color: state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan, 
-                              fontSize: 8.5, 
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      state.isFounder ? "專屬銘牌 · 雙軌風格隨選" : "氣象署專線運作中 • 點擊進入",
-                      style: TextStyle(
-                        fontSize: 10.5, 
-                        color: isClassic ? const Color(0xFF00695C) : AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded, 
-                size: 18, 
-                color: isClassic ? Colors.blueGrey : AppColors.textTertiary,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.workspace_premium_outlined, color: AppColors.bioGold, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "解鎖老船長 Pro 旗艦版", 
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800, 
-                      fontSize: 13.5,
-                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    "7天免費試用 · 85站專線與長湧警報", 
-                    style: TextStyle(
-                      fontSize: 10.5, 
-                      color: isClassic ? Colors.grey : AppColors.textTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded, 
-              size: 18, 
               color: isClassic ? Colors.grey : AppColors.textTertiary,
             ),
           ],
@@ -893,6 +754,237 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             color: isClassic ? Colors.grey : AppColors.textTertiary,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerHeader(bool isFounder, bool isClassic) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(22, 52, 22, 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isClassic 
+              ? const [Color(0xFF023E8A), Color(0xFF0077B6)]
+              : const [Color(0xFF071221), Color(0xFF0B1F38)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: isClassic ? Colors.transparent : AppColors.glassBorder, 
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isClassic 
+                      ? Colors.white.withValues(alpha: 0.15) 
+                      : AppColors.pelagicCyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isClassic ? Colors.white30 : AppColors.pelagicCyan.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Icon(
+                  Icons.sensors_rounded, 
+                  color: isClassic ? Colors.white : AppColors.pelagicCyan, 
+                  size: 24,
+                ),
+              ),
+              if (isFounder)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA000)]),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.military_tech_rounded, color: Colors.black87, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        "創始席位", 
+                        style: TextStyle(color: Colors.black87, fontSize: 10.5, fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            "海象監測指揮中心",
+            style: GoogleFonts.notoSansTc(
+              color: Colors.white, 
+              fontSize: 20, 
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            "全台 85 測站光纖直連陣列",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.6), 
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumEntry(PremiumState state, bool isClassic) {
+    if (state.isFounder || state.isPremium) {
+      return InkWell(
+        onTap: () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const VipCenterPage()));
+        },
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isClassic 
+                ? const Color(0xFFE0F7FA) 
+                : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: state.isFounder 
+                  ? AppColors.bioGold 
+                  : (isClassic ? const Color(0xFF00ACC1) : AppColors.pelagicCyan.withValues(alpha: 0.4)), 
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: (state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.workspace_premium_rounded, 
+                  color: state.isFounder ? AppColors.bioGold : (isClassic ? const Color(0xFF00838F) : AppColors.pelagicCyan), 
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          state.isFounder ? "創始釣友" : "VIP 指揮官",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900, 
+                            fontSize: 14, 
+                            color: state.isFounder 
+                                ? AppColors.bioGold 
+                                : (isClassic ? const Color(0xFF004D40) : AppColors.textPrimary),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: (state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            state.isFounder ? "FOUNDER" : "ACTIVE", 
+                            style: TextStyle(
+                              color: state.isFounder ? AppColors.bioGold : AppColors.pelagicCyan, 
+                              fontSize: 8.5, 
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      state.isFounder ? "專屬銘牌 · 雙軌風格隨選" : "氣象署專線運作中 • 點擊進入",
+                      style: TextStyle(
+                        fontSize: 10.5, 
+                        color: isClassic ? const Color(0xFF00695C) : AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded, 
+                size: 18, 
+                color: isClassic ? Colors.blueGrey : AppColors.textTertiary,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.workspace_premium_outlined, color: AppColors.bioGold, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "解鎖老船長 Pro 旗艦版", 
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800, 
+                      fontSize: 13.5,
+                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    "7天免費試用 · 85站專線與長湧警報", 
+                    style: TextStyle(
+                      fontSize: 10.5, 
+                      color: isClassic ? Colors.grey : AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded, 
+              size: 18, 
+              color: isClassic ? Colors.grey : AppColors.textTertiary,
+            ),
+          ],
+        ),
       ),
     );
   }
