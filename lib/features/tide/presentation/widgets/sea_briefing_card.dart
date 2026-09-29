@@ -1,11 +1,12 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 
-/// Don Norman 認知防錯與海事工程重塑：客觀水文作業許可階梯 (Operational Limits)
+/// Don Norman 認知防錯 + 招式三：出海許可階梯與官方海事特定活動險快速投保傳送門
 class SeaBriefingCard extends ConsumerWidget {
   final TideStationData station;
   final double? distance;
@@ -24,7 +25,6 @@ class SeaBriefingCard extends ConsumerWidget {
     final double waveP = obs?.wavePeriod ?? 0.0;
     final double windS = obs?.windSpeed ?? 0.0;
 
-    // 海事航空級客觀作業限制判定（杜絕綠色 GO 誘發認知懈怠）
     final bool isHalt = score < 40 || waveH >= 2.2 || (waveP >= 10.0 && waveH >= 0.7);
     final bool isAdvisory = !isHalt && (score < 70 || waveH > 1.2 || windS > 7.0);
 
@@ -47,7 +47,6 @@ class SeaBriefingCard extends ConsumerWidget {
       decisionAction = "潮位變換急促或風浪稍強，建議避開迎風迎浪面，僅限具備避風條件之安全標點。";
       decisionIcon = Icons.warning_amber_rounded;
     } else {
-      // 航空級專業冷靜藍（取代絕對綠色，保持警惕心智模型）
       decisionColor = isLight ? AppColors.marineBlue : AppColors.pelagicCyan;
       decisionBadge = "OPERATIONAL";
       decisionTitle = "常態水文許可 · 仍須安全戒備";
@@ -112,7 +111,6 @@ class SeaBriefingCard extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
 
-              // 語音晨報按鈕
               InkWell(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -158,7 +156,7 @@ class SeaBriefingCard extends ConsumerWidget {
 
           const SizedBox(height: 14),
 
-          // 2. 🌟 Don Norman 海事級客觀作業許可看板（杜絕虛假安全感）
+          // 2. 出海作業許可看板
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -196,7 +194,7 @@ class SeaBriefingCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: decisionColor,
-                                fontSize: 14,
+                                fontSize: 14.5,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.2,
                               ),
@@ -229,6 +227,70 @@ class SeaBriefingCard extends ConsumerWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // 🌟 招式三：產險官方線上投保通道 (富邦/國泰特定活動險即時傳送門)
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _launchInsurancePortal();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: isLight ? Colors.blue.shade50 : Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isLight ? Colors.blue.shade200 : AppColors.pelagicCyan.withValues(alpha: 0.25),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.security_rounded, 
+                    size: 16, 
+                    color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "出海前 5 分鐘快速投保 · 官方海釣特定活動險",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          "富邦 / 國泰產險線上即時出單，防範外礁意外風險 ➔",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isLight ? Colors.blueGrey.shade600 : AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded, 
+                    size: 11, 
+                    color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -287,5 +349,12 @@ class SeaBriefingCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _launchInsurancePortal() async {
+    final Uri url = Uri.parse("https://www.fubon.com/insurance/b2c/content/water_activity/index.html");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
 }

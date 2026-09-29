@@ -1,5 +1,5 @@
 ﻿class TideStationData {
-  final int schemaVersion; // 🌟 Filippo Passerini 企業資料契約版本號 (Schema v2)
+  final int schemaVersion;
   final StationInfo info;
   final List<Observation> observations;
   final List<TideForecast> forecasts;
@@ -14,7 +14,6 @@
   });
 
   factory TideStationData.fromEdgeJson(Map<String, dynamic> json) {
-    // 契約版本識別 (相容 v1 與 v2)
     final int version = json['schema_version'] as int? ?? (json['version'] as int? ?? 1);
 
     final obsNode = (json['obs'] is Map) ? json['obs'] as Map<String, dynamic> : {};
@@ -66,7 +65,6 @@ class AIExpertBriefing {
   });
 
   factory AIExpertBriefing.fromMap(Map<String, dynamic> map) {
-    // 資料契約相容：支援 safety_score 與 hazard_index 雙重欄位
     final rawScore = map['safety_score'] ?? map['safetyScore'] ?? map['hazard_index'];
     int parsedScore = 80;
     if (rawScore is num) {
@@ -156,11 +154,9 @@ class Observation {
     final wave = json['Wave'] ?? {};
     final anemometer = e['PrimaryAnemometer'] ?? {};
 
-    // 契約向下相容解析：支援大寫、小寫與巢狀物件
     final parsedWaveH = _n(json['wave_height'] ?? e['WaveHeight'] ?? wave['WaveHeight']);
     final parsedWaveP = _n(json['wave_period'] ?? e['WavePeriod'] ?? wave['WavePeriod']);
 
-    // 專利波能通量多版本相容：P ≈ 0.49 * H^2 * T
     double? flux = _n(json['wave_energy_flux'] ?? json['energy_flux'] ?? wave['WaveEnergyFlux'] ?? e['WaveEnergyFlux']);
     if (flux == null && parsedWaveH != null && parsedWaveP != null) {
       flux = double.parse((0.49 * (parsedWaveH * parsedWaveH) * parsedWaveP).toStringAsFixed(2));
@@ -216,4 +212,49 @@ class TideForecast {
       tideHeight: (heights['AboveLocalMSL'] ?? heights['AboveTWVD'] ?? json['tideHeight'] ?? json['height'] ?? '--').toString(),
     );
   }
+}
+
+/// 🌟 Nir Eyal 鉤癮效應投入（Investment）：釣客私房秘密標點與專屬作戰資產
+class PrivateSpotModel {
+  final String id;
+  final String name;
+  final String stationId;
+  final double lat;
+  final double lng;
+  final String targetSpecies;
+  final String tackleNotes;
+  final DateTime createdAt;
+
+  const PrivateSpotModel({
+    required this.id,
+    required this.name,
+    required this.stationId,
+    required this.lat,
+    required this.lng,
+    this.targetSpecies = "",
+    this.tackleNotes = "",
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'stationId': stationId,
+    'lat': lat,
+    'lng': lng,
+    'targetSpecies': targetSpecies,
+    'tackleNotes': tackleNotes,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  factory PrivateSpotModel.fromMap(Map<String, dynamic> map) => PrivateSpotModel(
+    id: map['id']?.toString() ?? '',
+    name: map['name']?.toString() ?? '私房標點',
+    stationId: map['stationId']?.toString() ?? '',
+    lat: (map['lat'] as num?)?.toDouble() ?? 25.037,
+    lng: (map['lng'] as num?)?.toDouble() ?? 121.926,
+    targetSpecies: map['targetSpecies']?.toString() ?? '',
+    tackleNotes: map['tackleNotes']?.toString() ?? '',
+    createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
+  );
 }

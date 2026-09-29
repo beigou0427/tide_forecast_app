@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// Tim Cook & Tony Xu 營運重塑：客觀合規之周邊釣友推薦補給驛站 (真實履約防線)
+/// Tim Cook & Tony Xu 營運重塑：客觀合規之周邊補給點 + 逆向商務 (Inbound Lead)
 class LocalMerchantCard extends StatelessWidget {
   final String stationName;
   final String region;
@@ -22,13 +22,14 @@ class LocalMerchantCard extends StatelessWidget {
 
     final Color titleColor = isLight ? AppColors.classicText : AppColors.textPrimary;
     final Color badgeColor = isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
+    final Color dividerColor = isLight ? Colors.grey.shade200 : AppColors.glassBorder;
 
     return CustomCard(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部推薦標題列 (合規轉型為社群推薦，杜絕未簽約侵權)
+          // 1. 頂部推薦標題列
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -171,7 +172,7 @@ class LocalMerchantCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
-                // 3. 通訊與導航按鈕 (引導電洽查餌，杜絕撲空爭議)
+                // 3. 通訊與導航按鈕
                 Row(
                   children: [
                     Expanded(
@@ -215,9 +216,42 @@ class LocalMerchantCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          // 4. 營運免責告示 (Tony Xu 法律防火牆)
+          // 🌟 招式二：逆向商務入口（讓釣具行老闆與船長主動來找你）
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _launchMerchantInboundForm();
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: isLight ? 0.06 : 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: badgeColor.withValues(alpha: 0.25), width: 0.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_business_rounded, size: 14, color: badgeColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    "我是釣具店老闆 / 海釣船長，免費申請入駐或修正資訊 ➔",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: badgeColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // 4. 營運免責告示
           Text(
             "⚠️ 營運聲明：補給點資訊由釣友社群共筆整理，本 App 與店家無連帶代理關係。活餌庫存與船班受每日海況影響，出海前請務必致電店家確認。",
             style: TextStyle(
@@ -283,5 +317,13 @@ class LocalMerchantCard extends StatelessWidget {
   Future<void> _launchMap(String query) async {
     final Uri url = Uri.parse("https://www.google.com/maps/search/?api=1&query=$query");
     if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  // 🌟 逆向商務連結（導向專屬合作登記表單/LINE官方帳號）
+  Future<void> _launchMerchantInboundForm() async {
+    final Uri url = Uri.parse("https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009#merchant-onboarding");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../providers/catch_log_provider.dart';
 import '../data/catch_log_model.dart';
@@ -14,7 +15,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/custom_card.dart';
 import '../../../core/services/review_service.dart';
 
-/// Apple 首席設計工藝：黑金/白藍雙軌標本展覽館 (Catch Archive Gallery)
+/// Kevin Systrom 視覺展覽館重塑：黑金/白藍雙軌標本展覽館 + 一鍵大物戰報分享
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
 
@@ -52,7 +53,7 @@ class CatchLogPage extends ConsumerWidget {
         foregroundColor: fabFg,
         elevation: 4,
         icon: const Icon(Icons.add_a_photo_rounded, size: 18),
-        label: const Text("記錄今日作釣", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+        label: const Text("記錄今日大物", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
       ),
     );
   }
@@ -83,7 +84,7 @@ class CatchLogPage extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              "尚未建立作釣日誌", 
+              "尚未建立作釣標本日誌", 
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: titleColor),
             ),
             const SizedBox(height: 8),
@@ -127,6 +128,7 @@ class CatchLogPage extends ConsumerWidget {
       itemBuilder: (context, index) {
         final item = logs[index];
         final timeStr = DateFormat('yyyy/MM/dd HH:mm').format(item.dateTime);
+        final bool isTrophy = item.rating >= 5;
 
         return Dismissible(
           key: Key(item.id),
@@ -165,8 +167,21 @@ class CatchLogPage extends ConsumerWidget {
                       ),
                       Row(
                         children: [
+                          // 🌟 Kevin Systrom 大物加冕金標 (Trophy Recognition)
+                          if (isTrophy) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: AppColors.bioGold.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 0.5),
+                              ),
+                              child: const Text("👑 大物認證", style: TextStyle(color: AppColors.bioGold, fontSize: 9, fontWeight: FontWeight.w900)),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           if (item.imageUrl != null) const Icon(Icons.cloud_done_rounded, size: 12, color: Color(0xFF30D158)),
-                          if (item.imageUrl != null) const SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(timeStr, style: TextStyle(fontSize: 11, color: timeColor)),
                         ],
                       ),
@@ -200,6 +215,7 @@ class CatchLogPage extends ConsumerWidget {
                   ],
 
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
@@ -208,16 +224,29 @@ class CatchLogPage extends ConsumerWidget {
                         ),
                       ),
                       Row(
-                        children: List.generate(
-                          5,
-                          (starIdx) => Icon(
-                            starIdx < item.rating ? Icons.star_rounded : Icons.star_border_rounded,
-                            size: 16,
-                            color: starIdx < item.rating 
-                                ? AppColors.bioGold 
-                                : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
+                        children: [
+                          // 🌟 Kevin Systrom 一鍵戰績社交炫耀分享鈕
+                          IconButton(
+                            icon: const Icon(Icons.share_rounded, size: 18, color: AppColors.bioGold),
+                            tooltip: "分享此大物戰績至 LINE / 社群",
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _shareCatchRecord(item),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Row(
+                            children: List.generate(
+                              5,
+                              (starIdx) => Icon(
+                                starIdx < item.rating ? Icons.star_rounded : Icons.star_border_rounded,
+                                size: 16,
+                                color: starIdx < item.rating 
+                                    ? AppColors.bioGold 
+                                    : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -245,6 +274,34 @@ class CatchLogPage extends ConsumerWidget {
         );
       },
     );
+  }
+
+  // 🌟 Kevin Systrom 社交炫耀戰報格式化生成
+  Future<void> _shareCatchRecord(CatchLogItem item) async {
+    HapticFeedback.lightImpact();
+    final String timeStr = DateFormat('yyyy/MM/dd HH:mm').format(item.dateTime);
+    final String metrics = [
+      if (item.tideHeight != null) "潮位 ${item.tideHeight}m",
+      if (item.waveHeight != null) "浪高 ${item.waveHeight}m",
+      if (item.seaTemperature != null) "海溫 ${item.seaTemperature}℃",
+    ].join(" · ");
+
+    final String shareText = """🎣【老船長大物捕獲戰報】
+🐟 戰利品：${item.species}
+📍 釣點標本：${item.stationName}
+⏰ 捕獲時間：$timeStr
+🌊 實測水文：${metrics.isNotEmpty ? metrics : '官方即時水文監測'}
+📝 作釣心得：${item.notes.isNotEmpty ? item.notes : '水流暢通，精準咬口！'}
+
+📲 全台 85 測站光纖實況雷達：
+👉 https://beigou0427.github.io/tide_forecast_app/
+""";
+
+    if (item.imagePath != null && File(item.imagePath!).existsSync()) {
+      await Share.shareXFiles([XFile(item.imagePath!)], text: shareText);
+    } else {
+      await Share.share(shareText);
+    }
   }
 
   Widget _buildCloudImage(String? url, bool isClassic) {
@@ -547,8 +604,7 @@ class CatchLogPage extends ConsumerWidget {
 
                           ref.read(catchLogProvider.notifier).addLog(item);
 
-                          if (!ctx.mounted) return;
-                          Navigator.pop(ctx);
+                          if (ctx.mounted) Navigator.pop(ctx);
 
                           ReviewService.onCatchLogSaved(selectedRating);
                         },

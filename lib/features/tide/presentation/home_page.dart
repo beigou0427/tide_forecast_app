@@ -12,6 +12,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../premium/services/premium_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/fcm_service.dart';
+import '../../catch_log/presentation/catch_log_page.dart';
+import 'station_guide_page.dart';
 
 import 'tide_chart_sheet.dart';
 import 'widgets/station_drawer.dart';
@@ -30,7 +32,7 @@ import 'widgets/bite_radar_section.dart';
 import 'widgets/astro_hindcast_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝：雙軌自適應主座艙 (Martin Fowler 元件化解耦版)
+/// Apple 首席設計工藝 × CPO 雙核心體驗：雙軌自適應主座艙
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -287,7 +289,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ),
               ),
-              error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref, isClassic)),
+              // 🌟 Scott Belsky 外海離線鎧甲模式 (杜絕崩潰挫折感)
+              error: (err, _) => SliverFillRemaining(
+                child: _buildOfflineArmorUI(ref, currentStation.name, isClassic),
+              ),
               data: (viewData) {
                 final station = viewData.stationData;
                 final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
@@ -329,7 +334,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
-                      // 🌟 Martin Fowler 重構解耦：獨立之 10x 標竿魚種水溫驟變爆咬預警元件
                       BiteRadarSection(
                         station: station,
                         selectedDate: selectedDate,
@@ -358,7 +362,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ] else if (isPastWithoutSensor) ...[
                         _sectionTitle("🌌 歷史天文調和回溯模式", accentColor: AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
-                        // 🌟 Martin Fowler 重構解耦：獨立之歷史天文調和回溯補位卡片
                         AstroHindcastCard(
                           selectedDate: selectedDate,
                           stationName: station.info.stationName,
@@ -409,8 +412,21 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
       ),
-      floatingActionButton: !isToday
+
+      // 🌟 Kevin Systrom 核心多巴胺直達按鈕：今日常駐「中魚拍照」，非今日自動切回「返回今日」
+      floatingActionButton: isToday
           ? FloatingActionButton.extended(
+              onPressed: () {
+                HapticFeedback.heavyImpact();
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CatchLogPage()));
+              },
+              backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
+              elevation: 4,
+              icon: const Icon(Icons.camera_alt_rounded, size: 18),
+              label: const Text("中魚紀錄 · 疊加水文", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            )
+          : FloatingActionButton.extended(
               onPressed: () {
                 HapticFeedback.mediumImpact();
                 ref.read(selectedDateProvider.notifier).state = DateTime.now();
@@ -420,8 +436,81 @@ class _HomePageState extends ConsumerState<HomePage> {
               elevation: 4,
               icon: const Icon(Icons.today_rounded, size: 18),
               label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            )
-          : null,
+            ),
+    );
+  }
+
+  // 🌟 Scott Belsky 外海離線黑盒子鎧甲模式 (將崩潰轉化為極致可靠度)
+  Widget _buildOfflineArmorUI(WidgetRef ref, String stationName, bool isClassic) {
+    final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+    final Color shieldColor = isClassic ? const Color(0xFF0077B6) : AppColors.bioGold;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: shieldColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: shieldColor.withValues(alpha: 0.35), width: 1.0),
+              ),
+              child: Icon(Icons.shield_rounded, size: 48, color: shieldColor),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              "外海離線黑盒子自癒模式", 
+              style: TextStyle(
+                fontWeight: FontWeight.w900, 
+                fontSize: 18, 
+                color: titleColor,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "[$stationName] 外海無蜂巢網路訊號\n系統已自動切換本地 30 天水文存檔與天文調和演算法防線", 
+              textAlign: TextAlign.center, 
+              style: TextStyle(
+                color: isClassic ? Colors.grey.shade600 : AppColors.textSecondary, 
+                fontSize: 12.5, 
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: isClassic ? Colors.grey.shade300 : AppColors.glassBorder),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.menu_book_rounded, size: 16),
+                  label: const Text("離線水文百科", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const StationGuidePage()));
+                  },
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
+                    foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text("嘗試重新連線", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                  onPressed: () => ref.refresh(tideViewDataProvider), 
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -721,47 +810,5 @@ class _HomePageState extends ConsumerState<HomePage> {
       helpText: "選擇回測或預報日期",
     );
     if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
-  }
-
-  Widget _buildErrorUI(String error, WidgetRef ref, bool isClassic) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.wifi_off_rounded, size: 48, color: isClassic ? Colors.redAccent : AppColors.hazardCoral),
-          const SizedBox(height: 16),
-          Text(
-            "海象數據暫時中斷", 
-            style: TextStyle(
-              fontWeight: FontWeight.w800, 
-              fontSize: 17, 
-              color: isClassic ? Colors.black87 : AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              "請檢查網路連線或稍後重新載入", 
-              textAlign: TextAlign.center, 
-              style: TextStyle(
-                color: isClassic ? Colors.grey : AppColors.textSecondary, 
-                fontSize: 12,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, 
-              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => ref.refresh(tideViewDataProvider), 
-            child: const Text("重新整理", style: TextStyle(fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
-    );
   }
 }
