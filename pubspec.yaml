@@ -1,7 +1,7 @@
 ﻿name: tide_forecast_app
 description: "潮汐表 Pro - 釣魚海象浪高與風速預報，老船長 AI 出海決策"
 publish_to: 'none'
-version: 2.5.0+3
+version: 2.6.0+4
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

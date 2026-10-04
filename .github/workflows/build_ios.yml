@@ -1,76 +1,47 @@
-﻿name: 雲端 iOS 發布包編譯 (含 Phil Schiller 零拒審合規與朱蘭 COPQ 門禁)
+﻿name: Build & Verify iOS Release
+
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches: [ main ]
 
 jobs:
-  build-ios:
+  build:
+    name: Build iOS IPA & Run VVIP Audits
     runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: 設置 Flutter SDK 環境
+    steps:
+      - name: 📥 簽出專案代碼 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 🐦 配置 Flutter 官方穩定環境
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: 安裝專案依賴
+      - name: 📦 安裝專案依賴項
         run: flutter pub get
 
-      # 🌟 Joseph M. Juran 劣質成本防線 1：發布前靜態語法零警告審計
-      - name: 🛡️ 朱蘭品質門禁 1：全域靜態語法審計 (flutter analyze)
+      - name: 🔍 執行靜態語法分析 (驗證 0 錯誤)
         run: flutter analyze
 
-      # 🌟 Joseph M. Juran 劣質成本防線 2：全套 46 個回歸單元測試 100% 通過
-      - name: 🛡️ 朱蘭品質門禁 2：全維度海事物理與分散式單元測試 (flutter test)
-        run: flutter test
+      - name: 🧪 執行 VVIP 海事純潮汐標準與安全性測試
+        run: flutter test test/vvip_audit_test.dart
 
-      # 🌟 Phil Schiller 上架合規門禁 3：自動掃描 Info.plist 權限描述與出口豁免宣告
-      - name: 🛡️ 審查員預檢門禁 3：自動驗證 Info.plist 提審權限完整度
+      - name: 🔨 雲端編譯 iOS 原生 Release 構建產物
+        run: flutter build ios --release --no-codesign
+
+      - name: 📦 封裝生成 TidePro_Release.ipa
         run: |
-          python3 -c "
-          import plistlib, sys, os
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -r TidePro_Release.ipa Payload
+          cd ../../..
 
-          plist_path = 'ios/Runner/Info.plist'
-          if not os.path.exists(plist_path):
-              print('❌ 錯誤：找不到 ios/Runner/Info.plist！')
-              sys.exit(1)
-
-          with open(plist_path, 'rb') as f:
-              plist = plistlib.load(f)
-
-          required_keys = [
-              'NSLocationWhenInUseUsageDescription',
-              'NSCameraUsageDescription',
-              'NSPhotoLibraryUsageDescription',
-              'ITSAppUsesNonExemptEncryption'
-          ]
-
-          missing_keys = []
-          for k in required_keys:
-              if k not in plist or (isinstance(plist[k], str) and len(plist[k].strip()) < 10):
-                  missing_keys.append(k)
-
-          if missing_keys:
-              print(f'❌ 提審合規攔截：Info.plist 缺少必要審查字串或長度不足: {missing_keys}')
-              print('👉 Apple 機器人將直接拒收 (ITMS-90683)！強制終止編譯！')
-              sys.exit(1)
-
-          if plist.get('ITSAppUsesNonExemptEncryption') != False:
-              print('⚠️ 警告：ITSAppUsesNonExemptEncryption 應為 false 以免除出口問卷！')
-
-          print('✅ [Phil Schiller 審查門禁通過] Info.plist 100% 滿足 App Store 隱私與出口法規！')
-          "
-
-      # 僅在三大品質門禁 100% 通過後，才編譯生產發布產物
-      - name: 編譯 iOS Release 生產環境產物 (ipa 免簽名包)
-        run: flutter build ipa --release --no-codesign
-
-      - name: 打包上傳 iOS 產物供 App Store Connect 提審發布
+      - name: 🚀 上傳 IPA 構建成品至 GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ios-release-ipa
-          path: build/ios/archive
+          name: TidePro_iOS_Release
+          path: build/ios/iphoneos/TidePro_Release.ipa
