@@ -1,5 +1,4 @@
-﻿import 'dart:async';
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../tide/presentation/home_page.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// Julie Zhuo 哲學重塑：零阻力前 60 秒價值直達導航 (Frictionless FTUX)
+/// 🌟 經海事嚴謹標準重塑之極速前置引導 (Zero Friction Onboarding)
+/// 徹底拔除一切虛假偽加載等待，問卷完成即刻 0 延遲直達海象指揮中心
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
 
@@ -16,20 +16,16 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  int _currentStep = 0; // 0, 1, 2: 問卷; 3: 模型合成中
+  int _currentStep = 0; // 0, 1, 2: 偏好配置
   
   String? _selectedRegion;
   String? _selectedStyle;
   String? _selectedRisk;
 
-  double _progress = 0.0;
-  String _loadingText = "正在連接中央氣象署 85 測站光纖直連陣列...";
-  Timer? _loadingTimer;
-
   final List<Map<String, dynamic>> _questions = [
     {
       "title": "您最常出沒的作業海域？",
-      "subtitle": "老船長將優先鎖定該海域之高精度水文拓撲",
+      "subtitle": "系統將優先鎖定該海域之高精度即時水文測站",
       "key": "region",
       "options": [
         {"icon": "🌊", "label": "北部沿海 (基隆 / 東北角 / 淡水)"},
@@ -40,93 +36,53 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ]
     },
     {
-      "title": "您的主要作釣活動方式？",
-      "subtitle": "系統將自適應計算最適合您下竿的黃金波峰窗口",
+      "title": "您的主要水上作業方式？",
+      "subtitle": "系統將自適應計算最適合您下竿的走水黃金窗口",
       "key": "style",
       "options": [
         {"icon": "🐟", "label": "浮游磯釣 / 沉底遠投"},
         {"icon": "🎯", "label": "岸拋路亞 / 微鐵岸拋"},
-        {"icon": "🦀", "label": "前打 / 落入 / 港口搞搞"},
+        {"icon": "🦀", "label": "前打 / 落入 / 港口作業"},
         {"icon": "🚤", "label": "近海船釣 / 觀光海釣"},
-        {"icon": "🤿", "label": "自由潛水 / 沿岸趕海採集"},
+        {"icon": "🤿", "label": "自由潛水 / 沿岸採集"},
       ]
     },
     {
       "title": "出海時最在意的海象風險？",
-      "subtitle": "出海紅綠燈將為此風險提高安全警戒係數",
+      "subtitle": "出海安全警報將為此風險提高安全警戒係數",
       "key": "risk",
       "options": [
-        {"icon": "⚠️", "label": "瘋狗浪 / 突發深海長湧浪"},
+        {"icon": "⚠️", "label": "瘋狗浪 / 突發深層長湧浪"},
         {"icon": "🌪️", "label": "陣風過強 (吹落或走水過快)"},
         {"icon": "⏳", "label": "滿乾潮水位急驟變化被困礁石"},
-        {"icon": "🌡️", "label": "水溫驟降 (魚不開口白跑一趟)"},
+        {"icon": "🌡️", "label": "水溫驟降 (魚群閉口不食)"},
       ]
     }
   ];
 
-  void _onOptionSelected(String value) {
+  Future<void> _onOptionSelected(String value) async {
     HapticFeedback.selectionClick();
-    setState(() {
-      if (_currentStep == 0) _selectedRegion = value;
-      if (_currentStep == 1) _selectedStyle = value;
-      if (_currentStep == 2) _selectedRisk = value;
-    });
+    if (_currentStep == 0) _selectedRegion = value;
+    if (_currentStep == 1) _selectedStyle = value;
+    if (_currentStep == 2) _selectedRisk = value;
 
     if (_currentStep < 2) {
       setState(() => _currentStep++);
     } else {
-      _startSynthesisLoading();
+      // 🌟 徹底拔除偽進度條：完成後 0 延遲立即直達駕駛台
+      await _completeAndEnterCockpit();
     }
   }
 
-  // 岸邊急用一秒跳過通道 (Julie Zhuo 零摩擦設計)
-  Future<void> _skipOnboarding() async {
-    HapticFeedback.lightImpact();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('has_completed_onboarding', true);
-    await prefs.setBool('has_agreed_maritime_safety_v2', true); // 同步免責同意
-    _navigateToHome();
-  }
-
-  void _startSynthesisLoading() async {
-    setState(() {
-      _currentStep = 3;
-      _progress = 0.05;
-    });
-
+  Future<void> _completeAndEnterCockpit() async {
+    HapticFeedback.mediumImpact();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_pref_region', _selectedRegion ?? '');
     await prefs.setString('user_pref_style', _selectedStyle ?? '');
     await prefs.setString('user_pref_risk', _selectedRisk ?? '');
     await prefs.setBool('has_completed_onboarding', true);
-    await prefs.setBool('has_agreed_maritime_safety_v2', true); // 整合安全合意，首頁不再彈窗騷擾
-
-    const totalDurationMs = 1500;
-    const intervalMs = 50;
-    int elapsed = 0;
-
-    _loadingTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
-      elapsed += intervalMs;
-      final ratio = (elapsed / totalDurationMs).clamp(0.0, 1.0);
-
-      if (mounted) {
-        setState(() {
-          _progress = ratio;
-          if (ratio > 0.7) {
-            _loadingText = "專屬出海紅綠燈模型封裝完成！";
-          } else if (ratio > 0.35) {
-            _loadingText = "正在調校海象安全評估神經網絡...";
-          }
-        });
-      }
-
-      if (elapsed >= totalDurationMs) {
-        timer.cancel();
-        HapticFeedback.mediumImpact();
-        // 核心突破：直接進入首頁展示價值，不再強拍付費牆
-        _navigateToHome();
-      }
-    });
+    await prefs.setBool('has_agreed_maritime_safety_v2', true);
+    _navigateToHome();
   }
 
   void _navigateToHome() {
@@ -134,7 +90,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
+        transitionDuration: const Duration(milliseconds: 250),
         pageBuilder: (_, __, ___) => const HomePage(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -144,17 +100,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   @override
-  void dispose() {
-    _loadingTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.abyssBlack,
       body: SafeArea(
-        child: _currentStep < 3 ? _buildQuestionStep() : _buildLoadingStep(),
+        child: _buildQuestionStep(),
       ),
     );
   }
@@ -168,7 +118,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 頂部進度光條與極速跳過按鈕
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -192,14 +141,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
               const SizedBox(width: 16),
               TextButton(
-                onPressed: _skipOnboarding,
+                onPressed: _completeAndEnterCockpit,
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text(
-                  "先看海況", 
+                  "先看海況 ➔", 
                   style: TextStyle(color: AppColors.textTertiary, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -272,64 +221,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingStep() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: CircularProgressIndicator(
-                    value: _progress,
-                    strokeWidth: 3.5,
-                    backgroundColor: Colors.white10,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.pelagicCyan),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.pelagicCyan.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 42),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Text(
-              "${(_progress * 100).toInt()} %",
-              style: GoogleFonts.rubik(
-                color: AppColors.textPrimary, 
-                fontSize: 30, 
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _loadingText,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "即將為您呈現首頁實時水文與出海紅綠燈",
-              style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5),
-            ),
-          ],
-        ),
       ),
     );
   }

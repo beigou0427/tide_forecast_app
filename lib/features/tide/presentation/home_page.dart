@@ -210,6 +210,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final String todayKey = DateFormat('yyyyMMdd').format(now);
     final bool isToday = selectedKey == todayKey;
     final bool isFuture = selectedDate.isAfter(now) && !isToday;
+    final bool isProUser = premiumState.isPremium || premiumState.isFounder;
 
     final Color classicModeColor = isToday 
         ? const Color(0xFF0077B6) 
@@ -275,7 +276,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               actions: [
-                // 🌟 VVIP 核心：高對比純潮汐切換膠囊
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: InkWell(
@@ -407,17 +407,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      // 1. 常態雷達專屬 AI 簡報
                       if (isToday && !isPureTide) ...[
                         SeaBriefingCard(station: station, distance: viewData.distanceKm),
                         const SizedBox(height: 20),
                       ],
 
-                      // 2. 測站地名頭標
                       StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                       const SizedBox(height: 16),
                       
-                      // 3. UGC 現場真實雷達 (純潮汐模式完全屏蔽)
                       if (isToday && !isPureTide) ...[
                         UgcRadarCard(
                           stationId: currentId,
@@ -428,11 +425,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // 4. 天文月相與潮汐係數
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
-                      // 5. 魚種索餌雷達 (純潮汐模式隱藏)
                       if (!isPureTide) ...[
                         BiteRadarSection(
                           station: station,
@@ -442,7 +437,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 20),
                       ],
 
-                      // 6. 未來預報 / 歷史調和 / 即時水文核心
                       if (isFuture) ...[
                         _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 滿乾潮時程與潮差走水", accentColor: Colors.indigoAccent, isClassic: isClassic),
                         const SizedBox(height: 12),
@@ -500,8 +494,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                         ],
                       ],
 
-                      // 7. 特約補給點 (純潮汐模式 100% 隱藏)
-                      if (!isPureTide) ...[
+                      // 🌟 VVIP 尊榮特權：已付費會員與創始指揮官 100% 完全屏蔽釣具補給店卡片，享受無廣告純淨航海！
+                      if (!isPureTide && !isProUser) ...[
                         const SizedBox(height: 24),
                         LocalMerchantCard(
                           stationName: station.info.stationName,
@@ -520,29 +514,32 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ),
 
-      floatingActionButton: isToday
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                HapticFeedback.heavyImpact();
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CatchLogPage()));
-              },
-              backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
-              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
-              elevation: 4,
-              icon: const Icon(Icons.camera_alt_rounded, size: 18),
-              label: const Text("中魚紀錄 · 疊加水文", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            )
-          : FloatingActionButton.extended(
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                ref.read(selectedDateProvider.notifier).state = DateTime.now();
-              },
-              backgroundColor: isClassic ? classicModeColor : AppColors.pelagicCyan,
-              foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
-              elevation: 4,
-              icon: const Icon(Icons.today_rounded, size: 18),
-              label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            ),
+      // 🌟 駕駛台零遮擋：純潮汐儀表模式且在今日時，徹底隱藏 FAB，保障下方數據不被遮擋
+      floatingActionButton: (isPureTide && isToday)
+          ? null
+          : (isToday
+              ? FloatingActionButton.extended(
+                  onPressed: () {
+                    HapticFeedback.heavyImpact();
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CatchLogPage()));
+                  },
+                  backgroundColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
+                  foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
+                  elevation: 4,
+                  icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                  label: const Text("中魚紀錄 · 疊加水文", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                )
+              : FloatingActionButton.extended(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(selectedDateProvider.notifier).state = DateTime.now();
+                  },
+                  backgroundColor: isClassic ? classicModeColor : AppColors.pelagicCyan,
+                  foregroundColor: isClassic ? Colors.white : AppColors.abyssBlack,
+                  elevation: 4,
+                  icon: const Icon(Icons.today_rounded, size: 18),
+                  label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                )),
     );
   }
 

@@ -34,7 +34,6 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     final apiService = ref.read(tideApiServiceProvider);
     int successCount = 0;
 
-    // 非同步遍歷 85 站抓取最新快照並強制寫入磁碟
     for (int i = 0; i < stations.length; i++) {
       try {
         await apiService.fetchData(stations[i].id, isPremium: true);
@@ -70,11 +69,13 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     final isClassic = ref.watch(isClassicThemeProvider);
 
     final currentYear = DateTime.now().year;
-    final String memberId = "CAPT-$currentYear-${(state.expiryDate?.millisecondsSinceEpoch ?? 88888).toString().substring(5, 9)}";
+    // 🌟 安全序列號演算法 (徹底消滅 RangeError 閃退)
+    final String epochStr = (state.expiryDate?.millisecondsSinceEpoch ?? 1770000000000).toString();
+    final String seq = epochStr.length >= 9 ? epochStr.substring(5, 9) : "8888";
+    final String memberId = "CAPT-$currentYear-$seq";
+
     final String title = state.isFounder ? "創始天尊指揮官" : (state.type == SubscriptionType.yearly ? "年度首席領航員" : "尊榮專業會員");
     final String expiryText = state.isFounder ? "終身永久享有最高特權" : "特權有效期至：${state.expiryDate != null ? DateFormat('yyyy/MM/dd').format(state.expiryDate!) : '有效'}";
-    
-    final int coins = state.coinBalance;
 
     final Color pageBg = isClassic ? AppColors.classicBg : const Color(0xFF020E1C);
     final Color appBarBg = isClassic ? const Color(0xFF0077B6) : const Color(0xFF020E1C);
@@ -216,7 +217,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 24),
 
-            // 🌟 3. VVIP 核心：全台 85 站離線黑盒子一鍵預載包 (剛需功能)
+            // 3. 全台 85 站離線水文神盾一鍵預載包
             Row(
               children: [
                 const Icon(Icons.offline_bolt_rounded, color: Colors.tealAccent, size: 18),
@@ -313,25 +314,9 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-
-            // 4. 社群實證信譽資產 (嚴格脫鉤 PRO 權限)
-            Row(
-              children: [
-                const Icon(Icons.verified_user_rounded, color: AppColors.bioGold, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  "釣友實證信譽資產",
-                  style: TextStyle(color: sectionTitleColor, fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _buildReputationWallet(context, coins, isClassic),
-
             const SizedBox(height: 28),
 
-            // 5. 專屬 VIP 硬核專線與運作狀態
+            // 4. 專屬 VIP 硬核專線與運作狀態
             Row(
               children: [
                 Icon(Icons.shield_rounded, color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, size: 18),
@@ -348,7 +333,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               icon: Icons.bolt_rounded,
               title: "中央氣象署 85 測站光纖直連專線",
               statusText: "專線已連通 • 響應 38ms",
-              desc: "繞過邊緣公共快取節點，直達氣象署即時感測陣列，享有 0 延遲水文數據刷新特權。",
+              desc: "具備浮標與 62 座潮位站智慧雙向路由，直達氣象署即時感測陣列，享有 0 延遲水文刷新特權。",
               statusColor: const Color(0xFF30D158),
               isClassic: isClassic,
             ),
@@ -430,55 +415,6 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               HapticFeedback.mediumImpact();
               ref.read(isClassicThemeProvider.notifier).setClassicTheme(val);
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReputationWallet(BuildContext context, int coins, bool isClassic) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isClassic ? Colors.amber.shade50 : Colors.amber.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.amber.withValues(alpha: isClassic ? 0.4 : 0.25)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.stars_rounded, color: Colors.amber, size: 28),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("老船長實證信譽積分", style: TextStyle(color: Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      "$coins", 
-                      style: TextStyle(
-                        color: isClassic ? Colors.black87 : Colors.white, 
-                        fontSize: 24, 
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text("點 (實證回報榮譽沉積)", style: TextStyle(color: isClassic ? Colors.black54 : Colors.white70, fontSize: 11)),
-                  ],
-                ),
-              ],
-            ),
           ),
         ],
       ),

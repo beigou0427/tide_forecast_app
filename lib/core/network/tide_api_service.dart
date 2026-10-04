@@ -101,7 +101,8 @@ class NodeHealthTracker {
   }
 }
 
-/// 🌟 Adrian Cockcroft (Netflix 混沌先鋒) 超時預算傳播水文服務
+/// 🌟 經海事嚴謹標準重塑之氣象署光纖直連專線水文服務
+/// 具備浮標 (O-B0075-001) 與 62 座沿岸潮位站 (O-B0075-002) 智慧雙向路由
 class TideApiService {
   static const List<String> _edgeNodes = [
     "https://beigou0427.github.io/tide_forecast_app",
@@ -117,8 +118,6 @@ class TideApiService {
   static final NodeHealthTracker _nodeTracker = NodeHealthTracker();
   static final TensorCacheManager _tensorCache = TensorCacheManager();
 
-  /// 🌟 Adrian Cockcroft 超時預算傳播模型 (Timeout Budgeting)：
-  /// 預設全域總 SLA 為 3500ms，動態分配各階梯剩餘預算，杜絕累積延遲死鎖
   Future<TideStationData> fetchData(
     String stationId, {
     bool isPremium = false,
@@ -158,13 +157,12 @@ class TideApiService {
 
     Map<String, dynamic> edgeJson = {};
 
-    // 邊緣節點容災輪詢 (受超時預算嚴密約束)
+    // 邊緣節點容災輪詢
     if (_edgeBreaker.canExecute()) {
       for (final nodeBase in _edgeNodes) {
         final remaining = getRemainingBudget();
-        // 🌟 預算守衛：若剩餘時間低於 600ms，終止嘗試直接短路切換本地快取
         if (remaining.inMilliseconds < 600) {
-          debugPrint("⏱️ [Netflix 超時預算攔截] 剩餘預算不足 (${remaining.inMilliseconds}ms < 600ms)，直接短路降級！");
+          debugPrint("⏱️ [超時預算攔截] 剩餘預算不足 (${remaining.inMilliseconds}ms < 600ms)，直接短路降級！");
           break;
         }
 
@@ -176,7 +174,6 @@ class TideApiService {
 
           if (!SecurityUtil.isAuthorizedHost(edgeUri)) continue;
 
-          // 動態階梯超時：不超過剩餘預算的 70%，且最大為 2000ms
           final nodeTimeoutMs = math.min(2000, (remaining.inMilliseconds * 0.7).toInt());
           final edgeResponse = await http.get(edgeUri).timeout(Duration(milliseconds: nodeTimeoutMs));
           
@@ -231,13 +228,17 @@ class TideApiService {
       return _generateDisasterFallbackData(stationId);
     }
 
-    // VIP 氣象署官方直連專線 (受剩餘超時預算支配)
+    // 🌟 VIP 氣象署官方直連專線：海事智慧雙向路由 (徹底消滅 62 座潮位站 404 斷路器誤判)
     final remainingForVip = getRemainingBudget();
     if (_cwaBreaker.canExecute() && remainingForVip.inMilliseconds >= 800) {
       try {
-        debugPrint("💎 [VIP 直連] 向氣象署專線請求站點 $stationId (可用預算: ${remainingForVip.inMilliseconds}ms)...");
+        // 判斷是否為浮標（浮標代碼以數字開頭如 46694A 或富貴角 C6AH2）
+        final bool isBuoy = stationId.endsWith("A") || stationId == "C6AH2";
+        final String datasetId = isBuoy ? "O-B0075-001" : AppConstants.dsObservation;
+
+        debugPrint("💎 [VIP 直連] 智慧路由向氣象署專線請求站點 $stationId (資料集: $datasetId, 可用預算: ${remainingForVip.inMilliseconds}ms)...");
         final cwaUri = Uri.parse(
-          "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-B0075-001?Authorization=${AppConstants.officialApiKey}&StationID=$stationId",
+          "https://opendata.cwa.gov.tw/api/v1/rest/datastore/$datasetId?Authorization=${AppConstants.officialApiKey}&StationID=$stationId",
         );
 
         if (!SecurityUtil.isAuthorizedHost(cwaUri)) {
@@ -250,8 +251,10 @@ class TideApiService {
           _cwaBreaker.recordSuccess();
           final cwaData = await compute(_parseAndDecodeJson, cwaResponse.body);
           final records = cwaData['Records'] ?? cwaData['records'] ?? {};
-          final seaObs = records['SeaSurfaceObs'] ?? records;
-          final locations = (seaObs['Location'] is List) ? seaObs['Location'] : [];
+          final seaObs = records['SeaSurfaceObs'] ?? records['TideObs'] ?? records;
+          final locations = (seaObs['Location'] is List) 
+              ? seaObs['Location'] 
+              : ((seaObs['Station'] is List) ? seaObs['Station'] : []);
           
           if (locations.isNotEmpty) {
             final realtimeObs = locations[0];
@@ -269,7 +272,7 @@ class TideApiService {
             mergedObs['TownName'] = stationInfo['town'] ?? edgeObs['TownName'] ?? "";
             mergedObs['lat'] = stationInfo['lat'] ?? edgeObs['lat'] ?? 25.037;
             mergedObs['lng'] = stationInfo['lng'] ?? edgeObs['lng'] ?? 121.926;
-            mergedObs['attr'] = stationInfo['station_type'] ?? edgeObs['attr'] ?? "資料浮標";
+            mergedObs['attr'] = stationInfo['station_type'] ?? edgeObs['attr'] ?? (isBuoy ? "資料浮標" : "潮位站");
             mergedObs['region'] = stationInfo['region'] ?? edgeObs['region'] ?? "北部";
 
             final mergedJson = {
