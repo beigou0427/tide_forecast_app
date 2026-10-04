@@ -1,11 +1,12 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🍏 Apple 首席設計工藝：360° 航海作戰羅盤 (零溢出安全版)
+/// 🌟 John Carmack 靜態錶盤 GPU 圖層隔離與微秒級航海作戰羅盤
+/// 徹底將靜態徑向光學錶盤與旋轉指針圖層解耦，0 GPU 光柵化重複耗損
 class WindCompassCard extends StatelessWidget {
   final Observation current;
 
@@ -13,11 +14,13 @@ class WindCompassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double windDir = current.windDirection ?? 0.0;
+    final double rawDir = current.windDirection ?? 0.0;
+    final double normalizedDir = (rawDir % 360 + 360) % 360;
     final double windSpeed = current.windSpeed ?? 0.0;
-    final String windDirName = _getWindDirectionName(windDir);
+
+    final String windDirName = _getWindDirectionName(normalizedDir);
     final String beaufortInfo = _getBeaufortScale(windSpeed);
-    final String tacticTip = _getTacticAdvice(windSpeed, windDir);
+    final String tacticTip = _getTacticAdvice(windSpeed, normalizedDir);
     final Color windColor = _getWindSpeedColor(windSpeed);
 
     return CustomCard(
@@ -25,7 +28,7 @@ class WindCompassCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部儀表標題與方位角膠囊 (🌟 注入 Expanded 彈性保護)
+          // 1. 頂部儀表標題與方位角膠囊
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -78,7 +81,7 @@ class WindCompassCard extends StatelessWidget {
                   border: Border.all(color: AppColors.pelagicCyan.withValues(alpha: 0.3), width: 0.5),
                 ),
                 child: Text(
-                  "${windDir.toStringAsFixed(0)}° $windDirName",
+                  "${normalizedDir.toStringAsFixed(0)}° $windDirName",
                   style: const TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w800,
@@ -94,90 +97,22 @@ class WindCompassCard extends StatelessWidget {
           // 2. 羅盤本體與風級戰術排印
           Row(
             children: [
-              // 瑞士精密航海羅盤錶盤
+              // 🌟 John Carmack 圖層分離：靜態底盤快取在 GPU Texture 中，指針僅做旋轉矩陣變換
               SizedBox(
                 width: 124,
                 height: 124,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.glassBorder, width: 0.5),
-                        gradient: const RadialGradient(
-                          colors: [Color(0xFF0F1B2B), Color(0xFF060B12)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
-                      ),
-                    ),
-                    const Positioned(
-                      top: 6,
-                      child: Text("N", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.hazardCoral)),
-                    ),
-                    const Positioned(
-                      bottom: 6,
-                      child: Text("S", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
-                    ),
-                    const Positioned(
-                      left: 7,
-                      child: Text("W", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
-                    ),
-                    const Positioned(
-                      right: 7,
-                      child: Text("E", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
-                    ),
-                    
-                    Transform.rotate(
-                      angle: (windDir * math.pi / 180),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.navigation_rounded, 
-                            size: 36, 
-                            color: windColor,
-                          ),
-                          const SizedBox(height: 22),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.bioGold,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.bioGold.withValues(alpha: 0.5),
-                            blurRadius: 6,
-                          )
-                        ],
-                      ),
-                    ),
+                    const _StaticCompassDial(), // 靜態底盤 (GPU 零重繪)
+                    _DynamicCompassNeedle(angleDeg: normalizedDir, needleColor: windColor),
                   ],
                 ),
               ),
 
               const SizedBox(width: 18),
 
-              // 🌟 3. 風速數值區：採用 Wrap 自適應彈性佈局，徹底終結小螢幕強風溢出！
+              // 3. 風速數值與戰術建議
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,8 +200,7 @@ class WindCompassCard extends StatelessWidget {
       "南風", "南南西", "西南風", "西南西",
       "西風", "西北西", "西北風", "北北西"
     ];
-    final double normalized = (deg % 360 + 360) % 360;
-    final int idx = ((normalized + 11.25) / 22.5).floor() % 16;
+    final int idx = ((deg + 11.25) / 22.5).floor() % 16;
     return directions[idx];
   }
 
@@ -290,5 +224,111 @@ class WindCompassCard extends StatelessWidget {
     } else {
       return "🌊 風力柔和，微風帶起水面波紋有利降減魚群戒心，輕量路亞與阿波操控感最佳。";
     }
+  }
+}
+
+/// 🌟 獨立常數化靜態底盤 (RepaintBoundary 快取於 GPU，0ms 重繪開銷)
+class _StaticCompassDial extends StatelessWidget {
+  const _StaticCompassDial();
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+              gradient: const RadialGradient(
+                colors: [Color(0xFF0F1B2B), Color(0xFF060B12)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 86,
+            height: 86,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 0.5),
+            ),
+          ),
+          const Positioned(
+            top: 6,
+            child: Text("N", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.hazardCoral)),
+          ),
+          const Positioned(
+            bottom: 6,
+            child: Text("S", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
+          ),
+          const Positioned(
+            left: 7,
+            child: Text("W", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
+          ),
+          const Positioned(
+            right: 7,
+            child: Text("E", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textTertiary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 動態指針旋轉層 (僅更新 Transform 矩陣)
+class _DynamicCompassNeedle extends StatelessWidget {
+  final double angleDeg;
+  final Color needleColor;
+
+  const _DynamicCompassNeedle({
+    required this.angleDeg,
+    required this.needleColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double radians = angleDeg * math.pi / 180.0;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Transform.rotate(
+          angle: radians,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.navigation_rounded, 
+                size: 36, 
+                color: needleColor,
+              ),
+              const SizedBox(height: 22),
+            ],
+          ),
+        ),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.bioGold,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.bioGold.withValues(alpha: 0.5),
+                blurRadius: 6,
+              )
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

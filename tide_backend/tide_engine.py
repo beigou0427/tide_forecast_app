@@ -2,7 +2,10 @@
 import json
 import os
 import time
-import re
+import math
+import random
+import hashlib
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 # 引入 Gemini AI SDK
@@ -100,7 +103,7 @@ def resolve_station_meta(sid, raw_name, county, town, attr):
 def safe_float(v, default=None):
     if v is None: return default
     s = str(v).strip()
-    if s in ('None', '-99', '-999', '', 'nan', 'null', 'Infinity'): return default
+    if s in ('None', '-99', '-999', '', 'nan', 'null', 'Infinity', '-Infinity'): return default
     try: return float(s)
     except: return default
 
@@ -116,7 +119,8 @@ def get_observation_list(loc):
         if isinstance(obs, list): obs_list = obs
     return sorted(obs_list, key=lambda x: str(x.get('DateTime') or x.get('DataTime') or ''))
 
-def merge_and_prune_history(existing_filepath, new_loc, days=30):
+# 🌟 VVIP 痛點 9 核心修復：從 30 天暴力擴容為「365 天跨年回測金庫」
+def merge_and_prune_history(existing_filepath, new_loc, days=365):
     new_obs = get_observation_list(new_loc)
     old_obs = []
 
@@ -166,9 +170,17 @@ def sanitize_observation(obs_item):
     raw_wave = we.get('WaveHeight') if we.get('WaveHeight') is not None else wave.get('WaveHeight')
     raw_period = we.get('WavePeriod') if we.get('WavePeriod') is not None else wave.get('WavePeriod')
     
+    h = safe_float(raw_wave)
+    p = safe_float(raw_period)
+    
+    flux = None
+    if h is not None and p is not None and h > 0 and p > 0:
+        flux = round(0.49 * (h ** 2) * p, 2)
+    
     return {
-        "wave_height": safe_float(raw_wave),
-        "wave_period": safe_float(raw_period),
+        "wave_height": h,
+        "wave_period": p,
+        "wave_energy_flux": flux,
         "wind_speed": safe_float(we.get('WindSpeed')),
         "sea_temp": safe_float(we.get('SeaTemperature')),
         "air_temp": safe_float(we.get('AirTemperature') or we.get('Temperature')),
@@ -186,7 +198,9 @@ def check_observation_staleness(data_time_str):
         else:
             dt = datetime.strptime(s[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S').replace(tzinfo=TZ_TAIWAN)
             
-        diff_hours = (datetime.now(TZ_TAIWAN) - dt).total_seconds() / 3600.0
+        raw_diff_hours = (datetime.now(TZ_TAIWAN) - dt).total_seconds() / 3600.0
+        diff_hours = max(0.0, raw_diff_hours)
+
         if diff_hours <= 6.0: return False, round(diff_hours, 1), "REALTIME"
         elif diff_hours <= 24.0: return False, round(diff_hours, 1), "SATELLITE_ACTIVE"
         else: return True, round(diff_hours, 1), "MAINTENANCE"
@@ -243,20 +257,18 @@ def parse_forecast_times(fl):
                 results.append({"DateTime": dt, "Tide": tide_type, "TideHeights": t.get('TideHeights', {})})
     return results
 
-# 🌟 第 1 層：Andrej Karpathy 確定性海事物理引擎 (100% 數學確定性，0 延遲，0 幻覺風險)
 def compute_deterministic_physics(sanitized_metrics):
     wave_h = sanitized_metrics.get("wave_height")
     wave_p = sanitized_metrics.get("wave_period") or 5.0
     wind_s = sanitized_metrics.get("wind_speed")
+    flux = sanitized_metrics.get("wave_energy_flux") or (0.49 * (wave_h ** 2) * wave_p if wave_h else 0.0)
 
     if wave_h is None or wind_s is None:
         return 25, "HALT", "感測器離線 · 水文未明", "實時海象感測器維護中或訊號中斷，現場水文不明，嚴禁盲目登礁作業！", ["室內休整", "岸邊安全觀察"]
     
-    # 致命長湧瘋狗浪物理熔斷
-    if wave_p >= 10.0 and wave_h >= 0.7:
-        return 20, "HALT", "致命長湧 · 嚴禁外礁", "外海偵測到深層長週期能量湧浪！近岸極易突發無預警蓋礁洗岸瘋狗浪，嚴禁外礁與消波塊作業！", ["室內休整", "港內整理釣具"]
+    if (wave_p >= 10.0 and wave_h >= 0.7) or flux >= 3.5:
+        return 20, "HALT", "致命長湧 · 嚴禁外礁", f"外海偵測到動能高達 {flux:.1f} kW/m 之深層長湧浪！極易突發無預警蓋礁洗岸瘋狗浪，嚴禁外礁登礁作業！", ["室內休整", "港內整理釣具"]
     
-    # 極端大浪強風熔斷
     if wave_h >= 2.5 or wind_s >= 11.0:
         return 25, "HALT", "巨浪強風 · 嚴禁出海", "實測浪高或陣風已達危險警戒上限，走水猛烈且浪拍防波堤，請即刻撤離無防護作業區！", ["港內觀浪", "安全撤離"]
 
@@ -268,62 +280,83 @@ def compute_deterministic_physics(sanitized_metrics):
 
     return 88, "OPERATIONAL", "海象平穩 · 條件優良", "海況平穩，風浪週期適中，全島多數近岸水域作業條件優良，請維持基本防護。", ["浮游磯釣", "岸拋路亞", "沿岸採集"]
 
-# 🌟 第 2 層：LLM 語義解耦生成（僅調用 gemini-flash-lite-latest 進行在地台味語料編譯）
-def analyze_safety_heuristic(sanitized_metrics, station_name=""):
-    # 物理引擎權威計算：安全分由物理公式嚴格錨定，LLM 無權竄改！
+def compute_feature_fingerprint(station_name, sanitized_metrics, score, tier):
+    h = sanitized_metrics.get("wave_height")
+    p = sanitized_metrics.get("wave_period")
+    w = sanitized_metrics.get("wind_speed")
+    feature_str = f"{station_name}:{h}:{p}:{w}:{score}:{tier}"
+    return hashlib.sha256(feature_str.encode('utf-8')).hexdigest()[:16]
+
+def analyze_safety_heuristic(sanitized_metrics, station_name="", prior_ai_snapshot=None):
     score, tier, status_desc, default_briefing, default_acts = compute_deterministic_physics(sanitized_metrics)
-    
+    current_fingerprint = compute_feature_fingerprint(station_name, sanitized_metrics, score, tier)
+
+    if prior_ai_snapshot and prior_ai_snapshot.get("fingerprint") == current_fingerprint:
+        prior_ai_snapshot["safety_score"] = score
+        return prior_ai_snapshot
+
     wave_h = sanitized_metrics.get("wave_height")
     wave_p = sanitized_metrics.get("wave_period") or 5.0
     wind_s = sanitized_metrics.get("wind_speed")
+    flux = sanitized_metrics.get("wave_energy_flux")
 
     briefing = default_briefing
     acts = default_acts
 
-    # 嚴格遵守 AI 開發守則：永不加數字版號，永遠使用 latest 結尾
     if GEMINI_KEY:
-        try:
-            model = genai.GenerativeModel(
-                'gemini-flash-lite-latest',
-                generation_config={"response_mime_type": "application/json"}
-            )
-            prompt = f"""
-            你是一位台灣資深討海人與磯釣老船長。
-            海事物理引擎已權威判定此測站海象安全指標如下：
-            測站：{station_name}
-            實測浪高：{wave_h if wave_h is not None else "未知/斷線"} 公尺
-            湧浪週期：{wave_p} 秒
-            實測風速：{wind_s if wind_s is not None else "未知/斷線"} 公尺/秒
-            權威作業等級：【{tier} - {status_desc}】
-            權威安全評分：{score} 分 (嚴禁修改此評分)
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                model = genai.GenerativeModel(
+                    'gemini-flash-lite-latest',
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                prompt = f"""
+                你是一位台灣資深討海人與磯釣老船長。
+                海事物理引擎已權威判定此測站海象安全指標如下：
+                測站：{station_name}
+                實測浪高：{wave_h if wave_h is not None else "未知/斷線"} 公尺
+                湧浪週期：{wave_p} 秒
+                波能動能：{f'{flux} kW/m' if flux else "常態"}
+                實測風速：{wind_s if wind_s is not None else "未知/斷線"} 公尺/秒
+                權威作業等級：【{tier} - {status_desc}】
+                權威安全評分：{score} 分 (嚴禁修改此評分)
 
-            請發揮老船長生動、專業、洗鍊的在地口吻，輸出純 JSON 物件：
-            "briefing": (字串，30字以內的老船長海象分析與出海作業提醒)
-            "activities": (字串陣列，針對此海況最合適的 1~3 項作業活動)
-            """
-            response = model.generate_content(prompt)
-            raw_text = response.text.strip()
-            
-            start_idx = raw_text.find('{')
-            end_idx = raw_text.rfind('}')
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                clean_json_str = raw_text[start_idx:end_idx + 1]
-                ai_data = json.loads(clean_json_str)
-                generated_briefing = ai_data.get("briefing")
-                generated_acts = ai_data.get("activities")
+                請發揮老船長生動、專業、洗鍊的在地口吻，輸出純 JSON 物件：
+                "briefing": (字串，30字以內的老船長海象分析與出海作業提醒)
+                "activities": (字串陣列，針對此海況最合適的 1~3 項作業活動)
+                """
+                response = model.generate_content(prompt)
+                raw_text = response.text.strip()
                 
-                if generated_briefing and isinstance(generated_briefing, str):
-                    briefing = generated_briefing.strip()
-                if generated_acts and isinstance(generated_acts, list) and len(generated_acts) > 0:
-                    acts = [str(a) for a in generated_acts[:3]]
-        except Exception as e:
-            print(f"⚠️ [{station_name}] Gemini 語義編譯降級為基底語料: {e}")
+                start_idx = raw_text.find('{')
+                end_idx = raw_text.rfind('}')
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    clean_json_str = raw_text[start_idx:end_idx + 1]
+                    ai_data = json.loads(clean_json_str)
+                    generated_briefing = ai_data.get("briefing")
+                    generated_acts = ai_data.get("activities")
+                    
+                    if generated_briefing and isinstance(generated_briefing, str):
+                        briefing = generated_briefing.strip()
+                    if generated_acts and isinstance(generated_acts, list) and len(generated_acts) > 0:
+                        acts = [str(a) for a in generated_acts[:3]]
+                break
+            except Exception as e:
+                err_msg = str(e)
+                if attempt < max_retries:
+                    is_rate_limited = "429" in err_msg or "ResourceExhausted" in err_msg
+                    base_sleep = 6.0 if is_rate_limited else 2.0
+                    backoff_delay = (base_sleep * (2 ** attempt)) + random.uniform(0.5, 2.0)
+                    time.sleep(backoff_delay)
+                else:
+                    print(f"⚠️ [{station_name}] Gemini 推論觸發自癒降級為基底物理語料: {e}")
 
-    # 分數 100% 來自確定性物理引擎，語意來自 LLM，安全與體驗兼備
     return {
         "briefing": briefing, 
         "safety_score": score, 
-        "activities": acts
+        "activities": acts,
+        "fingerprint": current_fingerprint
     }
 
 def main():
@@ -344,7 +377,8 @@ def main():
         except: continue
 
     stations_config = []
-    from collections import Counter
+    cache_hit_count = 0
+    fusion_hit_count = 0
 
     for loc in obs_locations:
         st = loc.get('Station', {})
@@ -357,7 +391,17 @@ def main():
 
         edge_filepath = os.path.join(out_dir, f"edge_{sid}.json")
 
-        merged_loc, merged_obs_times = merge_and_prune_history(edge_filepath, loc, days=30)
+        prior_ai = None
+        if os.path.exists(edge_filepath):
+            try:
+                with open(edge_filepath, "r", encoding="utf-8") as f_prev:
+                    prior_data = json.load(f_prev)
+                    prior_ai = prior_data.get("ai_expert")
+            except:
+                prior_ai = None
+
+        # 🌟 VVIP 痛點 9 核心修復：擴容為 365 天跨年回測資料庫 (days=365)
+        merged_loc, merged_obs_times = merge_and_prune_history(edge_filepath, loc, days=365)
         latest_obs = merged_obs_times[-1] if merged_obs_times else {}
         sanitized = sanitize_observation(latest_obs)
         
@@ -366,12 +410,27 @@ def main():
 
         station_forecasts = []
         if parsed_forecasts and lat != 0 and lng != 0:
-            best_match = min(parsed_forecasts, key=lambda f: (f['lat'] - lat)**2 + (f['lng'] - lng)**2)
-            station_forecasts = best_match['times']
+            # 🌟 VVIP 痛點 4 核心修復：浮標與潮位站「虛擬孿生融合 (Digital Twin Fusion)」
+            # 遍歷尋找半徑 15 公里內的最近潮位預報，將其縫合至當前浮標或測站中！
+            valid_forecasts = []
+            for f in parsed_forecasts:
+                # 簡易平面距離估算 (緯度 1度約 111km，經度約 101km)
+                d_lat = (f['lat'] - lat) * 111.0
+                d_lng = (f['lng'] - lng) * 101.0
+                dist_km = math.sqrt(d_lat**2 + d_lng**2)
+                if dist_km <= 15.0:
+                    valid_forecasts.append((dist_km, f['times']))
+            
+            if valid_forecasts:
+                valid_forecasts.sort(key=lambda x: x[0])
+                station_forecasts = valid_forecasts[0][1]
+                fusion_hit_count += 1
 
-        ai_advice = analyze_safety_heuristic(sanitized, name)
-        if GEMINI_KEY:
-            time.sleep(4.2)
+        ai_advice = analyze_safety_heuristic(sanitized, name, prior_ai_snapshot=prior_ai)
+        if prior_ai and prior_ai.get("fingerprint") == ai_advice.get("fingerprint"):
+            cache_hit_count += 1
+        elif GEMINI_KEY:
+            time.sleep(random.uniform(1.2, 1.8))
         
         station_snapshot = {
             "obs": merged_loc,
@@ -401,7 +460,9 @@ def main():
         json.dump(stations_config, f, ensure_ascii=False)
 
     counts = Counter(s['region'] for s in stations_config)
-    print("\n🎉 【全台灣 85 測站 物理/LLM 雙層架構運算完畢】")
+    print("\n🎉 【全台灣 85 測站 365天跨年回測金庫與虛擬孿生融合完畢】")
+    print(f"⚡ [內容定址快取命中] {cache_hit_count}/85 站")
+    print(f"🌊 [虛擬孿生融合命中] {fusion_hit_count}/85 站 (已成功為浮標站縫合 15km 內最近潮汐預報)")
     for r in ["北部", "西部", "南部", "東部", "離島"]:
         print(f" • {r}海域: {counts.get(r, 0)} 個測站")
 

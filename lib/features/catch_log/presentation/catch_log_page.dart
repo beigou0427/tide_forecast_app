@@ -15,7 +15,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/custom_card.dart';
 import '../../../core/services/review_service.dart';
 
-/// Kevin Systrom 視覺展覽館重塑：黑金/白藍雙軌標本展覽館 + 一鍵大物戰報分享
+/// 🌟 經 Phil Schiller 審查標準重構：支援 iPadOS 坐標錨點、防閃退與權限保護之漁獲日誌
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
 
@@ -167,7 +167,6 @@ class CatchLogPage extends ConsumerWidget {
                       ),
                       Row(
                         children: [
-                          // 🌟 Kevin Systrom 大物加冕金標 (Trophy Recognition)
                           if (isTrophy) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
@@ -225,13 +224,16 @@ class CatchLogPage extends ConsumerWidget {
                       ),
                       Row(
                         children: [
-                          // 🌟 Kevin Systrom 一鍵戰績社交炫耀分享鈕
-                          IconButton(
-                            icon: const Icon(Icons.share_rounded, size: 18, color: AppColors.bioGold),
-                            tooltip: "分享此大物戰績至 LINE / 社群",
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _shareCatchRecord(item),
+                          Builder(
+                            builder: (shareBtnContext) {
+                              return IconButton(
+                                icon: const Icon(Icons.share_rounded, size: 18, color: AppColors.bioGold),
+                                tooltip: "分享此大物戰績至社群",
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _shareCatchRecord(item, shareBtnContext),
+                              );
+                            }
                           ),
                           const SizedBox(width: 8),
                           Row(
@@ -276,9 +278,17 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  // 🌟 Kevin Systrom 社交炫耀戰報格式化生成
-  Future<void> _shareCatchRecord(CatchLogItem item) async {
+  Future<void> _shareCatchRecord(CatchLogItem item, BuildContext btnContext) async {
     HapticFeedback.lightImpact();
+
+    Rect? shareOrigin;
+    try {
+      final box = btnContext.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        shareOrigin = box.localToGlobal(Offset.zero) & box.size;
+      }
+    } catch (_) {}
+
     final String timeStr = DateFormat('yyyy/MM/dd HH:mm').format(item.dateTime);
     final String metrics = [
       if (item.tideHeight != null) "潮位 ${item.tideHeight}m",
@@ -297,10 +307,21 @@ class CatchLogPage extends ConsumerWidget {
 👉 https://beigou0427.github.io/tide_forecast_app/
 """;
 
-    if (item.imagePath != null && File(item.imagePath!).existsSync()) {
-      await Share.shareXFiles([XFile(item.imagePath!)], text: shareText);
-    } else {
-      await Share.share(shareText);
+    try {
+      if (item.imagePath != null && File(item.imagePath!).existsSync()) {
+        await Share.shareXFiles(
+          [XFile(item.imagePath!)], 
+          text: shareText,
+          sharePositionOrigin: shareOrigin,
+        );
+      } else {
+        await Share.share(
+          shareText,
+          sharePositionOrigin: shareOrigin,
+        );
+      }
+    } catch (e) {
+      debugPrint("⚠️ 分享喚起異常: $e");
     }
   }
 
@@ -461,8 +482,15 @@ class CatchLogPage extends ConsumerWidget {
                               ),
                               onPressed: () async {
                                 HapticFeedback.lightImpact();
-                                final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
-                                if (img != null) setModalState(() => selectedImage = img);
+                                try {
+                                  final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
+                                  if (img != null) setModalState(() => selectedImage = img);
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("請至手機「設定」允許相機權限以拍攝魚獲"), behavior: SnackBarBehavior.floating),
+                                  );
+                                }
                               },
                               icon: Icon(Icons.camera_alt_rounded, color: primaryColor, size: 18),
                               label: Text("現場拍攝", style: TextStyle(color: primaryColor, fontWeight: FontWeight.w800)),
@@ -479,8 +507,15 @@ class CatchLogPage extends ConsumerWidget {
                               ),
                               onPressed: () async {
                                 HapticFeedback.selectionClick();
-                                final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
-                                if (img != null) setModalState(() => selectedImage = img);
+                                try {
+                                  final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 1200, maxHeight: 1200);
+                                  if (img != null) setModalState(() => selectedImage = img);
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("請至手機「設定」允許照片存取權限以挑選照片"), behavior: SnackBarBehavior.floating),
+                                  );
+                                }
                               },
                               icon: Icon(Icons.photo_library_rounded, color: primaryColor, size: 18),
                               label: Text("相簿挑選", style: TextStyle(color: primaryColor, fontWeight: FontWeight.w800)),
@@ -570,6 +605,7 @@ class CatchLogPage extends ConsumerWidget {
                         onPressed: () async {
                           final species = speciesCtrl.text.trim();
                           if (species.isEmpty) {
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("請填寫對象魚種")));
                             return;
                           }
@@ -584,7 +620,6 @@ class CatchLogPage extends ConsumerWidget {
                               final savedFile = await File(selectedImage!.path).copy('${appDir.path}/$fileName');
                               permanentPath = savedFile.path;
                             } catch (e) {
-                              debugPrint("⚠️ 照片沙盒轉移失敗，回退使用原始路徑: $e");
                               permanentPath = selectedImage!.path;
                             }
                           }

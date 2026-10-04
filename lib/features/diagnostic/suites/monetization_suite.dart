@@ -33,6 +33,7 @@ class MonetizationSuiteResult {
       isVipCardSerialValid;
 }
 
+/// 🌟 經海事商業標準重塑之 8/77 閘門與 StoreKit 審計套件
 class MonetizationDiagnosticSuite {
   static Future<MonetizationSuiteResult> run() async {
     // 1 & 2. 真實 85 站全庫遍歷：8 大免費站與 77 站 VIP 付費閘門精準度審計
@@ -51,11 +52,9 @@ class MonetizationDiagnosticSuite {
         
         if (model.isProOnly) {
           proCount++;
-          // 確保免費清單裡的 ID 絕對不應該被判斷為 ProOnly
           if (AppConstants.freeStationIds.contains(sid)) proGatesOk = false;
         } else {
           freeCount++;
-          // 確保免費站數量與邏輯完全吻合
           if (!AppConstants.freeStationIds.contains(sid)) freeGatesOk = false;
         }
       }
@@ -76,10 +75,11 @@ class MonetizationDiagnosticSuite {
                             AppConstants.iapProductIds.contains(AppConstants.iapProMonthly) &&
                             AppConstants.iapProductIds.contains(AppConstants.iapProYearly);
 
-    // 5. VIP 創始黑金身分銘牌演算法合規
+    // 5. VIP 創始黑金身分銘牌演算法合規 (支援跨年動態年號)
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final testSeq = "CAPT-2026-${nowMs.toString().substring(5, 9)}";
-    final bool seqOk = RegExp(r'^CAPT-2026-\d{4}$').hasMatch(testSeq);
+    final currentYear = DateTime.now().year;
+    final testSeq = "CAPT-$currentYear-${nowMs.toString().substring(5, 9)}";
+    final bool seqOk = RegExp(r'^CAPT-\d{4}-\d{4}$').hasMatch(testSeq);
 
     String msg;
     if (!freeOk) {
@@ -88,6 +88,8 @@ class MonetizationDiagnosticSuite {
       msg = "77 席 VIP 測站付費牆漏洞，遭誤判為免費開放！";
     } else if (!storeKitOk) {
       msg = "StoreKit 4 大商品矩陣宣告缺失！";
+    } else if (!seqOk) {
+      msg = "VIP 銘牌序號格式不合規！";
     } else {
       msg = "8/77 商業分級防線堅不可摧，StoreKit 矩陣與 B2B 通訊協定全數就緒！";
     }

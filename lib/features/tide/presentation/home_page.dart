@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +13,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../premium/services/premium_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/fcm_service.dart';
+import '../../../core/services/global_error_trap.dart';
 import '../../catch_log/presentation/catch_log_page.dart';
 import 'station_guide_page.dart';
 
@@ -32,7 +34,33 @@ import 'widgets/bite_radar_section.dart';
 import 'widgets/astro_hindcast_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-/// Apple 首席設計工藝 × CPO 雙核心體驗：雙軌自適應主座艙
+final isPureTideModeProvider = StateNotifierProvider<PureTideModeNotifier, bool>((ref) {
+  return PureTideModeNotifier();
+});
+
+class PureTideModeNotifier extends StateNotifier<bool> {
+  static const String _prefKey = 'is_pure_tide_mode_v2';
+
+  PureTideModeNotifier() : super(false) {
+    _loadPreference();
+  }
+
+  Future<void> _loadPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      state = prefs.getBool(_prefKey) ?? false;
+    } catch (_) {}
+  }
+
+  Future<void> toggle() async {
+    state = !state;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefKey, state);
+    } catch (_) {}
+  }
+}
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -41,24 +69,37 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  Timer? _pushInitTimer;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () async {
+    _pushInitTimer = Timer(const Duration(seconds: 3), () async {
+      if (!mounted) return;
       try {
         await NotificationService.init();
         await FcmService.init();
-      } catch (e) {
-        debugPrint("推播服務初始化異常: $e");
+      } catch (e, stack) {
+        GlobalErrorTrap.recordException(e, stackTrace: stack, contextTag: "PushNotificationInit", severity: ErrorSeverity.warning);
       }
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkMaritimeSafetyConsent());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkMaritimeSafetyConsent();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pushInitTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkMaritimeSafetyConsent() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final bool hasAgreed = prefs.getBool('has_agreed_maritime_safety_v2') ?? false;
     
     if (!hasAgreed && mounted) {
@@ -110,17 +151,17 @@ class _HomePageState extends ConsumerState<HomePage> {
               ),
               const SizedBox(height: 14),
               const Text(
-                "1. 【非航行與人身安全保證工具】\n本系統所有數據（包括即時浪高、風速、潮位走勢及老船長 AI 安全評估）均來自氣象署公開遙測與數值演算法推算，僅供休閒與參考用途。嚴禁作為船舶正式航行、避難、外礁無防護登礁作業或人身財產安全之唯一依據。",
+                "1. 【非航行與人身安全唯一設備】\n本系統所有數據（包括即時浪高、風速、潮位走勢及安全評估）均來自氣象署公開遙測與數值演算法推算，僅供休閒與參考用途。嚴禁作為船舶正式航行、避難、外礁無防護登礁作業或人身財產安全之唯一依據。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
               const SizedBox(height: 10),
               const Text(
-                "2. 【海洋不可抗力與長湧風險】\n台灣近岸水文瞬息萬變，外海長週期湧浪（俗稱瘋狗浪）極具突發性與不可預測性。從事任何水上或沿岸活動，使用者應自備合格救生衣、防滑釘鞋及安全通訊設備，並隨時觀察現場浪況。",
+                "2. 【海洋不可抗力與長湧風險】\n台灣近岸水文瞬息萬變，外海長週期湧浪（俗稱瘋狗浪）極具突發性。從事任何水上或沿岸活動，使用者應自備合格救生衣、防滑釘鞋及安全通訊設備，並隨時觀察現場浪況。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
               const SizedBox(height: 10),
               const Text(
-                "3. 【完全自負風險與責任限制】\n使用者點擊同意進入本程式，即代表明確理解並承諾自負所有出海與作釣之人身安全責任。在法律允許之最大範圍內，本應用程式開發者及發行方不對任何因不可抗力、自然災害或依賴本數據所衍生之直接或間接人身傷亡與財產損失承擔任何法律賠償責任。",
+                "3. 【完全自負風險與責任限制】\n使用者點擊同意進入本程式，即代表明確理解並承諾自負所有出海與作釣之人身安全責任。開發團隊不對因自然災害或使用本數據所衍生之直接或間接損失承擔損害賠償責任。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
             ],
@@ -153,6 +194,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final isClassic = ref.watch(isClassicThemeProvider);
+    final isPureTide = ref.watch(isPureTideModeProvider);
     final tideViewAsync = ref.watch(tideViewDataProvider);
     final currentId = ref.watch(currentStationIdProvider);
     final selectedDate = ref.watch(selectedDateProvider);
@@ -181,7 +223,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
         onRefresh: () async {
           HapticFeedback.mediumImpact();
-          return await ref.refresh(tideViewDataProvider.future);
+          try {
+            return await ref.refresh(tideViewDataProvider.future);
+          } catch (e) {
+            debugPrint("重新載入異常降級: $e");
+          }
         },
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -205,15 +251,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: isToday 
-                            ? (isClassic ? Colors.white : AppColors.pelagicCyan) 
-                            : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral),
+                        color: isPureTide
+                            ? AppColors.bioGold
+                            : (isToday 
+                                ? (isClassic ? Colors.white : AppColors.pelagicCyan) 
+                                : (isFuture ? Colors.indigoAccent : AppColors.hazardCoral)),
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
+                      isPureTide 
+                          ? "純潮汐航海儀表板" 
+                          : (isToday ? "海象全雷達模式" : (isFuture ? "未來預報模式" : "歷史觀測回測")),
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -225,10 +275,54 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               actions: [
+                // 🌟 VVIP 核心：高對比純潮汐切換膠囊
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      ref.read(isPureTideModeProvider.notifier).toggle();
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isPureTide 
+                            ? AppColors.bioGold 
+                            : Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isPureTide ? AppColors.bioGold : Colors.white24,
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isPureTide ? Icons.waves_rounded : Icons.radar_rounded,
+                            size: 14,
+                            color: isPureTide ? Colors.black87 : Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isPureTide ? "純潮汐" : "全雷達",
+                            style: TextStyle(
+                              color: isPureTide ? Colors.black87 : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 _buildCompactAction(
                   icon: isClassic ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
                   color: isClassic ? Colors.white : AppColors.bioGold,
-                  tooltip: isClassic ? "切換為深淵黑金夜戰模式" : "切換為烈日高對比白藍模式",
+                  tooltip: isClassic ? "深淵黑金夜戰" : "烈日高對比",
                   onPressed: () {
                     HapticFeedback.mediumImpact();
                     ref.read(isClassicThemeProvider.notifier).setClassicTheme(!isClassic);
@@ -237,7 +331,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 _buildCompactAction(
                   icon: Icons.share_rounded,
                   color: Colors.white,
-                  tooltip: "產出海象戰報分享",
+                  tooltip: "戰報分享",
                   onPressed: tideViewAsync.value == null
                       ? null
                       : () {
@@ -289,7 +383,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ),
               ),
-              // 🌟 Scott Belsky 外海離線鎧甲模式 (杜絕崩潰挫折感)
               error: (err, _) => SliverFillRemaining(
                 child: _buildOfflineArmorUI(ref, currentStation.name, isClassic),
               ),
@@ -314,14 +407,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      if (isToday) ...[
+                      // 1. 常態雷達專屬 AI 簡報
+                      if (isToday && !isPureTide) ...[
                         SeaBriefingCard(station: station, distance: viewData.distanceKm),
                         const SizedBox(height: 20),
                       ],
+
+                      // 2. 測站地名頭標
                       StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                       const SizedBox(height: 16),
                       
-                      if (isToday) ...[
+                      // 3. UGC 現場真實雷達 (純潮汐模式完全屏蔽)
+                      if (isToday && !isPureTide) ...[
                         UgcRadarCard(
                           stationId: currentId,
                           stationName: station.info.stationName,
@@ -331,23 +428,28 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 16),
                       ],
 
+                      // 4. 天文月相與潮汐係數
                       SolunarCard(selectedDate: selectedDate),
                       const SizedBox(height: 20),
 
-                      BiteRadarSection(
-                        station: station,
-                        selectedDate: selectedDate,
-                        isClassic: isClassic,
-                      ),
-                      const SizedBox(height: 20),
+                      // 5. 魚種索餌雷達 (純潮汐模式隱藏)
+                      if (!isPureTide) ...[
+                        BiteRadarSection(
+                          station: station,
+                          selectedDate: selectedDate,
+                          isClassic: isClassic,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
+                      // 6. 未來預報 / 歷史調和 / 即時水文核心
                       if (isFuture) ...[
-                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", accentColor: Colors.indigoAccent, isClassic: isClassic),
+                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 滿乾潮時程與潮差走水", accentColor: Colors.indigoAccent, isClassic: isClassic),
                         const SizedBox(height: 12),
                         _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         const SizedBox(height: 22),
                         
-                        _sectionTitle("🌊 預測潮位走勢 (餘弦調和擬合)", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
+                        _sectionTitle("🌊 預測潮位走勢 (錨定官方極值)", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
                         CustomCard(
                           child: TideChartSheet(
@@ -356,9 +458,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                             targetDate: selectedDate,
                           ),
                         ),
-                        const SizedBox(height: 20),
-
-                        _infoCard(context, "預報模式說明", "您正在查看未來預報。圖表已透過航海調和演算法將滿乾潮預測點擬合為平滑走勢曲線。"),
                       ] else if (isPastWithoutSensor) ...[
                         _sectionTitle("🌌 歷史天文調和回溯模式", accentColor: AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
@@ -370,17 +469,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ] else if (activeObservation != null) ...[
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
+
                         SafetyAlert(current: activeObservation),
                         const SizedBox(height: 14),
-                        
+
                         WindCompassCard(current: activeObservation),
 
                         if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
                           const SizedBox(height: 22),
-                          _sectionTitle(isToday ? "今日滿乾潮時程" : "當日滿乾潮時程", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
+                          _sectionTitle(isToday ? "今日滿乾潮時程與走水黃金期" : "當日滿乾潮時程與走水黃金期", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                           const SizedBox(height: 12),
                           _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
                         ],
+
                         const SizedBox(height: 22),
                         _sectionTitle(isToday ? "24h 走勢監控" : "歷史實測走勢圖", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, isClassic: isClassic),
                         const SizedBox(height: 12),
@@ -390,19 +491,25 @@ class _HomePageState extends ConsumerState<HomePage> {
                             targetDate: selectedDate,
                           ),
                         ),
-                        const SizedBox(height: 22),
-                        _sectionTitle(isToday ? "詳細觀測參數" : "歷史時空記錄參數", isClassic: isClassic),
-                        const SizedBox(height: 12),
-                        MetricGrid(current: activeObservation),
+
+                        if (!isPureTide) ...[
+                          const SizedBox(height: 22),
+                          _sectionTitle(isToday ? "詳細觀測參數" : "歷史時空記錄參數", isClassic: isClassic),
+                          const SizedBox(height: 12),
+                          MetricGrid(current: activeObservation),
+                        ],
                       ],
-                      const SizedBox(height: 24),
 
-                      LocalMerchantCard(
-                        stationName: station.info.stationName,
-                        region: currentStation.region,
-                      ),
-                      const SizedBox(height: 24),
+                      // 7. 特約補給點 (純潮汐模式 100% 隱藏)
+                      if (!isPureTide) ...[
+                        const SizedBox(height: 24),
+                        LocalMerchantCard(
+                          stationName: station.info.stationName,
+                          region: currentStation.region,
+                        ),
+                      ],
 
+                      const SizedBox(height: 24),
                       _buildFooter(station.info.addressDescription, isClassic),
                     ]),
                   ),
@@ -413,7 +520,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ),
 
-      // 🌟 Kevin Systrom 核心多巴胺直達按鈕：今日常駐「中魚拍照」，非今日自動切回「返回今日」
       floatingActionButton: isToday
           ? FloatingActionButton.extended(
               onPressed: () {
@@ -440,7 +546,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  // 🌟 Scott Belsky 外海離線黑盒子鎧甲模式 (將崩潰轉化為極致可靠度)
   Widget _buildOfflineArmorUI(WidgetRef ref, String stationName, bool isClassic) {
     final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
     final Color shieldColor = isClassic ? const Color(0xFF0077B6) : AppColors.bioGold;
@@ -462,7 +567,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             const SizedBox(height: 20),
             Text(
-              "外海離線黑盒子自癒模式", 
+              "外海離線黑盒子模式", 
               style: TextStyle(
                 fontWeight: FontWeight.w900, 
                 fontSize: 18, 
@@ -472,7 +577,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              "[$stationName] 外海無蜂巢網路訊號\n系統已自動切換本地 30 天水文存檔與天文調和演算法防線", 
+              "[$stationName] 外海無網路訊號\n系統已啟動本地水文存檔與天文調和演算法防線", 
               textAlign: TextAlign.center, 
               style: TextStyle(
                 color: isClassic ? Colors.grey.shade600 : AppColors.textSecondary, 
@@ -490,7 +595,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.menu_book_rounded, size: 16),
-                  label: const Text("離線水文百科", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                  label: const Text("水文百科", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const StationGuidePage()));
                   },
@@ -503,7 +608,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text("嘗試重新連線", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                  label: const Text("嘗試重連", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
                   onPressed: () => ref.refresh(tideViewDataProvider), 
                 ),
               ],
@@ -577,9 +682,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                   label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                   onPressed: () async {
                     HapticFeedback.mediumImpact();
+                    final navigator = Navigator.of(ctx);
                     await Future.delayed(const Duration(milliseconds: 120));
                     await ShareUtil.captureAndShare(reportKey, stationName: station.info.stationName);
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (ctx.mounted) navigator.pop();
                   },
                 ),
               ),
@@ -674,73 +780,147 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       );
     }
-    return CustomCard(
-      child: Column(
-        children: forecasts.map((f) {
-          bool isHigh = f.tideType.contains("滿");
-          return ListTile(
-            dense: true,
-            leading: Icon(
-              isHigh ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, 
-              color: isHigh 
-                  ? (isLight ? Colors.redAccent : AppColors.hazardCoral) 
-                  : (isLight ? Colors.blueAccent : AppColors.pelagicCyan), 
-              size: 18,
-            ),
-            title: Text(
-              "${DateFormat('HH:mm').format(f.dateTime)} · ${f.tideType}", 
-              style: TextStyle(
-                fontWeight: FontWeight.w700, 
-                color: isLight ? Colors.black87 : AppColors.textPrimary, 
-                fontSize: 14,
-              ),
-            ),
-            trailing: Text(
-              "${f.tideHeight} cm", 
-              style: TextStyle(
-                fontWeight: FontWeight.w800, 
-                fontSize: 16, 
-                color: isLight ? Colors.blueGrey : AppColors.textSecondary,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
-  Widget _infoCard(BuildContext context, String title, String content) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
+    final sorted = List<TideForecast>.from(forecasts)
+      ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+
     return CustomCard(
-      child: Row(
-        children: [
-          Icon(Icons.info_outline_rounded, color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title, 
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700, 
-                    fontSize: 13.5, 
-                    color: isLight ? const Color(0xFF023E8A) : AppColors.textPrimary,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Column(
+        children: List.generate(sorted.length, (index) {
+          final f = sorted[index];
+          final bool isHigh = f.tideType.contains("滿");
+          final double? currentHeight = double.tryParse(f.tideHeight);
+
+          String diffBadge = "";
+          Color diffColor = Colors.transparent;
+          if (index > 0 && currentHeight != null) {
+            final double? prevHeight = double.tryParse(sorted[index - 1].tideHeight);
+            if (prevHeight != null) {
+              final double diff = (currentHeight - prevHeight).abs();
+              final String flowSpeed = diff >= 160.0 ? "大急流" : (diff >= 90.0 ? "中走水" : "微緩流");
+              diffBadge = isHigh 
+                  ? "▲ 漲潮 +${diff.toStringAsFixed(0)}cm ($flowSpeed)" 
+                  : "▼ 退潮 -${diff.toStringAsFixed(0)}cm ($flowSpeed)";
+              diffColor = diff >= 160.0 
+                  ? AppColors.bioGold 
+                  : (isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan);
+            }
+          }
+
+          String slackOrBiteWindow = "";
+          if (isHigh) {
+            final biteStart = f.dateTime.add(const Duration(hours: 1, minutes: 15));
+            final biteEnd = f.dateTime.add(const Duration(hours: 2, minutes: 45));
+            final startStr = DateFormat('HH:mm').format(biteStart);
+            final endStr = DateFormat('HH:mm').format(biteEnd);
+            slackOrBiteWindow = "🔥 滿退2分走水期：$startStr ~ $endStr (魚群大開口)";
+          } else {
+            if (currentHeight != null && currentHeight <= 30.0) {
+              slackOrBiteWindow = "🚨 乾潮底極淺水位：防範暗礁擱淺危險！";
+            } else {
+              final drySlackStart = f.dateTime.subtract(const Duration(minutes: 30));
+              final drySlackEnd = f.dateTime.add(const Duration(minutes: 30));
+              final sStr = DateFormat('HH:mm').format(drySlackStart);
+              final eStr = DateFormat('HH:mm').format(drySlackEnd);
+              slackOrBiteWindow = "⏳ 乾潮底停潮緩流：$sStr ~ $eStr (宜攻深坎流溝)";
+            }
+          }
+
+          final bool isDangerShallow = !isHigh && currentHeight != null && currentHeight <= 30.0;
+
+          return Column(
+            children: [
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: (isHigh 
+                        ? (isLight ? Colors.red.shade50 : AppColors.hazardCoral.withValues(alpha: 0.15))
+                        : (isLight ? Colors.blue.shade50 : AppColors.pelagicCyan.withValues(alpha: 0.15))),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isHigh ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, 
+                    color: isHigh 
+                        ? (isLight ? Colors.redAccent : AppColors.hazardCoral) 
+                        : (isLight ? Colors.blueAccent : AppColors.pelagicCyan), 
+                    size: 16,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  content, 
-                  style: TextStyle(
-                    color: isLight ? Colors.blueGrey : AppColors.textSecondary, 
-                    fontSize: 11.5, 
-                    height: 1.35,
+                title: Row(
+                  children: [
+                    Text(
+                      DateFormat('HH:mm').format(f.dateTime), 
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900, 
+                        color: isLight ? Colors.black87 : AppColors.textPrimary, 
+                        fontSize: 15,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: isHigh 
+                            ? (isLight ? Colors.redAccent.withValues(alpha: 0.1) : AppColors.hazardCoral.withValues(alpha: 0.15))
+                            : (isLight ? Colors.blueAccent.withValues(alpha: 0.1) : AppColors.pelagicCyan.withValues(alpha: 0.15)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        f.tideType,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          color: isHigh 
+                              ? (isLight ? Colors.redAccent : AppColors.hazardCoral) 
+                              : (isLight ? Colors.blueAccent : AppColors.pelagicCyan),
+                        ),
+                      ),
+                    ),
+                    if (diffBadge.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        diffBadge,
+                        style: TextStyle(fontSize: 10.5, color: diffColor, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ],
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    slackOrBiteWindow,
+                    style: TextStyle(
+                      fontSize: 11, 
+                      color: isDangerShallow 
+                          ? AppColors.hazardCoral 
+                          : (isHigh ? AppColors.bioGold : (isLight ? Colors.blueGrey : AppColors.textTertiary)), 
+                      fontWeight: isHigh || isDangerShallow ? FontWeight.w800 : FontWeight.w500,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
+                trailing: Text(
+                  "${f.tideHeight} cm", 
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900, 
+                    fontSize: 17, 
+                    color: isDangerShallow ? AppColors.hazardCoral : (isLight ? Colors.blueGrey.shade800 : AppColors.textPrimary),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              if (index < sorted.length - 1)
+                Divider(
+                  height: 1, 
+                  color: isLight ? Colors.grey.shade200 : AppColors.glassBorder,
+                ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -809,6 +989,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       lastDate: lastDate,
       helpText: "選擇回測或預報日期",
     );
-    if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
+    if (picked != null && mounted) {
+      ref.read(selectedDateProvider.notifier).state = picked;
+    }
   }
 }

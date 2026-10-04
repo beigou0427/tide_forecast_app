@@ -1,9 +1,13 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'iap_manager.dart';
 
 enum SubscriptionType { none, weekly, monthly, yearly, lifetime }
 
+/// 🌟 Dan Abramov 結構化不可變會員狀態實體 (Immutable State Machine)
+/// 具備嚴密值等價性 (Value Equality)，完全消滅同一狀態再派發造成的無效全域 Rebuild
+@immutable
 class PremiumState {
   final bool isPremium;
   final SubscriptionType type;
@@ -11,7 +15,7 @@ class PremiumState {
   final bool isFounder;
   final int coinBalance;
 
-  PremiumState({
+  const PremiumState({
     required this.isPremium,
     this.type = SubscriptionType.none,
     this.expiryDate,
@@ -34,6 +38,26 @@ class PremiumState {
       coinBalance: coinBalance ?? this.coinBalance,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PremiumState &&
+          runtimeType == other.runtimeType &&
+          isPremium == other.isPremium &&
+          type == other.type &&
+          expiryDate == other.expiryDate &&
+          isFounder == other.isFounder &&
+          coinBalance == other.coinBalance;
+
+  @override
+  int get hashCode => Object.hash(
+        isPremium,
+        type,
+        expiryDate,
+        isFounder,
+        coinBalance,
+      );
 }
 
 final premiumProvider = StateNotifierProvider<PremiumNotifier, PremiumState>((ref) {
@@ -47,8 +71,10 @@ final iapManagerProvider = Provider<IAPManager>((ref) {
   return manager;
 });
 
+/// 🌟 經 Redux / 單向資料流哲學重構的純粹會員狀態轉移器
+/// 徹底封死任何「非 StoreKit 偽造與代幣白嫖 PRO 通道」，誓死捍衛真金白銀 VVIP 價值防線
 class PremiumNotifier extends StateNotifier<PremiumState> {
-  PremiumNotifier() : super(PremiumState(isPremium: false)) {
+  PremiumNotifier() : super(const PremiumState(isPremium: false)) {
     _loadStatus();
   }
 
@@ -61,7 +87,7 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       int typeIndex = prefs.getInt('sub_type') ?? 0;
       bool isFounder = prefs.getBool('is_founder') ?? false;
 
-      // 🌟 老闆英明決策：現行年度訂閱 (Yearly) 老客戶無痛直升「終身創始天尊指揮官」祖父條款
+      // 1. 創始會員祖父條款直升防線 (不可侵犯的承諾)
       final bool isCurrentYearly = isPro && (typeIndex == SubscriptionType.yearly.index);
       final bool isOldProUnmigrated = !alreadyMigrated && isPro;
 
@@ -78,6 +104,7 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
         await prefs.setBool('has_migrated_founder', true);
       }
 
+      // 2. 時光機作弊防線 (系統時間惡意回撥強制自衛)
       final now = DateTime.now();
       String? installStr = prefs.getString('app_install_epoch');
       if (installStr == null) {
@@ -89,17 +116,16 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
           await prefs.setBool('is_pro', false);
           await prefs.remove('expiry_date');
           await prefs.setInt('sub_type', SubscriptionType.none.index);
-          state = state.copyWith(isPremium: false);
+          state = state.copyWith(isPremium: false, type: SubscriptionType.none);
           return;
         }
       }
 
       final expiryStr = prefs.getString('expiry_date');
       final coins = prefs.getInt('captain_coins') ?? 0;
-
       DateTime? expiryDate = expiryStr != null ? DateTime.tryParse(expiryStr) : null;
 
-      // 離線過期防禦（創始會員永久豁免降級）
+      // 3. 離線過期白嫖防禦 (非創始會員嚴格校驗有效期限)
       if (isPro && !isFounder && expiryDate != null) {
         if (now.isAfter(expiryDate)) {
           isPro = false;
@@ -111,15 +137,17 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
         }
       }
 
+      final safeType = SubscriptionType.values[typeIndex < SubscriptionType.values.length ? typeIndex : 0];
+
       state = PremiumState(
         isPremium: isPro,
-        type: SubscriptionType.values[typeIndex < SubscriptionType.values.length ? typeIndex : 0],
+        type: safeType,
         expiryDate: expiryDate,
         isFounder: isFounder,
         coinBalance: coins,
       );
     } catch (e) {
-      state = PremiumState(isPremium: false);
+      state = const PremiumState(isPremium: false);
     }
   }
 
@@ -179,34 +207,12 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     return false;
   }
 
+  /// 🌟 商業防禦重塑：全面廢除「代幣白嫖 PRO 通道」
+  /// 捍衛付費會員純度，代幣不再具備解鎖 85 站光纖專線之特權，回歸單純社群榮譽標章
   Future<bool> redeemCoinsForProPass(int coins, int passDays) async {
-    if (state.isFounder) return false;
-    if (state.coinBalance < coins) return false;
-
-    final bool spent = await spendCoins(coins);
-    if (!spent) return false;
-
-    final now = DateTime.now();
-    final DateTime baseDate = (state.isPremium && state.expiryDate != null && state.expiryDate!.isAfter(now))
-        ? state.expiryDate!
-        : now;
-    final DateTime newExpiry = baseDate.add(Duration(days: passDays));
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_pro', true);
-    await prefs.setString('expiry_date', newExpiry.toIso8601String());
-
-    final SubscriptionType newType = state.type == SubscriptionType.none 
-        ? SubscriptionType.weekly 
-        : state.type;
-    await prefs.setInt('sub_type', newType.index);
-
-    state = state.copyWith(
-      isPremium: true,
-      expiryDate: newExpiry,
-      type: newType,
-    );
-    return true;
+    // 嚴格阻斷代幣兌換 PRO，保障高客單價付費用戶權益
+    debugPrint("🛡️ [商業防線生效] 拒絕代幣兌換 PRO 請求，PRO 特權僅能由 Apple StoreKit 官方購買解鎖。");
+    return false;
   }
 
   Future<void> cancelSubscription() async {

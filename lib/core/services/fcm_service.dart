@@ -1,4 +1,4 @@
-import 'package:firebase_core/firebase_core.dart';
+﻿import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -6,9 +6,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint("🚨 [FCM 後台靜默喚醒] 接收到推播: ${message.notification?.title ?? message.data['title']}");
+  debugPrint("📩 [FCM 背景推播通道] 收到海象通知: ${message.notification?.title ?? message.data['title']}");
 }
 
+/// 🌟 經海事最高等級重塑之雲端推播服務引擎
+/// 支援 iOS APNS 延遲容錯、外海劇烈天氣主題訂閱與高分貝緊急警報通知
 class FcmService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
@@ -21,10 +23,10 @@ class FcmService {
         sound: true,
       );
 
-      debugPrint("🔔 [FCM] 推播授權狀態: ${settings.authorizationStatus}");
+      debugPrint("🔔 [FCM] 授權狀態: ${settings.authorizationStatus}");
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-      // 🌟 iOS 守衛：非實機或 APNS 尚未配發時安全處理，防止直接拋出未捕捉例外
+      // iOS 實機適配：若 APNS token 尚未取得，暫緩訂閱以防崩潰
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         final apnsToken = await _fcm.getAPNSToken();
         if (apnsToken != null) {
@@ -33,7 +35,7 @@ class FcmService {
           await _fcm.subscribeToTopic('weekend_briefing');
           await _fcm.subscribeToTopic('severe_weather_alert');
         } else {
-          debugPrint("ℹ️ [FCM] iOS 模擬器或 APNS 尚未就緒，主題訂閱將於實機啟動時自動掛載");
+          debugPrint("⚠️ [FCM] iOS 模擬器或 APNS 尚未就緒，將於就緒時自動訂閱");
         }
       } else {
         final String? token = await _fcm.getToken();
@@ -52,8 +54,8 @@ class FcmService {
             const NotificationDetails(
               android: AndroidNotificationDetails(
                 'fcm_urgent_channel',
-                '老船長雲端緊急快訊',
-                channelDescription: '由雲端推播之緊急海象與週末出海決策情報',
+                '老船長海事緊急預警',
+                channelDescription: '突發巨浪與極端海象高優先級推播通知',
                 importance: Importance.max,
                 priority: Priority.high,
                 icon: '@mipmap/ic_launcher',
@@ -65,11 +67,11 @@ class FcmService {
       });
 
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint("🚀 [FCM 點擊開啟] 用戶透過點擊推播進入 App: ${message.data}");
+        debugPrint("🚀 [FCM 點擊開啟] 使用者點擊推播進入 App: ${message.data}");
       });
 
     } catch (e) {
-      debugPrint("⚠️ [FCM] 守衛捕獲例外: $e");
+      debugPrint("⚠️ [FCM] 初始化捕獲異常: $e");
     }
   }
 }

@@ -1,60 +1,126 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 
-/// Don Norman 認知防錯 + 招式三：出海許可階梯與官方海事特定活動險快速投保傳送門
-class SeaBriefingCard extends ConsumerWidget {
+enum OperationalTier { halt, advisory, operational }
+
+class MaritimeDecision {
+  final OperationalTier tier;
+  final String badgeText;
+  final String title;
+  final String actionAdvice;
+  final IconData icon;
+
+  const MaritimeDecision({
+    required this.tier,
+    required this.badgeText,
+    required this.title,
+    required this.actionAdvice,
+    required this.icon,
+  });
+
+  Color getDecisionColor(bool isLight) {
+    switch (tier) {
+      case OperationalTier.halt:
+        return AppColors.hazardCoral;
+      case OperationalTier.advisory:
+        return const Color(0xFFFF9500);
+      case OperationalTier.operational:
+        return isLight ? AppColors.marineBlue : AppColors.pelagicCyan;
+    }
+  }
+
+  factory MaritimeDecision.evaluate({
+    required int safetyScore,
+    required double waveHeight,
+    required double wavePeriod,
+    required double windSpeed,
+  }) {
+    final bool isHalt = safetyScore < 40 || 
+                        waveHeight >= 2.2 || 
+                        (wavePeriod >= 10.0 && waveHeight >= 0.7);
+
+    final bool isAdvisory = !isHalt && 
+                           (safetyScore < 70 || waveHeight > 1.2 || windSpeed > 7.0);
+
+    if (isHalt) {
+      return const MaritimeDecision(
+        tier: OperationalTier.halt,
+        badgeText: "HALT",
+        title: "極端危險 · 嚴禁外礁登礁",
+        actionAdvice: "外海偵測到致命長週期長湧或巨浪！具極端蓋礁瘋狗浪風險，嚴禁無防護水上作業！",
+        icon: Icons.dangerous_rounded,
+      );
+    } else if (isAdvisory) {
+      return const MaritimeDecision(
+        tier: OperationalTier.advisory,
+        badgeText: "ADVISORY",
+        title: "水文戒備 · 需穿著合格裝備",
+        actionAdvice: "潮位變換急促或風浪稍強，建議避開迎風迎浪面，僅限具備背風條件之安全標點。",
+        icon: Icons.warning_amber_rounded,
+      );
+    } else {
+      return const MaritimeDecision(
+        tier: OperationalTier.operational,
+        badgeText: "OPERATIONAL",
+        title: "常態水文許可 · 仍須安全戒備",
+        actionAdvice: "實測波高與風力處於常態作業水準。自然水域變幻莫測，請全程著合格救生衣與釘鞋。",
+        icon: Icons.shield_rounded,
+      );
+    }
+  }
+}
+
+/// 🌟 經海事嚴謹標準重塑之老船長水文決策簡報卡
+/// 徹底拔除一切保險業配雜質，專注呈現 gemini-flash-lite-latest 即時海況推論與航行建議
+class SeaBriefingCard extends ConsumerStatefulWidget {
   final TideStationData station;
   final double? distance;
 
   const SeaBriefingCard({super.key, required this.station, this.distance});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ai = station.aiBriefing;
+  ConsumerState<SeaBriefingCard> createState() => _SeaBriefingCardState();
+}
+
+class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
+  // 🌟 手勢防抖閥門（防止甲板晃動下連點擊穿語音佇列）
+  int _lastClickEpoch = 0;
+
+  void _handleSpeechToggle() {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastClickEpoch < 600) {
+      return;
+    }
+    _lastClickEpoch = now;
+    HapticFeedback.lightImpact();
+    ref.read(ttsProvider.notifier).toggleBriefing(widget.station);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ai = widget.station.aiBriefing;
     final isSpeaking = ref.watch(ttsProvider);
-    final score = ai?.safetyScore ?? 80;
     final bool isLight = Theme.of(context).brightness == Brightness.light;
 
-    final obs = station.observations.isNotEmpty ? station.observations.last : null;
+    final obs = widget.station.observations.isNotEmpty ? widget.station.observations.last : null;
     final double waveH = obs?.waveHeight ?? 0.0;
     final double waveP = obs?.wavePeriod ?? 0.0;
     final double windS = obs?.windSpeed ?? 0.0;
+    final int score = ai?.safetyScore ?? 80;
 
-    final bool isHalt = score < 40 || waveH >= 2.2 || (waveP >= 10.0 && waveH >= 0.7);
-    final bool isAdvisory = !isHalt && (score < 70 || waveH > 1.2 || windS > 7.0);
+    final decision = MaritimeDecision.evaluate(
+      safetyScore: score,
+      waveHeight: waveH,
+      wavePeriod: waveP,
+      windSpeed: windS,
+    );
+    final Color decisionColor = decision.getDecisionColor(isLight);
 
-    Color decisionColor;
-    String decisionBadge;
-    String decisionTitle;
-    String decisionAction;
-    IconData decisionIcon;
-
-    if (isHalt) {
-      decisionColor = AppColors.hazardCoral;
-      decisionBadge = "HALT";
-      decisionTitle = "極端危險 · 嚴禁外礁登礁";
-      decisionAction = "外海偵測到致命長週期長湧或巨浪！具極端蓋礁瘋狗浪風險，嚴禁無防護水上作業！";
-      decisionIcon = Icons.dangerous_rounded;
-    } else if (isAdvisory) {
-      decisionColor = const Color(0xFFFF9500);
-      decisionBadge = "ADVISORY";
-      decisionTitle = "水文戒備 · 需穿著合格裝備";
-      decisionAction = "潮位變換急促或風浪稍強，建議避開迎風迎浪面，僅限具備避風條件之安全標點。";
-      decisionIcon = Icons.warning_amber_rounded;
-    } else {
-      decisionColor = isLight ? AppColors.marineBlue : AppColors.pelagicCyan;
-      decisionBadge = "OPERATIONAL";
-      decisionTitle = "常態水文許可 · 仍須安全戒備";
-      decisionAction = "實測波高與風力處於常態作業水準。自然水域變幻莫測，請全程著合格救生衣與釘鞋。";
-      decisionIcon = Icons.shield_rounded;
-    }
-
-    final String cleanStationName = station.info.stationName.replaceAll(RegExp(r'\(.*?\)'), '').trim();
+    final String cleanStationName = widget.station.info.stationName.replaceAll(RegExp(r'[\(（].*?[\)）]'), '').trim();
 
     return Container(
       width: double.infinity,
@@ -77,7 +143,6 @@ class SeaBriefingCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 測站地名與語音按鈕
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -96,10 +161,10 @@ class SeaBriefingCard extends ConsumerWidget {
                         letterSpacing: -0.4,
                       ),
                     ),
-                    if (distance != null) ...[
+                    if (widget.distance != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        "距您約 ${distance!.toStringAsFixed(1)} km · 實測水文即時監控",
+                        "距您約 ${widget.distance!.toStringAsFixed(1)} km · 實測水文即時監控",
                         style: TextStyle(
                           color: isLight ? Colors.grey.shade600 : AppColors.textTertiary, 
                           fontSize: 11,
@@ -112,10 +177,7 @@ class SeaBriefingCard extends ConsumerWidget {
               const SizedBox(width: 8),
 
               InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  ref.read(ttsProvider.notifier).toggleBriefing(station);
-                },
+                onTap: _handleSpeechToggle,
                 borderRadius: BorderRadius.circular(20),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -156,7 +218,6 @@ class SeaBriefingCard extends ConsumerWidget {
 
           const SizedBox(height: 14),
 
-          // 2. 出海作業許可看板
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -177,7 +238,7 @@ class SeaBriefingCard extends ConsumerWidget {
                     color: decisionColor.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(decisionIcon, color: decisionColor, size: 20),
+                  child: Icon(decision.icon, color: decisionColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -189,7 +250,7 @@ class SeaBriefingCard extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              decisionTitle,
+                              decision.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -207,7 +268,7 @@ class SeaBriefingCard extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              decisionBadge,
+                              decision.badgeText,
                               style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
                             ),
                           ),
@@ -215,7 +276,7 @@ class SeaBriefingCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        decisionAction,
+                        decision.actionAdvice,
                         style: TextStyle(
                           color: isLight ? Colors.blueGrey.shade800 : AppColors.textSecondary,
                           fontSize: 11.5,
@@ -230,73 +291,8 @@ class SeaBriefingCard extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
-
-          // 🌟 招式三：產險官方線上投保通道 (富邦/國泰特定活動險即時傳送門)
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _launchInsurancePortal();
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: isLight ? Colors.blue.shade50 : Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isLight ? Colors.blue.shade200 : AppColors.pelagicCyan.withValues(alpha: 0.25),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.security_rounded, 
-                    size: 16, 
-                    color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "出海前 5 分鐘快速投保 · 官方海釣特定活動險",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                            color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          "富邦 / 國泰產險線上即時出單，防範外礁意外風險 ➔",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isLight ? Colors.blueGrey.shade600 : AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded, 
-                    size: 11, 
-                    color: isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
           const SizedBox(height: 14),
 
-          // 3. 老船長 AI 專家深度筆記
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -304,7 +300,7 @@ class SeaBriefingCard extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  ai?.briefing ?? "正在透過氣象署即時感測陣列與 AI 推論出海建議...",
+                  ai?.briefing ?? "正在透過氣象署感測陣列與 gemini-flash-lite-latest 進行即時水文推論...",
                   style: TextStyle(
                     color: isLight ? Colors.blueGrey.shade900 : AppColors.textSecondary,
                     fontSize: 12.5,
@@ -349,12 +345,5 @@ class SeaBriefingCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _launchInsurancePortal() async {
-    final Uri url = Uri.parse("https://www.fubon.com/insurance/b2c/content/water_activity/index.html");
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
   }
 }

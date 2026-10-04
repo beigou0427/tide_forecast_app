@@ -1,3 +1,7 @@
+﻿// 🌟 透過 Re-export 將全域黑盒子無縫橋接，100% 撲滅 undefined_identifier 審計錯誤
+export 'package:tide_forecast_app/core/services/global_error_trap.dart';
+
+/// 🌟 Joseph M. Juran 品質工程：純淨自檢結果資料模型
 class DiagnosticResultItem {
   final String category;
   final String title;
@@ -20,11 +24,12 @@ class DiagnosticResultItem {
     "detail": detail,
     "metric": metric,
   };
-}
 
-class GlobalErrorTrap {
-  static final List<String> caughtErrors = [];
-  static void record(String error) {
-    if (!caughtErrors.contains(error)) caughtErrors.add(error);
-  }
+  factory DiagnosticResultItem.fromMap(Map<String, dynamic> map) => DiagnosticResultItem(
+    category: map["category"]?.toString() ?? "General",
+    title: map["title"]?.toString() ?? "未命名項目",
+    passed: map["passed"] == true,
+    detail: map["detail"]?.toString() ?? "",
+    metric: map["metric"]?.toString() ?? "--",
+  );
 }

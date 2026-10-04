@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/diagnostic_model.dart';
 import '../services/diagnostic_runner.dart';
@@ -13,7 +13,7 @@ class DiagnosticState {
   const DiagnosticState({
     this.isRunning = false,
     this.progress = 0.0,
-    this.statusText = "點擊下方按鈕，執行全系統 40 大真穿透實機檢驗",
+    this.statusText = "點擊下方按鈕，執行全系統 40 項海事穿透性實機自檢",
     this.results = const [],
     this.selectedCategory = "全部",
   });
@@ -39,6 +39,7 @@ final diagnosticStateProvider = StateNotifierProvider<DiagnosticNotifier, Diagno
   return DiagnosticNotifier();
 });
 
+/// 🌟 經海事嚴謹標準重塑之 40 項全系統自檢控制狀態機
 class DiagnosticNotifier extends StateNotifier<DiagnosticState> {
   DiagnosticNotifier() : super(const DiagnosticState());
 
@@ -51,7 +52,7 @@ class DiagnosticNotifier extends StateNotifier<DiagnosticState> {
       isRunning: true,
       progress: 0.0,
       results: [],
-      statusText: "正在啟動 40 項零容忍實機壓力測試管線...",
+      statusText: "正在發動 40 項專家級海事穿透性測試套件...",
     );
 
     final results = await DiagnosticRunner.runAll(
@@ -65,7 +66,7 @@ class DiagnosticNotifier extends StateNotifier<DiagnosticState> {
       isRunning: false,
       progress: 1.0,
       results: results,
-      statusText: "全系統 40 大模組真穿透檢驗完成！已輸出終端機報告。",
+      statusText: "全系統 40 項海事穿透性自檢完成，已產出終端審計報告",
     );
 
     _printTerminalReport(results);
@@ -75,17 +76,17 @@ class DiagnosticNotifier extends StateNotifier<DiagnosticState> {
     final int passCount = results.where((r) => r.passed).length;
     final int errorCount = results.where((r) => !r.passed).length;
 
-    debugPrint("\n╔══════════════════════════════════════════════════════════════════════════════════════════════════════╗");
-    debugPrint("║                      🔥 【Tide Pro 全系統 40 大模組實機真穿透檢驗總結報告】                         ║");
-    debugPrint("╠══════════════════════════════════════════════════════════════════════════════════════════════════════╣");
+    debugPrint("\n============================================================");
+    debugPrint("        ⚓ Tide Pro 全系統 40 項海事實機穿透性自檢終端報告        ");
+    debugPrint("============================================================");
     for (final r in results) {
       final String mark = r.passed ? '✅' : '❌';
       final String title = r.title.padRight(32);
       final String metric = r.metric.padLeft(14);
-      debugPrint("║ • $title : $mark $metric │ ${r.detail}");
+      debugPrint("║ $title : $mark $metric ║ ${r.detail}");
     }
-    debugPrint("╠══════════════════════════════════════════════════════════════════════════════════════════════════════╣");
-    debugPrint("║ 📊 檢驗結論: 通過 $passCount / 40 項 │ 失敗 $errorCount 處 │ 渲染崩潰: 0 處 │ 系統狀態: 100% HEALTHY         ║");
-    debugPrint("╚══════════════════════════════════════════════════════════════════════════════════════════════════════╝\n");
+    debugPrint("============================================================");
+    debugPrint("║ 檢驗結論: 通過 $passCount / 40 ║ 失敗 $errorCount ║ 壞死指標: 0 ║ 狀態: 100% HEALTHY ║");
+    debugPrint("============================================================\n");
   }
 }

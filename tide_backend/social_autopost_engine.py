@@ -1,6 +1,7 @@
 ﻿import json
 import os
 import glob
+import re
 from datetime import datetime, timezone, timedelta
 
 TZ_TAIWAN = timezone(timedelta(hours=8))
@@ -10,7 +11,13 @@ def calculate_daily_solunar(dt):
     epoch_ref = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
     epoch_days = (dt.astimezone(timezone.utc) - epoch_ref).total_seconds() / 86400.0
     synodic_month = 29.53058867
-    phase_ratio = (epoch_days % synodic_month) / synodic_month
+    
+    # 消除負數與浮點誤差
+    remainder = epoch_days % synodic_month
+    if remainder < 0:
+        remainder += synodic_month
+        
+    phase_ratio = remainder / synodic_month
     lunar_day = round(phase_ratio * synodic_month) % 30 + 1
 
     if (1 <= lunar_day <= 3) or (15 <= lunar_day <= 17):
@@ -63,7 +70,7 @@ def run_social_engine():
             
             raw_wave = we.get("WaveHeight") if we.get("WaveHeight") is not None else wave.get("WaveHeight")
             raw_wind = we.get("WindSpeed")
-            raw_flux = we.get("wave_energy_flux") or obs.get("wave_energy_flux") or 0.0
+            raw_flux = we.get("wave_energy_flux") or obs.get("wave_energy_flux")
             
             # 安全防衛：離線或數據短缺之測站直接排除
             if raw_wave is None or str(raw_wave).strip() in ('None', '-99', '-999', 'nan', ''):
@@ -93,11 +100,13 @@ def run_social_engine():
                         high_tide_str = dt_str.split("T")[1][:5]
                         break
 
-            clean_name = s.get("name", "").replaceAll(RegExp(r'\(.*?\)'), '').strip() if hasattr(s.get("name", ""), "replaceAll") else s.get("name", "").split("(")[0].strip()
+            # 🌟 正統 Python 正規表達式清洗：相容半形與全形括號代碼 (消滅 Dart RegExp 殘留)
+            raw_st_name = s.get("name", "")
+            clean_name = re.sub(r'[\(（].*?[\)）]', '', raw_st_name).strip()
 
             ranked_stations.append({
                 "id": sid,
-                "name": clean_name if clean_name else s.get("name"),
+                "name": clean_name if clean_name else raw_st_name,
                 "region": s.get("region"),
                 "wave": wave_val,
                 "wind": wind_val,
@@ -106,7 +115,7 @@ def run_social_engine():
                 "high_tide": high_tide_str,
                 "briefing": ai.get("briefing", "海象平穩，走水順暢")
             })
-        except:
+        except Exception as err:
             continue
 
     if not ranked_stations:
@@ -119,7 +128,6 @@ def run_social_engine():
 
     now_str = now.strftime("%Y年%m月%d日")
     
-    # 🌟 Bozoma Saint John 野性霸氣文案引擎 (熱血、江湖氣、強行動召喚)
     post_lines = [
         f"🔥【老船長每日水文戰報】{now_str} 全台 3 大爆咬黃金戰場揭曉！\n",
         f"各位浪人師兄、磯釣瘋子們早！",

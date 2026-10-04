@@ -10,6 +10,8 @@ final ttsProvider = StateNotifierProvider<TtsNotifier, bool>((ref) {
   return TtsNotifier(ref);
 });
 
+/// 🌟 經海事最高安全規格重塑之語音合成引擎
+/// 具備致命長湧瘋狗浪語音第一順位插播、VVIP 尊榮播音與滿退 2 分水時程提醒
 class TtsNotifier extends StateNotifier<bool> {
   final FlutterTts _tts = FlutterTts();
   final Ref ref;
@@ -43,7 +45,6 @@ class TtsNotifier extends StateNotifier<bool> {
       }
       await _tts.awaitSpeakCompletion(true);
 
-      // 嚴格生命週期守衛，防止銷毀後更新狀態
       _tts.setStartHandler(() {
         if (mounted) state = true;
       });
@@ -77,8 +78,10 @@ class TtsNotifier extends StateNotifier<bool> {
   }
 
   String _composeSpeechScript(TideStationData station) {
-    // 濾除括號英數代碼，呈現自然口語播音
-    final cleanName = station.info.stationName.replaceAll(RegExp(r'\(.*?\)'), '').trim();
+    final rawName = station.info.stationName;
+    final cleanName = rawName.replaceAll(RegExp(r'[\(（].*?[\)）]'), '').trim();
+    final displayName = cleanName.isNotEmpty ? cleanName : rawName;
+
     final ai = station.aiBriefing;
     final obs = station.observations.isNotEmpty ? station.observations.last : null;
     final solunar = SolunarUtil.calculate(DateTime.now());
@@ -88,7 +91,7 @@ class TtsNotifier extends StateNotifier<bool> {
     
     // 1. 階級尊榮問候
     if (premiumState.isFounder) {
-      sb.write("創始指揮官您好，歡迎登艦！");
+      sb.write("創始天尊指揮官您好，歡迎登艦！");
     } else if (premiumState.type == SubscriptionType.yearly) {
       sb.write("年度首席領航員，老船長為您待命！");
     } else if (premiumState.isPremium) {
@@ -97,49 +100,48 @@ class TtsNotifier extends StateNotifier<bool> {
       sb.write("老船長海象晨報。");
     }
     
-    sb.write("今日為您鎖定觀測站點：$cleanName。");
+    sb.write("今日鎖定觀測站點：$displayName。");
 
-    // 2. 致命長湧瘋狗浪語音防線
+    // 2. 致命長湧瘋狗浪語音第一順位防線
     final double waveH = obs?.waveHeight ?? 0.0;
     final double waveP = obs?.wavePeriod ?? 0.0;
-    if (waveP >= 10.0 && waveH >= 0.7) {
-      sb.write("緊急注意！外海偵測到週期${waveP.toStringAsFixed(0)}秒之深層長湧浪，極易引發外礁蓋礁瘋狗浪，嚴禁前往外礁作釣！");
+    final double flux = obs?.waveEnergyFlux ?? 0.0;
+
+    if ((waveP >= 10.0 && waveH >= 0.7) || flux >= 3.5) {
+      sb.write("緊急注意！外海偵測到週期${waveP.toStringAsFixed(0)}秒之深層長湧浪，動能通量高達${flux.toStringAsFixed(1)}千瓦，極易引發外礁蓋礁瘋狗浪，嚴禁前往無防護外礁！");
     }
 
-    // 3. AI 專家水文簡報
-    if (ai != null) {
-      sb.write("當前安全指針：${ai.safetyScore}分。");
-      sb.write("老船長綜合海況評估：${ai.briefing}。");
-    }
-
-    // 4. 天體日月引力狀態
-    sb.write("今日水文狀態：${solunar.tideCategory}，魚群活躍指數百分之${solunar.fishActivityScore}。");
-
-    // 5. 實測觀測數據
+    // 3. 實測水文數據
     if (obs != null) {
       if (obs.waveHeight != null) sb.write("實測浪高：${obs.waveHeight}米。");
       if (obs.windSpeed != null) sb.write("陣風風速：每秒${obs.windSpeed}米。");
       if (obs.seaTemperature != null) sb.write("海水表溫：${obs.seaTemperature}度。");
     } else {
-      sb.write("提醒您，當前測站實體感測器維護中，無即時風浪數據。");
+      sb.write("提醒您，當前測站實體感測器維護中，已為您無縫接管天文調和推算。");
     }
 
-    // 6. 滿潮時程提醒
+    // 4. 天體引力與走水活躍度
+    sb.write("今日天體水文狀態：${solunar.tideCategory}，魚群活躍指數百分之${solunar.fishActivityScore}。");
+
+    // 5. AI 水文專家推論簡報
+    if (ai != null) {
+      sb.write("當前安全指針：${ai.safetyScore}分。");
+      sb.write("綜合海況評估：${ai.briefing}。");
+    }
+
+    // 6. 滿潮時程與滿退 2 分水走水期
     final now = DateTime.now();
     for (final f in station.forecasts) {
       if (f.tideType.contains("滿") && f.dateTime.isAfter(now)) {
         final timeStr = DateFormat('HH點mm分').format(f.dateTime);
-        sb.write("提醒您，下一次滿潮水位將在$timeStr到來。");
+        final biteStart = f.dateTime.add(const Duration(hours: 1, minutes: 15));
+        final biteStartStr = DateFormat('HH點mm分').format(biteStart);
+        sb.write("提醒您，下一次滿潮水位將在$timeStr到來，滿退二分走水黃金期預估在$biteStartStr展開。");
         break;
       }
     }
 
-    if (premiumState.isPremium) {
-      sb.write("出海作釣請穿著合格裝備，祝長官滿載而歸！");
-    } else {
-      sb.write("出海作釣請穿戴防滑釘鞋與救生衣，老船長祝您滿載而歸！");
-    }
-    
+    sb.write("出海作釣請務必穿著合格救生衣與防滑釘鞋，老船長祝您航行平安，滿載而歸！");
     return sb.toString();
   }
 

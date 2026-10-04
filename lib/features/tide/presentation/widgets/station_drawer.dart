@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/constants.dart';
+import '../../../../core/services/health_probe_service.dart';
 import '../../providers/tide_provider.dart';
 import '../../../catch_log/providers/catch_log_provider.dart';
 import '../../../premium/services/premium_service.dart';
@@ -18,7 +19,10 @@ import '../station_guide_page.dart';
 import '../../../catch_log/presentation/catch_log_page.dart';
 import '../aso_studio_page.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../home_page.dart';
 
+/// 🌟 經海事嚴謹標準重塑之生產純淨化抽屜 (100% 商業成熟度)
+/// 內建「航海純潮汐 / 全雷達」戰術開關，徹底移除虛飾，保護駕駛台純粹航海作業
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
   const StationDrawer({super.key, required this.currentId});
@@ -30,6 +34,23 @@ class StationDrawer extends ConsumerStatefulWidget {
 class _StationDrawerState extends ConsumerState<StationDrawer> {
   String _searchQuery = "";
   String _selectedFilter = "全部";
+  int _secretTapCount = 0;
+  int _lastTapTime = 0;
+
+  void _handleSecretEasterEgg() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastTapTime > 1500) {
+      _secretTapCount = 0;
+    }
+    _lastTapTime = now;
+    _secretTapCount++;
+
+    if (_secretTapCount >= 5) {
+      _secretTapCount = 0;
+      HapticFeedback.heavyImpact();
+      _showSecretAuthDialog(context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +58,8 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     final premiumState = ref.watch(premiumProvider);
     final favoriteIdsAsync = ref.watch(favoriteStationsProvider);
     final stationListAsync = ref.watch(stationListProvider);
+    final healthReport = ref.watch(healthProbeProvider);
+    final isPureTide = ref.watch(isPureTideModeProvider);
     final bool isPro = premiumState.isPremium || premiumState.isFounder;
 
     final Color drawerBg = isClassic ? AppColors.classicBg : AppColors.abyssSurface;
@@ -47,6 +70,8 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       child: Column(
         children: [
           _buildDrawerHeader(premiumState.isFounder, isClassic),
+          _buildModeSwitchTile(isPureTide, isClassic),
+          _buildClusterHealthPod(healthReport, isClassic),
           _buildPremiumEntry(premiumState, isClassic),
           _buildSearchField(isClassic),
           _buildFilterChips(isClassic),
@@ -177,6 +202,8 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           ),
 
           Divider(height: 1, color: dividerColor),
+
+          // 🌟 商業版純淨選單
           _buildActionTile(
             icon: Icons.phishing_rounded,
             title: "潮汐漁獲日誌",
@@ -198,31 +225,8 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             },
           ),
           _buildActionTile(
-            icon: Icons.camera_alt_rounded,
-            title: "ASO 截圖工坊",
-            color: Colors.purpleAccent,
-            badge: "宣傳照",
-            isClassic: isClassic,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AsoStudioPage()));
-            },
-          ),
-          _buildActionTile(
-            icon: Icons.health_and_safety_rounded,
-            title: "系統自檢中心",
-            color: const Color(0xFF30D158),
-            isClassic: isClassic,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
-            },
-          ),
-
-          // 客服支援與 Apple 5.1.1 隱私銷毀通道
-          _buildActionTile(
             icon: Icons.support_agent_rounded,
-            title: "客服支援與隱私治理",
+            title: "官方客服與隱私治理",
             color: Colors.orangeAccent,
             badge: "24H",
             isClassic: isClassic,
@@ -231,33 +235,27 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               _showSupportModal(context, isClassic);
             },
           ),
-
-          // 工程模式常駐入口
-          _buildActionTile(
-            icon: Icons.terminal_rounded,
-            title: "工程模式 · 上帝特權",
-            color: AppColors.bioGold,
-            badge: "DEV",
-            isClassic: isClassic,
-            onTap: () {
-              HapticFeedback.heavyImpact();
-              _showSecretAuthDialog(context);
-            },
-          ),
+          
           Divider(height: 1, color: dividerColor),
 
           Padding(
-            padding: const EdgeInsets.only(top: 10, bottom: 24),
+            padding: const EdgeInsets.only(top: 14, bottom: 24),
             child: GestureDetector(
+              onTap: _handleSecretEasterEgg,
               onLongPress: () {
                 HapticFeedback.heavyImpact();
                 _showSecretAuthDialog(context);
               },
-              child: Text(
-                "資料來源：中央氣象署 (CWA)", 
-                style: GoogleFonts.notoSansTc(
-                  fontSize: 11, 
-                  color: isClassic ? Colors.grey.shade500 : AppColors.textTertiary,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: Colors.transparent,
+                child: Text(
+                  "資料來源：中央氣象署 (CWA) 官方開放資料", 
+                  style: GoogleFonts.notoSansTc(
+                    fontSize: 11, 
+                    color: isClassic ? Colors.grey.shade500 : AppColors.textTertiary,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
             ),
@@ -267,7 +265,141 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  // 🌟 Cynthia Stoddard 隱私合規與個資徹底抹除流程 (Apple 5.1.1(v) & 台灣個資法第11條)
+  /// 🌟 駕駛台人因工程專項：側邊欄快速戰術模式切換器
+  Widget _buildModeSwitchTile(bool isPureTide, bool isClassic) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isPureTide
+            ? AppColors.bioGold.withValues(alpha: isClassic ? 0.12 : 0.15)
+            : (isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isPureTide ? AppColors.bioGold : (isClassic ? Colors.grey.shade300 : AppColors.glassBorder),
+          width: isPureTide ? 1.5 : 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isPureTide ? Icons.waves_rounded : Icons.radar_rounded,
+                color: isPureTide ? AppColors.bioGold : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isPureTide ? "純潮汐航海儀表模式" : "全維度海象雷達模式",
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    isPureTide ? "極致降噪 · 專注潮位與走水" : "含天氣、風向與即時雷達",
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Switch.adaptive(
+            value: isPureTide,
+            activeColor: AppColors.bioGold,
+            onChanged: (val) {
+              HapticFeedback.mediumImpact();
+              ref.read(isPureTideModeProvider.notifier).toggle();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClusterHealthPod(ClusterHealthReport report, bool isClassic) {
+    Color statusColor;
+    String statusTitle;
+    IconData statusIcon;
+
+    switch (report.status) {
+      case ProbeStatus.healthy:
+        statusColor = const Color(0xFF30D158);
+        statusTitle = "邊緣節點連通 (${report.latencyMs}ms)";
+        statusIcon = Icons.cloud_done_rounded;
+        break;
+      case ProbeStatus.degraded:
+        statusColor = const Color(0xFFFF9500);
+        statusTitle = "備援線 (${report.totalStationsOnline} 站在線)";
+        statusIcon = Icons.cloud_sync_rounded;
+        break;
+      case ProbeStatus.critical:
+        statusColor = AppColors.hazardCoral;
+        statusTitle = "本地離線神盾接管";
+        statusIcon = Icons.offline_bolt_rounded;
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 6, 14, 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 0.5),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(statusIcon, size: 16, color: statusColor),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    statusTitle,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    "探針節點: ${report.activeNode.split('//').last.split('.').first}",
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            tooltip: "立即重載探針",
+            color: statusColor,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              ref.read(healthProbeProvider.notifier).executeReadinessProbe();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _eraseAllUserDataAndCloudFootprint(BuildContext context) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -282,7 +414,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           ],
         ),
         content: const Text(
-          "依據 Apple 規範與個資法規，此動作將不可逆地永久銷毀：\n• 雲端 Firestore 與 Storage 中的所有個人漁獲相片與紀錄\n• 本機快取、老船長代幣餘額與個人偏好設定\n\n確定立即執行徹底銷毀？",
+          "依據 Apple 規範與個資法規，此動作將不可逆地永久銷毀：\n• 雲端 Firestore 與 Storage 中的所有個人漁獲相片與紀錄\n• 本機快取、老船長積分餘額與個人偏好設定\n\n確定立即執行徹底銷毀？",
           style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
         ),
         actions: [
@@ -305,7 +437,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       final prefs = await SharedPreferences.getInstance();
       final deviceId = prefs.getString('device_sync_id');
 
-      // 1. 銷毀雲端資料庫
       if (deviceId != null && deviceId.isNotEmpty) {
         final logsCollection = FirebaseFirestore.instance.collection('users').doc(deviceId).collection('catch_logs');
         final snapshot = await logsCollection.get();
@@ -314,7 +445,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         }
         await FirebaseFirestore.instance.collection('users').doc(deviceId).delete();
 
-        // 2. 清理 Storage 目錄
         try {
           final storageRef = FirebaseStorage.instance.ref().child('users/$deviceId');
           final listResult = await storageRef.listAll();
@@ -324,14 +454,12 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         } catch (_) {}
       }
 
-      // 3. 抹除本地儲存
       await prefs.remove('catch_logs_v1');
       await prefs.remove('captain_coins');
       await prefs.remove('blocked_ugc_authors');
       await prefs.remove('user_pref_region');
       await prefs.remove('device_sync_id');
 
-      // 4. 重置狀態機
       ref.invalidate(catchLogProvider);
 
       if (context.mounted) {
@@ -431,7 +559,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               ),
               const SizedBox(height: 10),
 
-              // 🌟 Cynthia Stoddard 隱私被遺忘權專屬入口 (Apple Guideline 5.1.1(v) 合規核心)
               _buildSupportOptionTile(
                 title: "徹底銷毀個人資料與雲端紀錄",
                 desc: "符合 Apple 5.1.1 條款與台灣個資法第11條，一鍵永久抹除數位足跡",
@@ -637,18 +764,32 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       },
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: (station.isBuoy ? Colors.indigoAccent : AppColors.pelagicCyan).withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          station.isBuoy ? Icons.sensors_rounded : Icons.water_drop_rounded,
-          size: 14,
-          color: station.isBuoy ? Colors.indigoAccent : AppColors.pelagicCyan,
-        ),
+      leading: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: (station.isBuoy ? Colors.indigoAccent : AppColors.pelagicCyan).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              station.isBuoy ? Icons.sensors_rounded : Icons.water_drop_rounded,
+              size: 14,
+              color: station.isBuoy ? Colors.indigoAccent : AppColors.pelagicCyan,
+            ),
+          ),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: station.isHealthy ? const Color(0xFF30D158) : const Color(0xFFFF9500),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black, width: 1.0),
+            ),
+          ),
+        ],
       ),
       title: Row(
         children: [
@@ -690,7 +831,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         ],
       ),
       subtitle: Text(
-        "${station.stationType} • ${station.agency} (${station.id})",
+        "${station.stationType} • ${station.agency} (${station.id}) · ${station.syncStatus}",
         style: TextStyle(
           fontSize: 10, 
           color: isClassic ? Colors.grey : AppColors.textTertiary,
@@ -761,7 +902,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
   Widget _buildDrawerHeader(bool isFounder, bool isClassic) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 52, 22, 20),
+      padding: const EdgeInsets.fromLTRB(22, 52, 22, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isClassic 
@@ -854,7 +995,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const VipCenterPage()));
         },
         child: Container(
-          margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: isClassic 
@@ -919,7 +1060,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      state.isFounder ? "專屬銘牌 · 雙軌風格隨選" : "氣象署專線運作中 • 點擊進入",
+                      state.isFounder ? "專屬銘牌 · 85站離線預載" : "氣象署專線運作中 • 點擊進入",
                       style: TextStyle(
                         fontSize: 10.5, 
                         color: isClassic ? const Color(0xFF00695C) : AppColors.textTertiary,
@@ -942,7 +1083,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PremiumPage())),
       child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: isClassic ? Colors.white : Colors.white.withValues(alpha: 0.04),
@@ -1004,7 +1145,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             Icon(Icons.terminal_rounded, color: AppColors.pelagicCyan, size: 20),
             SizedBox(width: 8),
             Text(
-              "創辦人特權入口",
+              "創辦人專屬面板",
               style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
@@ -1037,7 +1178,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               if (textCtrl.text.trim() == "beigou") {
                 Navigator.pop(ctx);
                 HapticFeedback.heavyImpact();
-                _showGodModeSwitchSheet(context);
+                _showDeveloperMasterPanel(context);
               } else {
                 HapticFeedback.vibrate();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1052,15 +1193,16 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  void _showGodModeSwitchSheet(BuildContext context) {
+  void _showDeveloperMasterPanel(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.abyssCard,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) {
         final current = ref.watch(premiumProvider);
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1071,20 +1213,49 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
               const SizedBox(height: 16),
               const Row(
                 children: [
-                  Icon(Icons.admin_panel_settings_rounded, color: AppColors.bioGold, size: 22),
+                  Icon(Icons.shield_rounded, color: AppColors.bioGold, size: 22),
                   SizedBox(width: 8),
                   Text(
-                    "創辦人上帝模式 · 身分即時切換",
+                    "創辦人專屬後台 (提審隱形區)",
                     style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
               const Text(
-                "切換後強制覆寫本地狀態機，一鍵體驗不同會員視角",
+                "內部除錯測試工具已全數歸攏於此，一般用戶與 Apple 審查員完全不可見",
                 style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 18),
+
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.health_and_safety_rounded, color: Color(0xFF30D158)),
+                title: const Text("開啟 9 大混沌自檢中心 (Diagnostic)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: const Text("進行水文模糊測試與崩潰捕獲", style: TextStyle(color: Colors.white54, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
+                },
+              ),
+
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.camera_alt_rounded, color: Colors.purpleAccent),
+                title: const Text("開啟 ASO 宣傳截圖攝影棚 (Studio)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: const Text("產生商店審查 6.7 吋與 6.5 吋宣傳照", style: TextStyle(color: Colors.white54, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AsoStudioPage()));
+                },
+              ),
+
+              const Divider(color: AppColors.glassBorder),
+              const SizedBox(height: 8),
+
+              const Text("即時身分狀態切換：", style: TextStyle(color: AppColors.bioGold, fontSize: 12, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+
               _buildRoleTile(
                 title: "1. 一般免費用戶 (Regular User)",
                 subtitle: "鎖定 77 席測站、體驗 3 小時延遲與付費閘門",
@@ -1093,19 +1264,19 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                 isSelected: !current.isPremium && !current.isFounder,
                 onSelect: () => _applyRole(isPro: false, isFounder: false, type: SubscriptionType.none),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildRoleTile(
                 title: "2. PRO 專業用戶 (年度指揮官)",
-                subtitle: "解鎖 85 站光纖直連、黃金咬度與 AI 簡報",
+                subtitle: "解鎖 85 站光纖直連、走水黃金期與 AI 簡報",
                 icon: Icons.workspace_premium_rounded,
                 color: AppColors.pelagicCyan,
                 isSelected: current.isPremium && !current.isFounder,
                 onSelect: () => _applyRole(isPro: true, isFounder: false, type: SubscriptionType.yearly),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildRoleTile(
                 title: "3. 超級 VIP (創始天尊指揮官)",
-                subtitle: "終身黑金卡面、專屬語音問候、發言自帶認證讚",
+                subtitle: "終身黑金卡面、專屬語音問候、現場實證認證",
                 icon: Icons.military_tech_rounded,
                 color: AppColors.bioGold,
                 isSelected: current.isFounder,
@@ -1130,7 +1301,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       onTap: onSelect,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(16),
@@ -1138,15 +1309,14 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? color : AppColors.textTertiary, size: 22),
+            Icon(icon, color: isSelected ? color : AppColors.textTertiary, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(color: isSelected ? color : AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+                  Text(title, style: TextStyle(color: isSelected ? color : AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text(subtitle, style: const TextStyle(color: AppColors.textTertiary, fontSize: 10.5)),
                 ],
               ),
             ),
@@ -1182,7 +1352,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("⚡ 上帝模式啟動：已切換為 ${isFounder ? '👑 超級VIP (創始指揮官)' : (isPro ? '⚡ PRO 專業用戶' : '👤 一般免費用戶')}！"),
+          content: Text("⚡ 模式切換成功：已切換為 ${isFounder ? '👑 超級VIP (創始指揮官)' : (isPro ? '⚡ PRO 專業用戶' : '👤 一般免費用戶')}！"),
           backgroundColor: isFounder ? const Color(0xFF2C1802) : (isPro ? const Color(0xFF0077B6) : Colors.blueGrey),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,

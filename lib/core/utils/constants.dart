@@ -1,6 +1,9 @@
 ﻿import 'security_util.dart';
 
+/// 🌟 Kelsey Hightower (Kubernetes 傳奇) 宣告式水文測站實體 (Declarative Spec & Status)
+/// 具備型別容錯自癒 (Self-Healing Type Casting) 與動態 Liveness/Readiness 健康探針
 class StationModel {
+  // 1. 宣告式基本規格 (Spec)
   final String id;
   final String name;
   final String region;
@@ -9,6 +12,11 @@ class StationModel {
   final double lng;
   final String stationType;
   final String agency;
+
+  // 2. 動態運作健康狀態 (Observed Status / Health Probes)
+  final String syncStatus;      // "REALTIME" | "SATELLITE_ACTIVE" | "MAINTENANCE"
+  final bool isHealthy;         // Liveness 探針狀態
+  final int historyPoints;      // 時間序列觀測點沉積數
 
   const StationModel({
     required this.id,
@@ -19,39 +27,83 @@ class StationModel {
     required this.lng,
     this.stationType = "海象站",
     this.agency = "中央氣象署",
+    this.syncStatus = "REALTIME",
+    this.isHealthy = true,
+    this.historyPoints = 0,
   });
 
   // 8 大基準口岸站免費開放，其餘 77 席深海/外礁站標註為 PRO 專屬
   bool get isProOnly => !AppConstants.freeStationIds.contains(id);
 
+  /// 🌟 Kelsey Hightower 型別容錯自癒解析器 (徹底消滅 String/Num 型別崩潰)
   factory StationModel.fromJson(Map<String, dynamic> json) {
-    final bool buoy = json['isBuoy'] ?? false;
+    final dynamic rawLat = json['lat'];
+    final dynamic rawLng = json['lng'];
+    
+    double parseCoordinate(dynamic val, double fallback) {
+      if (val == null) return fallback;
+      if (val is num) return val.toDouble();
+      if (val is String) {
+        final parsed = double.tryParse(val.trim());
+        if (parsed != null && !parsed.isNaN && !parsed.isInfinite) return parsed;
+      }
+      return fallback;
+    }
+
+    final bool buoy = json['isBuoy'] == true;
+    final int history = json['historyPoints'] is num 
+        ? (json['historyPoints'] as num).toInt() 
+        : (int.tryParse(json['historyPoints']?.toString() ?? '0') ?? 0);
+
     return StationModel(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '未知測站',
-      region: json['region'] ?? '未知',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '海象測站',
+      region: json['region']?.toString() ?? '北部',
       isBuoy: buoy,
-      lat: (json['lat'] ?? 0).toDouble(),
-      lng: (json['lng'] ?? 0).toDouble(),
-      stationType: json['stationType'] ?? (buoy ? "資料浮標" : "潮位站"),
-      agency: json['agency'] ?? "中央氣象署",
+      lat: parseCoordinate(rawLat, 25.037),
+      lng: parseCoordinate(rawLng, 121.926),
+      stationType: json['stationType']?.toString() ?? (buoy ? "資料浮標" : "潮位站"),
+      agency: json['agency']?.toString() ?? "中央氣象署",
+      syncStatus: json['syncStatus']?.toString() ?? "REALTIME",
+      isHealthy: json['isHealthy'] != false, // 預設為 true，除非顯式宣告為 false
+      historyPoints: history,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'region': region,
+    'isBuoy': isBuoy,
+    'lat': lat,
+    'lng': lng,
+    'stationType': stationType,
+    'agency': agency,
+    'syncStatus': syncStatus,
+    'isHealthy': isHealthy,
+    'historyPoints': historyPoints,
+  };
 }
 
 class AppConstants {
   static const String officialBaseUrl = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
   
-  static String get officialApiKey => SecurityUtil.decryptBytes(const [0x37, 0x3e, 0x25, 0x48, 0x68, 0x21, 0x5b, 0x59, 0x29, 0x50, 0x5f, 0x53, 0x72, 0x50, 0x57, 0x5b, 0x41, 0x48, 0x46, 0x1b, 0x44, 0x50, 0x4b, 0x5c, 0x66, 0x05, 0x04, 0x1f, 0x76, 0x47, 0x28, 0x5d, 0x56, 0x1d, 0x5a, 0x5c, 0x5a, 0x29, 0x54, 0x5f]);
+  static String get officialApiKey => SecurityUtil.decryptBytes(const [
+    0x37, 0x3e, 0x25, 0x48, 0x68, 0x21, 0x5b, 0x59, 
+    0x29, 0x50, 0x5f, 0x53, 0x72, 0x50, 0x57, 0x5b, 
+    0x41, 0x48, 0x46, 0x1b, 0x44, 0x50, 0x4b, 0x5c, 
+    0x66, 0x05, 0x04, 0x1f, 0x76, 0x47, 0x28, 0x5d, 
+    0x56, 0x1d, 0x5a, 0x5c, 0x5a, 0x29, 0x54, 0x5f
+  ]);
 
   static const String dsObservation = "O-B0075-002";
   static const String dsForecast = "F-A0021-001";
   
-  // 🌟 CFO 商業定價權矩陣 (Apple StoreKit Product IDs)
-  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";     // 內部福利/散客體驗 (NT$ 60 / 週)
-  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";   // 月度航海員 (NT$ 120 / 月)
-  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";     // 年度指揮官主力 (NT$ 990 / 年 · 含7天試用)
-  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime"; // 終身創始席次 (NT$ 2,990 / 永久買斷)
+  // Apple StoreKit 產品矩陣宣告
+  static const String iapProWeekly = "com.beigou.tide_app.pro_weekly";
+  static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
+  static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
+  static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime";
   
   static const Set<String> iapProductIds = {
     iapProWeekly,
@@ -60,13 +112,11 @@ class AppConstants {
     iapProLifetime,
   };
 
-  // 🌟 Peter Thiel 實質定價常數 (供全域 UI 與付費牆顯示)
   static const String priceWeekly = "NT\$ 60";
   static const String priceMonthly = "NT\$ 120";
   static const String priceYearly = "NT\$ 990";
   static const String priceLifetime = "NT\$ 2,990";
 
-  // 🌟 Ruth Porat 單位經濟學防禦：免費用戶雲端相簿儲存上限 (超過需訂閱 PRO，防堵 COGS 膨脹)
   static const int maxFreeCloudCatchLogs = 5;
 
   // 8 大免費體驗基準測站 (大港口岸)

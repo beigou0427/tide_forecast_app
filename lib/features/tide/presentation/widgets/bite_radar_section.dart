@@ -8,8 +8,9 @@ import '../../data/tide_model.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 
-/// David Wehner 商業轉化漏斗重塑：具備價值紅線之 10x 標竿魚種爆咬預警雷達
-class BiteRadarSection extends ConsumerWidget {
+/// 🌟 經海事與水產生物學標準重塑之魚種索餌活性雷達
+/// 具備嚴密記憶化快取（Memoization），以海溫變化率 ΔT 與氣壓前沿趨勢 ΔP 為核心物理依據
+class BiteRadarSection extends ConsumerStatefulWidget {
   final TideStationData station;
   final DateTime selectedDate;
   final bool isClassic;
@@ -22,10 +23,57 @@ class BiteRadarSection extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isPro = ref.watch(premiumProvider).isPremium;
-    final bite = BitePredictionEngine.predict(stationData: station, targetDate: selectedDate);
-    final Color titleColor = isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary;
+  ConsumerState<BiteRadarSection> createState() => _BiteRadarSectionState();
+}
+
+class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
+  // 🌟 記憶化計算快取：當觀測資料與日期未變時，0 重複計算開銷
+  BitePredictionResult? _cachedBiteResult;
+  DateTime? _lastTargetDate;
+  int _lastObsCount = 0;
+  DateTime? _lastObsTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _recomputeProjectionIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant BiteRadarSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _recomputeProjectionIfNeeded();
+  }
+
+  void _recomputeProjectionIfNeeded() {
+    final obs = widget.station.observations;
+    final DateTime? currentLatestTime = obs.isNotEmpty ? obs.last.dateTime : null;
+
+    if (_cachedBiteResult != null &&
+        _lastTargetDate == widget.selectedDate &&
+        _lastObsCount == obs.length &&
+        _lastObsTime == currentLatestTime) {
+      return;
+    }
+
+    _lastTargetDate = widget.selectedDate;
+    _lastObsCount = obs.length;
+    _lastObsTime = currentLatestTime;
+
+    _cachedBiteResult = BitePredictionEngine.predict(
+      stationData: widget.station, 
+      targetDate: widget.selectedDate,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPro = ref.watch(premiumProvider.select((s) => s.isPremium || s.isFounder));
+    final bite = _cachedBiteResult ?? BitePredictionEngine.predict(
+      stationData: widget.station, 
+      targetDate: widget.selectedDate,
+    );
+    final Color titleColor = widget.isClassic ? const Color(0xFF023E8A) : AppColors.textPrimary;
 
     return CustomCard(
       padding: const EdgeInsets.all(18),
@@ -35,38 +83,47 @@ class BiteRadarSection extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppColors.bioGold.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.bioGold.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.phishing_rounded, color: AppColors.bioGold, size: 18),
                     ),
-                    child: const Icon(Icons.phishing_rounded, color: AppColors.bioGold, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "10x 標竿魚種爆咬預警雷達",
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w900,
-                          color: titleColor,
-                          letterSpacing: -0.2,
-                        ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "指標魚種活性與索餌推演",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: titleColor,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            "海溫躍層 ΔT · 氣壓走勢 ΔP · 潮目起流指標",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        "水溫變化率 ΔT · 氣壓趨勢 ΔP 專利推演",
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
@@ -75,7 +132,7 @@ class BiteRadarSection extends ConsumerWidget {
                   border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 0.5),
                 ),
                 child: Text(
-                  "${bite.overallBiteScore} 分 · ${bite.biteLevel.substring(0, 2)}",
+                  "${bite.overallBiteScore} 分 · 活性適中",
                   style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.bioGold),
                 ),
               ),
@@ -85,7 +142,7 @@ class BiteRadarSection extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
             decoration: BoxDecoration(
-              color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
+              color: widget.isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -100,7 +157,7 @@ class BiteRadarSection extends ConsumerWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                      color: widget.isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
                     ),
                   ),
                 ),
@@ -109,14 +166,13 @@ class BiteRadarSection extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
 
-          // 🌟 商業價值分階：PRO 會員解鎖全 4 魚種；免費用戶解鎖第 1 魚種，其餘 3 種引導試用
           if (isPro) ...[
-            ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, isClassic)),
+            ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, widget.isClassic)),
           ] else ...[
             if (bite.speciesIndices.isNotEmpty)
-              _buildSpeciesRow(bite.speciesIndices.first, isClassic),
+              _buildSpeciesRow(bite.speciesIndices.first, widget.isClassic),
             const SizedBox(height: 4),
-            _buildLockedSpeciesTeaser(context, isClassic),
+            _buildLockedSpeciesTeaser(context, widget.isClassic),
           ],
         ],
       ),
@@ -169,7 +225,7 @@ class BiteRadarSection extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      "${species.biteProbability}% ${species.statusBadge}",
+                      "${species.biteProbability}% 活躍度",
                       style: TextStyle(color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
                     ),
                   ),
@@ -191,7 +247,6 @@ class BiteRadarSection extends ConsumerWidget {
     );
   }
 
-  // 🌟 David Wehner 付費牆高轉化引導卡 (Freemium Value Lock)
   Widget _buildLockedSpeciesTeaser(BuildContext context, bool isClassic) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -212,7 +267,7 @@ class BiteRadarSection extends ConsumerWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  "🔒 已為 PRO 指揮官解鎖其餘 3 大標竿魚種：",
+                  "PRO 旗艦版完整解鎖其餘三大指標魚種水象指標：",
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -224,7 +279,7 @@ class BiteRadarSection extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            "• 軟絲透抽（木蝦抱餌率）• 紅甘煙仔虎（急流掠食點）• 黑鯛石斑（底層推浪開口度）",
+            "• 軟絲透抽（清澈微流與小潮指標）• 紅甘煙仔虎（急流起流線）• 黑鯛石斑（底層推浪開口度）",
             style: TextStyle(
               fontSize: 11,
               color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
@@ -244,7 +299,7 @@ class BiteRadarSection extends ConsumerWidget {
               ),
               icon: const Icon(Icons.bolt_rounded, size: 16),
               label: const Text(
-                "開啟 7 天免費試用 · 完整解鎖魚種戰術",
+                "升級 PRO 指揮官 · 完整解鎖指標魚種水象",
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
               ),
               onPressed: () {

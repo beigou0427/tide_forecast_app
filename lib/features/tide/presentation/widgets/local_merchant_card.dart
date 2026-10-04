@@ -4,7 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// Tim Cook & Tony Xu 營運重塑：客觀合規之周邊補給點 + 逆向商務 (Inbound Lead)
+/// 🌟 經海事嚴謹標準重塑之港口補給與在地聯絡資訊卡
+/// 具備濕手防誤觸二次確認閥門，剔除浮誇廣告，專注港區安全與即時水文諮詢
 class LocalMerchantCard extends StatelessWidget {
   final String stationName;
   final String region;
@@ -22,7 +23,6 @@ class LocalMerchantCard extends StatelessWidget {
 
     final Color titleColor = isLight ? AppColors.classicText : AppColors.textPrimary;
     final Color badgeColor = isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
-    final Color dividerColor = isLight ? Colors.grey.shade200 : AppColors.glassBorder;
 
     return CustomCard(
       padding: const EdgeInsets.all(20),
@@ -42,7 +42,7 @@ class LocalMerchantCard extends StatelessWidget {
                         color: badgeColor.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.storefront_rounded, color: badgeColor, size: 18),
+                      child: Icon(Icons.anchor_rounded, color: badgeColor, size: 18),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -50,7 +50,7 @@ class LocalMerchantCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "周邊釣友推薦補給點",
+                            "港區補給與海事聯絡點",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -62,7 +62,7 @@ class LocalMerchantCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            "在地釣具行 · 活餌常備點 · 船班諮詢",
+                            "在地活餌常備 · 港況諮詢 · 海事支援",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
@@ -84,10 +84,10 @@ class LocalMerchantCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.people_alt_rounded, size: 11, color: badgeColor),
+                    Icon(Icons.verified_rounded, size: 11, color: badgeColor),
                     const SizedBox(width: 3),
                     Text(
-                      "社群推薦",
+                      "在地資訊",
                       style: TextStyle(color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
                     ),
                   ],
@@ -172,7 +172,7 @@ class LocalMerchantCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
-                // 3. 通訊與導航按鈕
+                // 3. 通訊與導航按鈕 (🌟 注入濕手二次確認防誤觸閥門)
                 Row(
                   children: [
                     Expanded(
@@ -185,12 +185,12 @@ class LocalMerchantCard extends StatelessWidget {
                         ),
                         icon: Icon(Icons.phone_in_talk_rounded, size: 14, color: badgeColor),
                         label: Text(
-                          "電洽確認活餌庫存",
+                          "電洽確認活餌與港況",
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: badgeColor),
                         ),
                         onPressed: () {
                           HapticFeedback.lightImpact();
-                          _launchCaller(merchant["phone"]!);
+                          _showCallConfirmDialog(context, merchant["name"]!, merchant["phone"]!);
                         },
                       ),
                     ),
@@ -216,48 +216,15 @@ class LocalMerchantCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // 🌟 招式二：逆向商務入口（讓釣具行老闆與船長主動來找你）
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _launchMerchantInboundForm();
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-              decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: isLight ? 0.06 : 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: badgeColor.withValues(alpha: 0.25), width: 0.5),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_business_rounded, size: 14, color: badgeColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    "我是釣具店老闆 / 海釣船長，免費申請入駐或修正資訊 ➔",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: badgeColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // 4. 營運免責告示
+          // 4. 海事安全宣導告示
           Text(
-            "⚠️ 營運聲明：補給點資訊由釣友社群共筆整理，本 App 與店家無連帶代理關係。活餌庫存與船班受每日海況影響，出海前請務必致電店家確認。",
+            "⚠️ 海事安全提醒：各港口活餌與出港管制受當日即時海象限制。登礁出海作業前，請依規定穿戴救生衣與防滑釘鞋，並向港區海巡安檢所落實報關。",
             style: TextStyle(
               fontSize: 10, 
-              color: isLight ? Colors.grey.shade500 : AppColors.textTertiary, 
-              height: 1.35,
+              color: isLight ? Colors.grey.shade600 : AppColors.textTertiary, 
+              height: 1.4,
             ),
           ),
         ],
@@ -268,10 +235,10 @@ class LocalMerchantCard extends StatelessWidget {
   Map<String, String> _getMerchantInfo(String reg, String name) {
     if (reg.contains("北")) {
       return {
-        "name": "東北角海釣補給驛站 (碧砂/龍洞店)",
-        "distance": "距釣點約 2.5 km",
+        "name": "東北角海釣補給驛站 (碧砂/龍洞端)",
+        "distance": "距測站約 2.5 km",
         "commonBait": "常備餌料：活白蝦、青磺蝦、生鮮南極蝦磚",
-        "boatAdvisory": "船班諮詢：近海夜釣/渡礁船班需提前電洽確認",
+        "boatAdvisory": "船班諮詢：近海夜釣與渡礁船班需提前確認海況",
         "phone": "0224690000",
       };
     } else if (reg.contains("西")) {
@@ -300,7 +267,7 @@ class LocalMerchantCard extends StatelessWidget {
       };
     } else {
       return {
-        "name": "澎湖外海海釣快艇俱樂部",
+        "name": "澎湖外海海釣快艇聯絡處",
         "distance": "距碼頭約 800 m",
         "commonBait": "常備餌料：活丁香、特級海蟲、小卷",
         "boatAdvisory": "船班預約：七美/望安海釣快艇行程需事先預定",
@@ -309,21 +276,57 @@ class LocalMerchantCard extends StatelessWidget {
     }
   }
 
-  Future<void> _launchCaller(String tel) async {
-    final Uri url = Uri.parse("tel:$tel");
-    if (await canLaunchUrl(url)) await launchUrl(url);
+  /// 🌟 駕駛台濕手防誤觸撥號確認閥門
+  void _showCallConfirmDialog(BuildContext context, String merchantName, String tel) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.phone_in_talk_rounded, color: AppColors.pelagicCyan, size: 20),
+            SizedBox(width: 8),
+            Text(
+              "通話確認", 
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          "是否立即致電【$merchantName】？\n電話：$tel",
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("取消", style: TextStyle(color: AppColors.textTertiary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.pelagicCyan,
+              foregroundColor: AppColors.abyssBlack,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final Uri url = Uri.parse("tel:$tel");
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+            child: const Text("確認撥號", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _launchMap(String query) async {
     final Uri url = Uri.parse("https://www.google.com/maps/search/?api=1&query=$query");
     if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-  }
-
-  // 🌟 逆向商務連結（導向專屬合作登記表單/LINE官方帳號）
-  Future<void> _launchMerchantInboundForm() async {
-    final Uri url = Uri.parse("https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009#merchant-onboarding");
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
   }
 }

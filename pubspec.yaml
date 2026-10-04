@@ -1,7 +1,7 @@
 ﻿name: tide_forecast_app
 description: "潮汐表 Pro - 釣魚海象浪高與風速預報，老船長 AI 出海決策"
 publish_to: 'none'
-version: 2.5.0+2
+version: 2.5.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -37,6 +37,8 @@ dependencies:
   cloud_firestore: ^6.10.0
   firebase_storage: ^13.6.0
   cached_network_image: ^3.4.1
+  # 🌟 VVIP 核心：加入螢幕常亮控制套件，防範駕駛台航海儀表熄火
+  wakelock_plus: ^1.2.8
 
 dev_dependencies:
   flutter_test:

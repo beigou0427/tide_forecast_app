@@ -14,8 +14,9 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 import '../../tide/data/tide_model.dart';
 import '../../catch_log/data/catch_log_model.dart';
+import '../../../../core/network/tide_api_service.dart';
 
-/// Apple 首席工程工藝：極限破壞性自檢中心 (Chaos Bug-Hunter Console)
+/// 🌟 Adrian Cockcroft (Netflix 混沌工程先鋒) 9 大極限破壞性自檢獵犬控制台
 class DiagnosticPage extends ConsumerStatefulWidget {
   const DiagnosticPage({super.key});
 
@@ -26,11 +27,10 @@ class DiagnosticPage extends ConsumerStatefulWidget {
 class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
   bool _isAttacking = false;
   double _progress = 0.0;
-  String _currentVector = "點擊下方紅色按鈕，對全系統發動 8 大極限破壞性混沌壓力測試";
+  String _currentVector = "點擊下方紅色按鈕，對全系統發動 9 大極限破壞性混沌壓力測試";
   
   final List<Map<String, dynamic>> _chaosFindings = [];
 
-  // Dijkstra 哲學：以真實生產代碼承受極限髒數據，杜絕手寫 Mock 變數
   Future<void> _unleashChaosHunter() async {
     HapticFeedback.heavyImpact();
     setState(() {
@@ -86,9 +86,9 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
           final chaosDates = [
             DateTime(1970, 1, 1),
             DateTime(2000, 1, 6),
-            DateTime(2024, 2, 29), // 閏年邊界
+            DateTime(2024, 2, 29),
             DateTime(2026, 12, 31, 23, 59, 59),
-            DateTime(2099, 12, 31), // 世紀邊界
+            DateTime(2099, 12, 31),
           ];
           for (var d in chaosDates) {
             final s = SolunarUtil.calculate(d);
@@ -160,13 +160,10 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         String flaw = "領域實體夾鉗與坐標防衛完好";
         
         try {
-          // 1. 真實驗證 AIExpertBriefing 數值夾鉗防線
           final overflowAi = AIExpertBriefing.fromMap({'safety_score': 999});
           final underflowAi = AIExpertBriefing.fromMap({'safety_score': -88});
-          
           final bool clampOk = (overflowAi.safetyScore == 100) && (underflowAi.safetyScore == 0);
           
-          // 2. 真實驗證 StationInfo 對 (0, 0) Null Island 坐標的防禦
           final badStation = StationInfo.fromMap({
             'lat': '0.0',
             'lng': '0.0',
@@ -203,7 +200,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         String flaw = "大氣吸升海平面計算精準";
         
         try {
-          // 真實注入 920.0 hPa 字串至 Observation 實體
           final surgeMap = {
             'DateTime': DateTime.now().toIso8601String(),
             'WeatherElements': {'AirPressure': ' 920.0 '}
@@ -211,7 +207,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
           final obs = Observation.fromProxy(surgeMap);
           
           if (obs.airPressure == 920.0) {
-            // 物理公式：每降 1 hPa 海面抬升 1 cm -> -0.01 * (920.0 - 1013.25) ≈ +0.9325m
             final double surgeMeters = -0.01 * (obs.airPressure! - 1013.25);
             if (surgeMeters >= 0.90 && surgeMeters <= 0.95) {
               passed = true;
@@ -279,31 +274,63 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
       // 向量 8：全域 UI 渲染崩潰與溢出陷阱 (RenderFlex Trap)
       () async {
         final sw = Stopwatch()..start();
-        final errors = GlobalErrorTrap.caughtErrors;
-        final bool hasErrors = errors.isNotEmpty;
+        final bool hasErrors = GlobalErrorTrap.hasErrors;
         sw.stop();
         return {
           "title": "08. 全域 UI 渲染崩潰陷阱 (Jank Trap)",
           "passed": !hasErrors,
-          "flaw": hasErrors ? "❌ 捕獲到 ${errors.length} 個渲染崩潰：${errors.first}" : "0 渲染異常，未捕獲 RenderFlex 溢出",
+          "flaw": hasErrors ? "❌ 捕獲到渲染崩潰: ${GlobalErrorTrap.caughtErrors.first}" : "0 渲染異常，未捕獲 RenderFlex 溢出",
           "latency": "${sw.elapsedMicroseconds} μs",
           "severity": hasErrors ? "CRITICAL" : "DEFENDED",
+        };
+      },
+
+      // 🌟 向量 9：Adrian Cockcroft 超時預算傳播與極限短路熔斷注入 (Chaos Timeout Budget)
+      () async {
+        final sw = Stopwatch()..start();
+        bool survived = false;
+        String flaw = "預算傳播熔斷正常";
+        
+        try {
+          final api = TideApiService();
+          // 給予極度嚴苛的 500ms 總預算，強制注入逾時壓力
+          final fallbackData = await api.fetchData(
+            "C6AH2",
+            totalBudget: const Duration(milliseconds: 500),
+          );
+
+          if (fallbackData.info.stationName.isNotEmpty) {
+            survived = true;
+          } else {
+            flaw = "超時預算耗盡時未能安全產生自癒降級實體";
+          }
+        } catch (e) {
+          flaw = "超時預算穿透引發未捕獲例外: $e";
+        }
+        sw.stop();
+
+        return {
+          "title": "09. 超時預算傳播與短路熔斷 (Chaos Budget)",
+          "passed": survived,
+          "flaw": flaw,
+          "latency": "${sw.elapsedMilliseconds} ms",
+          "severity": survived ? "DEFENDED" : "CRITICAL",
         };
       },
     ];
 
     for (int i = 0; i < attackVectors.length; i++) {
-      setState(() => _currentVector = "正在發動攻擊向量 [${i + 1}/8]...");
+      setState(() => _currentVector = "正在發動攻擊向量 [${i + 1}/9]...");
       final res = await attackVectors[i]();
       _chaosFindings.add(res);
-      setState(() => _progress = (i + 1) / 8.0);
-      await Future.delayed(const Duration(milliseconds: 35));
+      setState(() => _progress = (i + 1) / 9.0);
+      await Future.delayed(const Duration(milliseconds: 30));
     }
 
     HapticFeedback.mediumImpact();
     setState(() {
       _isAttacking = false;
-      _currentVector = "8 大混沌攻擊向量壓測完畢！已產出真實破壞性審計報告。";
+      _currentVector = "9 大混沌攻擊向量壓測完畢！已產出真實破壞性審計報告。";
     });
   }
 
@@ -345,7 +372,7 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                         const SizedBox(height: 4),
                         Text(
                           _chaosFindings.isEmpty 
-                              ? "待發動 (8大混沌攻擊)" 
+                              ? "待發動 (9大混沌攻擊)" 
                               : (breachedCount == 0 ? "全部攻擊成功抵禦" : "發現 $breachedCount 處破防弱點"),
                           style: TextStyle(
                             fontSize: 22,
@@ -391,9 +418,9 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildHunterBadge("成功抵禦", "$defendedCount / 8", const Color(0xFF30D158)),
+                      _buildHunterBadge("成功抵禦", "$defendedCount / 9", const Color(0xFF30D158)),
                       _buildHunterBadge("破防漏洞", "$breachedCount 處", breachedCount == 0 ? AppColors.textTertiary : AppColors.hazardCoral),
-                      _buildHunterBadge("UI崩潰記錄", "${GlobalErrorTrap.caughtErrors.length} 處", GlobalErrorTrap.caughtErrors.isEmpty ? AppColors.pelagicCyan : AppColors.hazardCoral),
+                      _buildHunterBadge("UI崩潰記錄", "${GlobalErrorTrap.caughtErrors.length} 處", GlobalErrorTrap.hasErrors ? AppColors.hazardCoral : AppColors.pelagicCyan),
                     ],
                   ),
                 ],
@@ -416,7 +443,7 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                   : const Icon(Icons.flash_on_rounded, size: 20),
               label: Text(
-                _isAttacking ? "正在向系統注入混沌突波..." : "🔥 啟動極限破壞性壓力獵犬 (Chaos Mode)", 
+                _isAttacking ? "正在向系統注入混沌突波..." : "🔥 啟動極限破壞性壓力獵犬 (9大攻擊)", 
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
               ),
               onPressed: _isAttacking ? null : _unleashChaosHunter,

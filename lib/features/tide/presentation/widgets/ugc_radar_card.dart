@@ -2,15 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/ugc_report_model.dart';
 import '../../providers/ugc_provider.dart';
+import '../../providers/tide_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../../shared/widgets/custom_card.dart';
 import '../../../../core/services/review_service.dart';
 import '../../../../core/theme/app_theme.dart';
 
-/// Sheryl Sandberg 平台營運合規：具備真實工單與即時封鎖之 Waze 海況雷達
+/// 🌟 具備「颱風/巨浪海事物理熔斷」之 Waze 現場雷達卡
+/// 極端危險海況下強制封殺「魚群大咬」與「比預報平穩」，杜絕誘惑出海引發人命傷亡
 class UgcRadarCard extends ConsumerStatefulWidget {
   final String stationId;
   final String stationName;
@@ -58,7 +61,6 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
     await prefs.setStringList('blocked_ugc_authors', _blockedAuthors.toList());
   }
 
-  // 🌟 Apple Guideline 1.2 權威履約：將檢舉工單寫入 Firestore 審查資料庫
   Future<void> _submitReportTicket(UgcReportItem report, String reason) async {
     try {
       await FirebaseFirestore.instance.collection('ugc_moderation_queue').add({
@@ -69,11 +71,11 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
         'reported_timestamp': report.timestamp.toIso8601String(),
         'reason': reason,
         'created_at': FieldValue.serverTimestamp(),
-        'status': 'PENDING_REVIEW', // 待審查狀態，供後台 24 小時處理
+        'status': 'PENDING_REVIEW',
       });
-      debugPrint("🛡️ [UGC 合規] 檢舉工單已安全遞交至審核佇列 (ID: ${report.id})");
+      debugPrint("🛡️ [UGC 信任審查] 檢舉工單已安全遞交至審核隊列 (ID: ${report.id})");
     } catch (e) {
-      debugPrint("⚠️ [UGC 合規] 檢舉寫入異常: $e");
+      debugPrint("⚠️ [UGC 信任審查] 檢舉寫入異常: $e");
     }
   }
 
@@ -86,7 +88,6 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
       windSpeed: widget.windSpeed,
     );
 
-    // 即時過濾被封鎖黑名單用戶發布的情報
     final visibleReports = allStationReports
         .where((r) => !_blockedAuthors.contains(r.userTag))
         .toList();
@@ -126,13 +127,13 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
                           ),
                           SizedBox(width: 6),
                           Text(
-                            "即時遙測",
+                            "現場防偽認證",
                             style: TextStyle(fontSize: 10, color: AppColors.pelagicCyan, fontWeight: FontWeight.w800),
                           ),
                         ],
                       ),
                       SizedBox(height: 2),
-                      Text("釣友一線回報 · AI 哨兵同步巡邏", style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary)),
+                      Text("GPS 實證釣友 · 海事安全物理守衛", style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary)),
                     ],
                   ),
                 ],
@@ -166,11 +167,12 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
     final diffMins = DateTime.now().difference(report.timestamp).inMinutes;
     final String timeStr = diffMins < 60 ? "$diffMins 分鐘前" : "${(diffMins / 60).floor()} 小時前";
     final bool isAiSentinel = report.userTag.contains("AI");
+    final bool isVerifiedOnSite = report.userTag.contains("現場實證") || report.userTag.contains("現場認證");
     final bool isVvip = report.userTag.contains("領航員") || report.userTag.contains("指揮官");
 
     final Color accentColor = isVvip 
         ? AppColors.bioGold 
-        : (isAiSentinel ? AppColors.pelagicCyan : const Color(0xFFFF9500));
+        : (isVerifiedOnSite ? const Color(0xFF30D158) : (isAiSentinel ? AppColors.pelagicCyan : const Color(0xFFFF9500)));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -206,7 +208,7 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
                           border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 0.5),
                         ),
                         child: Text(
-                          isVvip ? "VVIP" : "實地", 
+                          isVerifiedOnSite ? "📍 現場實證" : (isVvip ? "👑 VVIP" : "遠端通報"), 
                           style: TextStyle(color: accentColor, fontSize: 8.5, fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -313,6 +315,26 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
   }
 
   void _showQuickReportSheet(BuildContext context, WidgetRef ref) {
+    final userPos = ref.read(userLocationProvider).value;
+    final tideView = ref.read(tideViewDataProvider).value;
+    bool isOnSite = false;
+
+    if (userPos != null && tideView != null) {
+      final sLat = double.tryParse(tideView.stationData.info.lat);
+      final sLng = double.tryParse(tideView.stationData.info.lng);
+      if (sLat != null && sLng != null) {
+        final double dist = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, sLat, sLng) / 1000.0;
+        if (dist <= 15.0) {
+          isOnSite = true;
+        }
+      }
+    }
+
+    // 🌟 海事物理熔斷防線：實測大浪 >= 2.5m 或 強風 >= 11m/s 時，判定為極端危險/颱風天
+    final double currentWave = widget.waveHeight ?? 0.0;
+    final double currentWind = widget.windSpeed ?? 0.0;
+    final bool isExtremeDanger = currentWave >= 2.5 || currentWind >= 11.0;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.abyssCard,
@@ -329,27 +351,65 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
               ),
               const SizedBox(height: 16),
 
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.bioGold.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.3), width: 0.5),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.monetization_on_rounded, color: AppColors.bioGold, size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        "🪙 實況互助獎勵：每日首次通報現場海況，即可獲得 5 枚「老船長幣」！",
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.bioGold),
+              // 🌟 颱風巨浪物理熔斷警戒橫幅
+              if (isExtremeDanger) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.hazardCoral.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.hazardCoral.withValues(alpha: 0.5), width: 1.0),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.dangerous_rounded, color: AppColors.hazardCoral, size: 22),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "🚨 颱風/巨浪安全熔斷生效中！現場海象極度兇險，系統已強制鎖定所有「誘惑出海」之樂觀選項！",
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: AppColors.hazardCoral, height: 1.35),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 12),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isOnSite ? const Color(0xFF30D158).withValues(alpha: 0.12) : AppColors.bioGold.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isOnSite ? const Color(0xFF30D158).withValues(alpha: 0.3) : AppColors.bioGold.withValues(alpha: 0.3), 
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isOnSite ? Icons.verified_rounded : Icons.cell_tower_rounded, 
+                        color: isOnSite ? const Color(0xFF30D158) : AppColors.bioGold, 
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          isOnSite
+                              ? "📍 GPS 判定您在測站現場（15km內）！本次回報將加冠「現場實證」標章並發放 5 枚代幣！"
+                              : "📡 您目前距測站較遠，將以「遠端通報」標記發布，共同維護海況真實性。",
+                          style: TextStyle(
+                            fontSize: 11.5, 
+                            fontWeight: FontWeight.w700, 
+                            color: isOnSite ? const Color(0xFF30D158) : AppColors.bioGold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               Text(
                 "一鍵通報 [${widget.stationName}] 現場水況",
@@ -358,14 +418,34 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
               const SizedBox(height: 4),
               const Text("免打字單指通報，情報將即刻同步至全台釣友雷達", style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
               const SizedBox(height: 18),
+
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: UgcConditionType.values.map((type) {
                   final dummyItem = UgcReportItem(id: '', stationId: '', timestamp: DateTime.now(), type: type);
+                  
+                  // 🌟 海事安全物理熔斷邏輯：颱風巨浪時，嚴禁通報「大咬」或「平穩」！
+                  final bool isForbiddenInTyphoon = isExtremeDanger && 
+                      (type == UgcConditionType.fishBiting || type == UgcConditionType.waveCalm);
+
                   return InkWell(
                     onTap: () async {
+                      if (isForbiddenInTyphoon) {
+                        HapticFeedback.vibrate();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("🚨 警告：當前浪高/風速已達危險警戒上限！嚴禁發布誤導性出海通報！生命安全第一！"),
+                            backgroundColor: AppColors.hazardCoral,
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                        return;
+                      }
+
                       HapticFeedback.mediumImpact();
+                      
                       ref.read(ugcReportProvider.notifier).reportCondition(widget.stationId, type);
                       
                       final prefs = await SharedPreferences.getInstance();
@@ -373,7 +453,7 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
                       final nowEpoch = DateTime.now().millisecondsSinceEpoch;
                       final bool canClaimReward = (nowEpoch - lastRewardEpoch) > const Duration(hours: 24).inMilliseconds;
 
-                      if (canClaimReward) {
+                      if (canClaimReward && isOnSite && !isExtremeDanger) {
                         await prefs.setInt('last_coin_reward_epoch', nowEpoch);
                         await ref.read(premiumProvider.notifier).addCoins(5);
                       }
@@ -385,41 +465,60 @@ class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              canClaimReward 
-                                ? "🎉 感謝通報【${dummyItem.label}】！已獲得 5 枚老船長幣 (餘額: $currentCoins 幣)"
-                                : "🙏 感謝通報【${dummyItem.label}】！(今日已領取過代幣獎勵)"
+                              isOnSite && canClaimReward
+                                ? "🎉 感謝現場實證通報【${dummyItem.label}】！已獲贈 5 枚老船長幣 (餘額: $currentCoins 幣)"
+                                : "🙏 感謝通報【${dummyItem.label}】！感謝您為全台釣友貢獻情報！"
                             ),
-                            backgroundColor: canClaimReward ? AppColors.abyssSurface : AppColors.abyssCard,
+                            backgroundColor: isOnSite ? const Color(0xFF0077B6) : AppColors.abyssCard,
                             duration: const Duration(seconds: 3),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
 
-                        if (canClaimReward) {
+                        if (isOnSite && canClaimReward) {
                           ReviewService.onUgcRewarded();
                         }
                       }
                     },
                     borderRadius: BorderRadius.circular(14),
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
+                        color: isForbiddenInTyphoon 
+                            ? Colors.white.withValues(alpha: 0.02) 
+                            : Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                        border: Border.all(
+                          color: isForbiddenInTyphoon ? Colors.white10 : AppColors.glassBorder, 
+                          width: 0.5,
+                        ),
                       ),
-                      child: Text(
-                        dummyItem.label,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isForbiddenInTyphoon) ...[
+                            const Icon(Icons.lock_rounded, size: 14, color: AppColors.textTertiary),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            dummyItem.label,
+                            style: TextStyle(
+                              fontSize: 13, 
+                              fontWeight: FontWeight.w700, 
+                              color: isForbiddenInTyphoon ? AppColors.textTertiary : AppColors.textPrimary,
+                              decoration: isForbiddenInTyphoon ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
                 }).toList(),
               ),
               const SizedBox(height: 14),
-              // Apple Guideline 1.2 法律公告
               const Text(
-                "⚠️ 社群公約：依據 App Store 規範，嚴禁發布虛假危險海況、違規廣告或不當言論。違規通報經審核確認將立即刪除並永久封鎖通報權限。",
+                "⚠️ 社群信任公約：依據海事防衛規範，嚴禁發布虛假危險海況、違規廣告或不當言論。違規通報經審核確認將立即刪除並永久封鎖通報權限。",
                 style: TextStyle(fontSize: 10, color: AppColors.textTertiary, height: 1.35),
               ),
             ],

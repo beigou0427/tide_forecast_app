@@ -25,20 +25,29 @@ final favoriteStationsProvider = FutureProvider<List<String>>((ref) async {
   return ref.watch(tideRepositoryProvider).getFavoriteStations();
 });
 
+// 🌟 Sundar Pichai L1 記憶體快速通道（防止 rootBundle 重複 I/O 解碼）
+List<StationModel>? _memoryCachedStations;
+
 // 85 站本地神盾資產庫
 final stationListProvider = FutureProvider<List<StationModel>>((ref) async {
+  if (_memoryCachedStations != null && _memoryCachedStations!.isNotEmpty) {
+    return _memoryCachedStations!;
+  }
+
   try {
     final localJsonStr = await rootBundle.loadString('assets/stations_config.json');
     final List localData = jsonDecode(localJsonStr);
-    debugPrint("✅ [本地神盾] 成功載入 ${localData.length} 個權威測站拓撲 (北部11, 西部41, 南部9, 東部10, 離島14)");
-    return localData.map((e) => StationModel.fromJson(e)).toList();
+    _memoryCachedStations = localData.map((e) => StationModel.fromJson(e)).toList();
+    debugPrint("✅ [Google L1 快取] 85 測站權威拓撲裝載完畢，命中記憶體通道");
+    return _memoryCachedStations!;
   } catch (e) {
-    debugPrint("⚠️ 本地資產讀取異常，切換遠端備用: $e");
+    debugPrint("⚠️ 本地資產讀取異常，切換遠端備援: $e");
     try {
-      final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl)).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse(AppConstants.remoteStationsUrl)).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
-        return data.map((e) => StationModel.fromJson(e)).toList();
+        _memoryCachedStations = data.map((e) => StationModel.fromJson(e)).toList();
+        return _memoryCachedStations!;
       }
     } catch (_) {}
   }
@@ -120,16 +129,31 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
   }
 });
 
+// 🌟 Sundar Pichai 空間防抖記憶體（Spatial Memoization，移動小於 300m 不重算）
+Position? _lastEvaluatedPosition;
+String? _lastNearestStationId;
+
 final nearestStationIdProvider = Provider<String?>((ref) {
   final userPos = ref.watch(userLocationProvider).value;
   if (userPos == null) return null;
+
+  // 空間防抖：若與上次定位距離小於 300 公尺，直接返回記憶化結果，節省算力與電力
+  if (_lastEvaluatedPosition != null && _lastNearestStationId != null) {
+    final movedDistance = Geolocator.distanceBetween(
+      userPos.latitude, userPos.longitude,
+      _lastEvaluatedPosition!.latitude, _lastEvaluatedPosition!.longitude
+    );
+    if (movedDistance < 300.0) {
+      return _lastNearestStationId;
+    }
+  }
   
   final stations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
   
   double minDistance = double.infinity;
   String? nearestId;
   for (var station in stations) {
-    // 嚴格過濾 Null Island 與偏離台灣海域的無效坐標
+    // 嚴格過濾 Null Island (0,0) 與偏離台灣海域的噪訊坐標
     if (station.lat < 20.0 || station.lat > 28.0 || station.lng < 116.0 || station.lng > 124.0) continue;
     double d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, station.lat, station.lng);
     if (d < minDistance) { 
@@ -137,6 +161,9 @@ final nearestStationIdProvider = Provider<String?>((ref) {
       nearestId = station.id; 
     }
   }
+
+  _lastEvaluatedPosition = userPos;
+  _lastNearestStationId = nearestId;
   return nearestId;
 });
 
@@ -151,7 +178,7 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
   final isInit = ref.watch(isStationInitializedProvider);
   final stationId = ref.watch(currentStationIdProvider);
 
-  // 乾淨消滅 183 幀掉幀：若開機偏好尚未完成讀取，掛起等待響應式觸發，不發送多餘廢請求
+  // 若開機偏好尚未完成讀取，掛起等待響應式觸發，不發送多餘廢請求
   if (!isInit) {
     return Completer<TideViewData>().future;
   }
@@ -168,7 +195,7 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
       try {
         final sLat = double.tryParse(stationData.info.lat);
         final sLng = double.tryParse(stationData.info.lng);
-        // 核心地理防線：僅在坐標位於台灣周遭海域時才計算距離
+        // 核心地理防線：僅在坐標位於台灣海域有效邊界時計算距離
         if (sLat != null && sLng != null && sLat >= 20.0 && sLat <= 28.0 && sLng >= 116.0 && sLng <= 124.0) {
           distance = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, sLat, sLng) / 1000;
         }

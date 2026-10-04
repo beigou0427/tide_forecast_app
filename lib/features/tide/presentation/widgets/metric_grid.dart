@@ -4,7 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 
-/// Apple 首席設計工藝 × Jensen Huang 物理資產：全盤水文細節磚塊陣列 (含波能通量)
+/// 🌟 John Carmack 單趟線性光柵化水文磚陣列 (Single-Pass Linear Grid)
+/// 徹底消滅 GridView(shrinkWrap: true) 引起的雙重佈局 (Double Layout Pass) 掉幀
 class MetricGrid extends StatelessWidget {
   final Observation current;
 
@@ -13,15 +14,30 @@ class MetricGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isLight = Theme.of(context).brightness == Brightness.light;
-    final List<Widget> metrics = [];
+    final List<Widget> bricks = [];
 
-    void addIfValid(String label, double? val, String unit, IconData icon, Color accent, {bool isHighPrecision = false}) {
-      if (val != null) {
-        metrics.add(_buildMetricBrick(label, val, unit, icon, accent, isLight, isHighPrecision: isHighPrecision));
+    void addIfValid(
+      String label, 
+      double? val, 
+      String unit, 
+      IconData icon, 
+      Color accent, 
+      {bool isHighPrecision = false}
+    ) {
+      if (val != null && !val.isNaN && !val.isInfinite) {
+        bricks.add(_MetricBrickItem(
+          label: label,
+          val: val,
+          unit: unit,
+          icon: icon,
+          accent: accent,
+          isLight: isLight,
+          isHighPrecision: isHighPrecision,
+        ));
       }
     }
 
-    // 依序排列水文指標：波浪高度與專利波能通量並列為前哨核心
+    // 依水文重要性嚴格排列
     addIfValid("波浪高度", current.waveHeight, "m", Icons.waves_rounded, AppColors.pelagicCyan);
     addIfValid("波能通量", current.waveEnergyFlux, "kW/m", Icons.bolt_rounded, AppColors.bioGold, isHighPrecision: true);
     addIfValid("海水溫度", current.seaTemperature, "℃", Icons.thermostat_rounded, const Color(0xFFFF9500));
@@ -31,7 +47,7 @@ class MetricGrid extends StatelessWidget {
     addIfValid("大氣氣壓", current.airPressure, "hPa", Icons.speed_rounded, const Color(0xFFBF5AF2));
     addIfValid("即時氣溫", current.airTemperature, "℃", Icons.wb_sunny_rounded, AppColors.bioGold);
 
-    if (metrics.isEmpty) {
+    if (bricks.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(28),
@@ -56,26 +72,54 @@ class MetricGrid extends StatelessWidget {
       );
     }
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.85,
-      children: metrics,
+    // 🌟 John Carmack 線性 O(N) 雙列成對折疊：彻底消滅 GridView 雙重排版耗時
+    final List<Widget> rows = [];
+    for (int i = 0; i < bricks.length; i += 2) {
+      final left = bricks[i];
+      final right = (i + 1 < bricks.length) ? bricks[i + 1] : const Spacer();
+      
+      rows.add(Row(
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 10),
+          Expanded(child: right),
+        ],
+      ));
+
+      if (i + 2 < bricks.length) {
+        rows.add(const SizedBox(height: 10));
+      }
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: rows,
     );
   }
+}
 
-  Widget _buildMetricBrick(
-    String label, 
-    double val, 
-    String unit, 
-    IconData icon, 
-    Color accent, 
-    bool isLight, 
-    {bool isHighPrecision = false}
-  ) {
+/// 獨立元件化磚塊，避免上層 rebuild 導致整個列表反覆重繪
+class _MetricBrickItem extends StatelessWidget {
+  final String label;
+  final double val;
+  final String unit;
+  final IconData icon;
+  final Color accent;
+  final bool isLight;
+  final bool isHighPrecision;
+
+  const _MetricBrickItem({
+    required this.label,
+    required this.val,
+    required this.unit,
+    required this.icon,
+    required this.accent,
+    required this.isLight,
+    this.isHighPrecision = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final String valStr = isHighPrecision
         ? val.toStringAsFixed(2)
         : (val == val.roundToDouble() && unit == "°" 
@@ -88,7 +132,8 @@ class MetricGrid extends StatelessWidget {
     final Color labelColor = isLight ? Colors.grey.shade600 : AppColors.textSecondary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: brickBg,
         borderRadius: BorderRadius.circular(16),

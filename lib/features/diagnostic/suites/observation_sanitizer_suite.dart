@@ -22,6 +22,7 @@ class ObservationSanitizerSuiteResult {
       isEmptyJsonCrashProof;
 }
 
+/// 🌟 對齊 Philip Crosby 零缺陷規格化之水文清洗診斷套件
 class ObservationSanitizerDiagnosticSuite {
   static Future<ObservationSanitizerSuiteResult> run() async {
     // 1. 測試極端髒字串清洗為 null (絕不拋 FormatException)
@@ -49,21 +50,19 @@ class ObservationSanitizerDiagnosticSuite {
       dirtyOk = false;
     }
 
-    // 2. 測試物理極限值過濾 (浪高 > 18m、風速 > 65m/s 的感測器硬體噪訊)
-    bool noiseFilterOk = true;
+    // 2. 🌟 測試物理極限值過濾 (浪高 > 25m、風速 > 75m/s 的感測器硬體破綻噪訊必須安全過濾為 null)
+    bool noiseFilterOk = false;
     try {
       final noiseMap = {
         'DateTime': DateTime.now().toIso8601String(),
         'WeatherElements': {
-          'WaveHeight': '99.9',  // 異常高浪
-          'WindSpeed': '120.0',  // 異常超強風
+          'WaveHeight': '99.9',  // 超限異常浪高噪訊 (應過濾為 null)
+          'WindSpeed': '120.0',  // 超限異常風速噪訊 (應過濾為 null)
         }
       };
       final obs = Observation.fromProxy(noiseMap);
-      // 驗證數值解析邏輯具備數值提取能力
-      if (obs.waveHeight != 99.9 || obs.windSpeed != 120.0) {
-        noiseFilterOk = false;
-      }
+      // 驗證硬體超限噪訊已被物理規格化邊界安全攔截為 null
+      noiseFilterOk = (obs.waveHeight == null && obs.windSpeed == null);
     } catch (_) {
       noiseFilterOk = false;
     }
@@ -106,13 +105,13 @@ class ObservationSanitizerDiagnosticSuite {
     if (!dirtyOk) {
       msg = "髒字串 (-99/None/nan) 清洗失敗，未能安全轉為 null";
     } else if (!noiseFilterOk) {
-      msg = "極限數值提取邏輯異常";
+      msg = "超限物理噪訊 (99.9m浪高/120m/s風速) 未被安全過濾為 null";
     } else if (!precisionOk) {
       msg = "正常水文數據精度解析失真";
     } else if (!emptyCrashProof) {
       msg = "空 JSON 結構注入時拋出未捕獲崩潰";
     } else {
-      msg = "水文髒數據清洗防護完好，高精度數值無損，空結構零崩潰";
+      msg = "水文髒數據清洗防護完好，超限噪訊完全攔截，正常精度無損";
     }
 
     return ObservationSanitizerSuiteResult(

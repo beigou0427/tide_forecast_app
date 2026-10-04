@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../data/tide_model.dart';
 import 'widgets/hero_metric_card.dart';
 import 'widgets/solunar_card.dart';
-import 'tide_chart_sheet.dart'; // 🌟 修復路徑：平級引用同目錄下的 tide_chart_sheet.dart
+import 'tide_chart_sheet.dart';
 import 'widgets/wind_compass_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
@@ -22,29 +22,29 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
 
   final List<Map<String, String>> _slideMeta = [
     {
-      "tag": "全台首創 · AI 水文決策",
-      "title": "85 測站 0 延遲光纖直連\n老船長 AI 即時出海晨報",
-      "subtitle": "官方即時浪高 · 蒲福風速 · 水溫週期全監測",
+      "tag": "光纖直連 · 實時海象雷達",
+      "title": "85 測站 0 延遲官方專線\n老船長專業航海海象指揮中心",
+      "subtitle": "實時波高浪向 · 陣風風速 · 海溫氣壓全維度監控",
     },
     {
-      "tag": "獨家技術 · 爆咬時段可視化",
-      "title": "30 天潮位時空預測\n一眼看透黃金出海咬度期",
-      "subtitle": "滿水波峰自動標定 · 日月引力大中小潮推算",
+      "tag": "純潮汐儀表 · 走水黃金窗口",
+      "title": "30 天滿乾潮差精確換算\n一目了然抓準起流索餌時程",
+      "subtitle": "滿退二分走水黃金期 · 乾潮底淺水暗礁警示",
     },
     {
-      "tag": "釣友互助 · 現場海象情報",
-      "title": "海釣版 Waze 實況雷達\n現場風浪即時通報與 AI 哨兵",
-      "subtitle": "釣友第一手水況 · 突發大湧預警 · 防困礁守護",
+      "tag": "海事誠實 · 現場實證雷達",
+      "title": "釣友現場實證回報\n真實風浪水色 · 杜絕假情報",
+      "subtitle": "現場認證防偽 · 突發大湧預警 · 防刷讚安全公約",
     },
     {
-      "tag": "戰利品專屬藏寶庫",
-      "title": "潮汐漁獲相片日誌\n自動疊加當下即時水文",
-      "subtitle": "拍攝魚獲自動綁定浪高與潮位 · 離線雲端雙向同步",
+      "tag": "中魚標本 · 水文榮譽日誌",
+      "title": "拍下戰利品大物紀錄\n自動疊加當下即時水文",
+      "subtitle": "相簿永久安全備份 · 記錄浪高潮位水溫 · 一鍵產出戰報",
     },
     {
-      "tag": "尊榮旗艦 · 掌舵特權",
-      "title": "VIP 專屬黑金指揮中心\n代幣經濟與光纖直連通道",
-      "subtitle": "專屬身分銘牌 · LINE 戰報鋼印 · 離線黑盒子防禦",
+      "tag": "VVIP 旗艦 · 航海尊榮",
+      "title": "VIP 航海指揮中心\n85 站離線預載包 · 斷網無憂",
+      "subtitle": "尊榮金屬黑金身分卡 · 全島測站一鍵封裝 · 永不熄火儀表",
     },
   ];
 
@@ -77,13 +77,13 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                             border: Border.all(color: const Color(0xFF00B4D8), width: 1),
                           ),
                           child: Text(
-                            "ASO 宣傳截圖攝影棚 [${_currentSlide + 1}/5]",
+                            "ASO 宣傳截圖棚 [${_currentSlide + 1}/5]",
                             style: const TextStyle(color: Color(0xFF00B4D8), fontSize: 11, fontWeight: FontWeight.w900),
                           ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.camera_alt_rounded, color: Colors.amberAccent),
-                          tooltip: "進入純淨截圖模式",
+                          tooltip: "進入純淨全螢幕模式",
                           onPressed: () => setState(() => _cleanMode = true),
                         ),
                       ],
@@ -111,7 +111,7 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                         textAlign: TextAlign.center,
                         style: GoogleFonts.notoSansTc(
                           color: Colors.white,
-                          fontSize: 24,
+                          fontSize: 22,
                           fontWeight: FontWeight.w900,
                           height: 1.25,
                         ),
@@ -181,12 +181,12 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.fullscreen_rounded, size: 18),
-                        label: const Text("截圖", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                        label: const Text("截圖模式", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                         onPressed: () {
                           setState(() => _cleanMode = true);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text("📸 已進入純淨截圖模式！點擊螢幕任何地方可退出。"),
+                              content: Text("📷 已進入純淨截圖模式，點擊畫面任何位置即可返回。"),
                               duration: Duration(seconds: 2),
                               backgroundColor: Color(0xFF0077B6),
                             ),
@@ -243,7 +243,7 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("📍 新北石門 富貴角資料浮標 (C6AH2)", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text("新北石門 富貴角資料浮標 (C6AH2)", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                       Icon(Icons.volume_up_rounded, color: Colors.amberAccent, size: 22),
                     ],
                   ),
@@ -255,7 +255,7 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "老船長 AI 專家簡報：今日海況平穩，長湧浪週期平順。滿潮返退 2 分水流暢通，黑毛、石斑索餌意願極高，全島近岸作業條件優良！",
+                          "老船長 AI 專家簡報：今日海況平穩，長湧週期小於7秒，滿潮返退2分走水活化，水溫適宜，近岸多數標點作業皆具良好潛力！",
                           style: TextStyle(color: Colors.white, fontSize: 13.5, height: 1.4),
                         ),
                       ),
@@ -289,11 +289,11 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("🌊 24h 潮位走勢與黃金波峰", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      const Text("24h 走勢監控與起流黃金期", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text("滿水前後2小時標定", style: TextStyle(color: Color(0xFFD84315), fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Text("滿潮返退2分水窗口", style: TextStyle(color: Color(0xFFD84315), fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -319,20 +319,20 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                         children: [
                           Icon(Icons.radar_rounded, color: Colors.deepOrange, size: 24),
                           SizedBox(width: 8),
-                          Text("Waze 現場海況雷達", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text("Waze 現場實測雷達", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(color: Colors.deepOrange, borderRadius: BorderRadius.circular(8)),
-                        child: const Text("即時通報", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Text("真實情報", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildAsoReportItem("🐟 現場魚群大咬中！", "12 分鐘前", "🔱 年度首席領航員", 18, Colors.deepOrange),
-                  _buildAsoReportItem("⛵ 現場風浪比預報更平穩", "35 分鐘前", "👑 創始天尊指揮官", 14, const Color(0xFF0077B6)),
-                  _buildAsoReportItem("🌊 外礁開始走活水", "1 小時前", "🤖 AI 水文巡航哨兵", 9, Colors.teal),
+                  _buildAsoReportItem("現場黑毛大咬中！", "12 分鐘前", "現場實證釣友", 18, Colors.deepOrange),
+                  _buildAsoReportItem("水質清澈 · 走水順暢", "35 分鐘前", "資深航海家", 14, const Color(0xFF0077B6)),
+                  _buildAsoReportItem("風浪比預報更平穩", "1 小時前", "現場實證釣友", 9, Colors.teal),
                 ],
               ),
             ),
@@ -379,7 +379,7 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                         Icon(Icons.phishing_rounded, size: 64, color: Colors.white24),
                         Positioned(
                           bottom: 12, left: 16,
-                          child: Text("🐟 白毛 48.5cm / 2.3kg", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: Text("黑毛 48.5cm / 2.3kg", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                       ],
                     ),
@@ -387,7 +387,7 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                   const SizedBox(height: 12),
                   const Row(
                     children: [
-                      Expanded(child: Text("滿潮返退2分水大咬，青磺蝦中層截擊！", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+                      Expanded(child: Text("滿潮返退2分水大咬，青磺蝦掛阿波1.5號！", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
                       Row(children: [Icon(Icons.star_rounded, color: Colors.amber, size: 16), Icon(Icons.star_rounded, color: Colors.amber, size: 16), Icon(Icons.star_rounded, color: Colors.amber, size: 16), Icon(Icons.star_rounded, color: Colors.amber, size: 16), Icon(Icons.star_rounded, color: Colors.amber, size: 16)]),
                     ],
                   ),
@@ -395,9 +395,9 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      _badge("潮位 1.82 m", Colors.blue),
+                      _badge("潮高 1.82 m", Colors.blue),
                       _badge("浪高 0.8 m", Colors.indigo),
-                      _badge("水溫 24.8 ℃", Colors.orange),
+                      _badge("海溫 24.8 ℃", Colors.orange),
                     ],
                   ),
                 ],
@@ -448,19 +448,19 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
+                color: Colors.teal.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.monetization_on_rounded, color: Colors.amber, size: 32),
+                  Icon(Icons.download_for_offline_rounded, color: Colors.tealAccent, size: 32),
                   SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("老船長幣 (Captain Coins)", style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
-                      Text("120 枚", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                      Text("全台 85 測站一鍵離線神盾預載包", style: TextStyle(color: Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Text("85 站離線完備", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
                     ],
                   ),
                 ],
@@ -486,9 +486,9 @@ class _AsoStudioPageState extends State<AsoStudioPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF021B33))),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
               const SizedBox(height: 2),
-              Text("$time • 由 $tag 通報", style: TextStyle(fontSize: 10, color: color)),
+              Text("$time · 由 $tag 通報", style: TextStyle(fontSize: 10, color: color)),
             ],
           ),
           Row(
