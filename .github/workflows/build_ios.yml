@@ -1,9 +1,7 @@
 ﻿name: Build & Verify iOS Release
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+  workflow_dispatch: # 🌟 終極省額度：僅限手動點擊「Run workflow」才啟動編譯，平時 git push 0 消耗額度！
 
 jobs:
   build:

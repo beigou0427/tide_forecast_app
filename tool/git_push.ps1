@@ -1,6 +1,6 @@
 ﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "🚀 正在將 Tide Pro VVIP 海事旗艦版成果安全推送到 GitHub..." -ForegroundColor Cyan
+Write-Host "🚀 正在將 Tide Pro 最新省額度手動工作流推送到 GitHub..." -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # 1. 暫存所有變更
@@ -17,7 +17,7 @@ if ($stagedP8) {
 
 # 3. 建立語意化 Commit
 Write-Host "`n📝 [步驟 2/3] 建立 Git 提交訊息..." -ForegroundColor Yellow
-$commitMsg = "feat: VVIP 海事純潮汐標準重塑完畢 - 剷除假情報/業配雜質，封死代幣白嫖，Apple Connect 4大商品就緒 (0錯誤0警告)"
+$commitMsg = "ci: 優化 GitHub Actions 為手動 workflow_dispatch 觸發，保證日常推送 0 額度消耗"
 git commit -m $commitMsg
 
 # 4. 推送到遠端倉庫
@@ -26,8 +26,8 @@ git push
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n============================================================" -ForegroundColor Green
-    Write-Host "🎉 恭喜！Tide Pro 專案所有 VVIP 海事代碼與工具已成功推送至 GitHub！" -ForegroundColor Green
+    Write-Host "🎉 恭喜！最新配置已成功推送到 GitHub，日常 push 0 額度消耗已正式生效！" -ForegroundColor Green
     Write-Host "============================================================" -ForegroundColor Green
 } else {
-    Write-Host "`n⚠️ 推送遭遇問題，若尚未綁定遠端分支，請執行: git push -u origin main" -ForegroundColor Yellow
+    Write-Host "`n⚠️ 推送遭遇問題，請檢查網路連線或遠端分支權限！" -ForegroundColor Yellow
 }
