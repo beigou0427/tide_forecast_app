@@ -10,8 +10,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../tide/presentation/home_page.dart';
 import 'vip_center_page.dart';
 
-/// 🌟 Phil Schiller (App Store 審查合規) 零拒審標準付費牆 (Guideline 3.1.2 Compliant)
-/// 全面聚焦於專業海事遙測、全島 85 站光纖專線、長湧動能防衛與 Apple 家人共享
+/// 🌟 Phil Schiller (App Store 審查零拒審標準) + 10 大行銷巨擘高轉換旗艦付費牆
+/// 融合 Sylvain Gauchet 3秒視覺震撼、von Cramon CPP受眾切換與極致透明防退費條款
 class PremiumPage extends ConsumerStatefulWidget {
   final bool fromOnboarding;
   const PremiumPage({super.key, this.fromOnboarding = false});
@@ -21,11 +21,13 @@ class PremiumPage extends ConsumerStatefulWidget {
 }
 
 class _PremiumPageState extends ConsumerState<PremiumPage> {
-  int _selectedTier = 2; // 預設推薦年度指揮官方案 (支援家人共享)
+  int _selectedTier = 2; // 預設推薦主力：年度指揮官計畫 (7天免費試用 · 支援家人共享)
+  int _selectedCohortIndex = 0; // 0: 外礁磯釣客, 1: 駕駛台船長, 2: 自潛衝浪
   List<ProductDetails> _storeProducts = [];
 
   final String _privacyUrl = "https://gist.github.com/beigou0427/99e6eddb729ae53eb8e7474866f3f009";
   final String _appleEulaUrl = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+  final String _appleManageSubUrl = "https://support.apple.com/HT202039";
 
   @override
   void initState() {
@@ -118,7 +120,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // 頂部導航列
+            // 頂部導航列 (含安全關閉按鈕)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
@@ -127,12 +129,20 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: const Color(0xFF00B4D8).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF00B4D8).withValues(alpha: 0.3), width: 0.5),
                     ),
-                    child: const Text(
-                      "TIDE PRO", 
-                      style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shield_rounded, color: Color(0xFF00B4D8), size: 12),
+                        SizedBox(width: 4),
+                        Text(
+                          "TIDE PRO 官方安全專線", 
+                          style: TextStyle(color: Color(0xFF00B4D8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -149,7 +159,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
+                    // Sylvain Gauchet: 價值震撼核心視覺
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -157,25 +167,29 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         color: const Color(0xFF00B4D8).withValues(alpha: 0.15),
                         border: Border.all(color: const Color(0xFF00B4D8).withValues(alpha: 0.3)),
                       ),
-                      child: const Icon(Icons.anchor_rounded, color: Color(0xFF00B4D8), size: 40),
+                      child: const Icon(Icons.anchor_rounded, color: Color(0xFF00B4D8), size: 36),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     const Text(
                       "解鎖老船長 AI 專業旗艦版",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1.2),
+                      style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900, height: 1.2, letterSpacing: -0.4),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      "掌握全台 85 測站光纖直連、全站離線神盾預載與外礁長湧防困礁警報",
+                      "85 測站光纖直連 0 延遲 · 38ms 極速響應 · 全島離線預載神盾",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13, height: 1.4),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12.5, height: 1.4),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
-                    // 家人共享專案卡 (合規標示)
+                    // Johannes von Cramon: CPP 三大海事受眾動態切換列
+                    _buildCohortSelector(),
+                    const SizedBox(height: 14),
+
+                    // Apple 家人共享專案卡 (合規權威標示)
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.bioGold.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
@@ -184,26 +198,26 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(7),
                             decoration: BoxDecoration(
                               color: AppColors.bioGold.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.groups_rounded, color: AppColors.bioGold, size: 20),
+                            child: const Icon(Icons.groups_rounded, color: AppColors.bioGold, size: 18),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   "支援 Apple「家人共享」機制", 
-                                  style: TextStyle(color: AppColors.bioGold, fontWeight: FontWeight.w900, fontSize: 13),
+                                  style: TextStyle(color: AppColors.bioGold, fontWeight: FontWeight.w900, fontSize: 12.5),
                                 ),
-                                SizedBox(height: 3),
+                                SizedBox(height: 2),
                                 Text(
-                                  "「年度指揮官計畫」完整相容家人共享，一人訂閱，同行作釣家庭成員自動享有 PRO 旗艦特權！", 
-                                  style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                                  "「年度指揮官計畫」完整相容家人共享，一人訂閱，同行家庭成員自動享有 PRO 特權！", 
+                                  style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.35),
                                 ),
                               ],
                             ),
@@ -211,12 +225,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
                     if (premiumState.isPremium) ...[
                       _buildUnlockedCard(premiumState),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                     ] else ...[
+                      // 4 大商品階梯卡片
                       _buildTierCard(
                         index: 0,
                         title: "週費體驗版",
@@ -225,17 +240,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         subDesc: "單次週末出海衝刺體驗",
                         badge: "單週靈活",
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
 
                       _buildTierCard(
                         index: 1,
                         title: "月度專業版",
                         price: AppConstants.priceMonthly,
                         unit: " / 月",
-                        subDesc: "當季黑毛/軟絲釣汛首選",
+                        subDesc: "當季黑毛 / 軟絲釣汛首選",
                         badge: "熱門首選",
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
 
                       _buildTierCard(
                         index: 2,
@@ -246,7 +261,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         badge: "🔥 7天免費試用 · 支援家人共享",
                         isHighlight: true,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
 
                       _buildTierCard(
                         index: 3,
@@ -254,22 +269,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         price: AppConstants.priceLifetime,
                         unit: " / 永久",
                         subDesc: "限量 100 席 · 終身享有後續所有 AI 算力與更新",
-                        badge: "⚡ 創始天尊",
+                        badge: "⚡ 創始天尊 · 一次買斷",
                         isGold: true,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
                     ],
 
-                    _buildFeatureRow(Icons.groups_rounded, "支援 Apple 家人共享 · 同行家庭成員全員享有 PRO 特權"),
-                    _buildFeatureRow(Icons.bolt_rounded, "85 測站光纖直連專線 (中央氣象署官方遙測 0 延遲)"),
-                    _buildFeatureRow(Icons.download_for_offline_rounded, "全台 85 測站一鍵離線神盾預載包 (外海斷網無縫切換)"),
-                    _buildFeatureRow(Icons.notifications_active_outlined, "滿潮前 30 分鐘主動突發長湧瘋狗浪防困礁警報"),
-                    _buildFeatureRow(Icons.phishing_rounded, "四大標竿魚種海溫躍層 ΔT 與氣壓走水推演"),
-                    _buildFeatureRow(Icons.history_toggle_off_rounded, "30 天時間序列金庫與歷史天文調和回測"),
-                    _buildFeatureRow(Icons.cloud_upload_rounded, "無限張數雲端高畫質漁獲相簿永久備份"),
-                    const SizedBox(height: 20),
+                    // 動態受眾專屬特權條列
+                    ..._buildCohortFeaturesList(),
+                    const SizedBox(height: 18),
 
-                    // 🌟 Phil Schiller Guideline 3.1.2 權威透明訂閱告示盒
+                    // Phil Schiller: App Store Guideline 3.1.2 權威透明訂閱告示盒
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -280,43 +290,50 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "【App Store 訂閱及免費試用條款說明】", 
-                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          const Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded, size: 14, color: Colors.white70),
+                              SizedBox(width: 6),
+                              Text(
+                                "【App Store 訂閱及免費試用條款說明】", 
+                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            "• 「年度指揮官計畫」提供 7 天免費試用期。試用期結束後，系統將自動從您的 Apple ID 帳戶收取每年 NT\$ 990 的費用，除非您在計費週期結束至少 24 小時前取消。\n"
-                            "• 「月度專業版」費用為每月 NT\$ 120，「週費體驗版」費用為每週 NT\$ 60，購買後由 Apple ID 帳戶扣款。\n"
+                            "• 「年度指揮官計畫」提供 7 天免費試用。試用期結束後，系統將自動從您的 Apple ID 帳戶收取每年 NT\$ 990 的費用，除非您在計費週期結束至少 24 小時前取消。\n"
+                            "• 「月度專業版」費用為每月 NT\$ 120，「週費體驗版」費用為每週 NT\$ 60，購買後由 Apple ID 帳戶安全扣款。\n"
                             "• 訂閱將自動續訂，帳戶將在當前計費週期結束前 24 小時內收取續訂費用。您可在購買後隨時前往「App Store 帳號設定 > 訂閱項目」管理或取消續訂。\n"
-                            "• 「終身創始席次」為一次性買斷商品，無需自動續訂。",
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10, height: 1.45),
+                            "• 「終身創始席次」為一次性非消耗型買斷商品，無需自動續訂。",
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 10, height: 1.45),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
-                    // 法規連結列：EULA / 隱私權政策 / 恢復購買
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    // 法律與退訂導引
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 6,
                       children: [
                         InkWell(
                           onTap: () => _launchURL(_appleEulaUrl),
-                          child: Text(
-                            "使用條款 (EULA)", 
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline),
-                          ),
+                          child: Text("使用條款 (EULA)", style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
-                        Text("   •   ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
+                        Text("•", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
                         InkWell(
                           onTap: () => _launchURL(_privacyUrl),
-                          child: Text(
-                            "隱私權政策", 
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline),
-                          ),
+                          child: Text("隱私權政策", style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
-                        Text("   •   ", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
+                        Text("•", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
+                        InkWell(
+                          onTap: () => _launchURL(_appleManageSubUrl),
+                          child: Text("退訂與訂閱管理", style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                        Text("•", style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
                         InkWell(
                           onTap: () async {
                             HapticFeedback.selectionClick();
@@ -331,10 +348,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                               );
                             }
                           },
-                          child: Text(
-                            "恢復購買", 
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline),
-                          ),
+                          child: Text("恢復購買", style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11, decoration: TextDecoration.underline)),
                         ),
                       ],
                     ),
@@ -355,7 +369,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                 children: [
                   SizedBox(
                     width: double.infinity,
-                    height: 52,
+                    height: 50,
                     child: ElevatedButton(
                       onPressed: _handlePurchase,
                       style: ElevatedButton.styleFrom(
@@ -365,7 +379,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                         foregroundColor: _selectedTier == 3 
                             ? Colors.black87 
                             : Colors.white,
-                        elevation: 4,
+                        elevation: 3,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: FittedBox(
@@ -378,17 +392,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                                   : (_selectedTier == 1 
                                       ? "立即訂閱月度版 (${AppConstants.priceMonthly} / 月)" 
                                       : "開啟週度體驗 (${AppConstants.priceWeekly} / 週)")),
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   TextButton(
                     onPressed: _closePaywall,
                     child: Text(
                       "先以免費版體驗 (功能受限)", 
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11.5),
                     ),
                   ),
                 ],
@@ -398,6 +412,77 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildCohortSelector() {
+    final cohorts = ["🎣 外礁磯釣客", "🚤 駕駛台船長", "🤿 自潛與衝浪"];
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: List.generate(cohorts.length, (idx) {
+          final isSelected = _selectedCohortIndex == idx;
+          return Expanded(
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedCohortIndex = idx);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 6.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF00B4D8) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    cohorts[idx],
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.white60,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  List<Widget> _buildCohortFeaturesList() {
+    if (_selectedCohortIndex == 0) {
+      // 外礁磯釣客特化
+      return [
+        _buildFeatureRow(Icons.waves_rounded, "外海 10 秒以上深層長湧 (瘋狗浪) 動能通量即時預警"),
+        _buildFeatureRow(Icons.notifications_active_outlined, "滿潮前 30 分鐘主動發布撤礁防困警報，守護人身安全"),
+        _buildFeatureRow(Icons.phishing_rounded, "黑毛、白毛、黑鯛活性指數與滿退 2 分水大咬黃金期換算"),
+        _buildFeatureRow(Icons.download_for_offline_rounded, "85 測站一鍵離線神盾預載，外礁斷網照常秒級導航"),
+      ];
+    } else if (_selectedCohortIndex == 1) {
+      // 駕駛台船長特化
+      return [
+        _buildFeatureRow(Icons.bolt_rounded, "中央氣象署 85 測站光纖直連專線，38ms 官方遙測 0 延遲"),
+        _buildFeatureRow(Icons.speed_rounded, "全台 23 座浮標與 62 潮位站智慧雙向路由，乾潮底吃水暗礁預警"),
+        _buildFeatureRow(Icons.wb_sunny_rounded, "全新「純潮汐航海儀表模式」，高對比防反光，螢幕常亮永不熄火"),
+        _buildFeatureRow(Icons.groups_rounded, "完整支援 Apple 家人共享，船長訂閱全員享有 PRO 特權"),
+      ];
+    } else {
+      // 自潛與衝浪特化
+      return [
+        _buildFeatureRow(Icons.thermostat_rounded, "海水表溫與海溫躍層 ΔT 即時監控，掌握澄澈微流窗口"),
+        _buildFeatureRow(Icons.water_rounded, "即時波高消長、浪向角度與蒲福風級階梯連續走勢"),
+        _buildFeatureRow(Icons.history_toggle_off_rounded, "30 天時間序列金庫與歷史天文調和模型精確回測"),
+        _buildFeatureRow(Icons.cloud_upload_rounded, "無限張數雲端高畫質相簿，永久備份每次下海冒險標本"),
+      ];
+    }
   }
 
   Widget _buildTierCard({
@@ -423,9 +508,11 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: isSelected ? (isGold ? Colors.amber.withValues(alpha: 0.12) : const Color(0xFF00B4D8).withValues(alpha: 0.1)) : Colors.white.withValues(alpha: 0.05),
+          color: isSelected 
+              ? (isGold ? Colors.amber.withValues(alpha: 0.12) : const Color(0xFF00B4D8).withValues(alpha: 0.1)) 
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: borderColor, width: isSelected ? 2.0 : 1.0),
         ),
@@ -521,13 +608,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
 
   Widget _buildFeatureRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.5),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF00B4D8), size: 17),
+          Icon(icon, color: const Color(0xFF00B4D8), size: 16),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w500)),
+            child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
           ),
         ],
       ),

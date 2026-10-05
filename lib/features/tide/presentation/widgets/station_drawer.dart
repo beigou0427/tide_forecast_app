@@ -203,7 +203,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
           Divider(height: 1, color: dividerColor),
 
-          // 🌟 商業版純淨選單
           _buildActionTile(
             icon: Icons.phishing_rounded,
             title: "潮汐漁獲日誌",
@@ -265,7 +264,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     );
   }
 
-  /// 🌟 駕駛台人因工程專項：側邊欄快速戰術模式切換器
   Widget _buildModeSwitchTile(bool isPureTide, bool isClassic) {
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 2),
@@ -1216,7 +1214,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                   Icon(Icons.shield_rounded, color: AppColors.bioGold, size: 22),
                   SizedBox(width: 8),
                   Text(
-                    "創辦人專屬後台 (提審隱形區)",
+                    "創辦人專屬後台 (全系統 41 項自檢)",
                     style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
                   ),
                 ],
@@ -1230,9 +1228,9 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
               ListTile(
                 dense: true,
-                leading: const Icon(Icons.health_and_safety_rounded, color: Color(0xFF30D158)),
-                title: const Text("開啟 9 大混沌自檢中心 (Diagnostic)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: const Text("進行水文模糊測試與崩潰捕獲", style: TextStyle(color: Colors.white54, fontSize: 11)),
+                leading: const Icon(Icons.verified_user_rounded, color: Color(0xFF30D158)),
+                title: const Text("開啟 41 項海事實機自檢與混沌中心", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: const Text("包含 10 大行銷巨擘 ASO 與 VVIP 零退費實機診斷", style: TextStyle(color: Colors.white54, fontSize: 11)),
                 onTap: () {
                   Navigator.pop(ctx);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));

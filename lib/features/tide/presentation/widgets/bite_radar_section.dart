@@ -9,7 +9,7 @@ import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 
 /// 🌟 經海事與水產生物學標準重塑之魚種索餌活性雷達
-/// 具備嚴密記憶化快取（Memoization），以海溫變化率 ΔT 與氣壓前沿趨勢 ΔP 為核心物理依據
+/// 融合 Sean Ellis「AHA Moment 價值先行」與 von Cramon「受眾精準引流」架構
 class BiteRadarSection extends ConsumerStatefulWidget {
   final TideStationData station;
   final DateTime selectedDate;
@@ -27,7 +27,7 @@ class BiteRadarSection extends ConsumerStatefulWidget {
 }
 
 class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
-  // 🌟 記憶化計算快取：當觀測資料與日期未變時，0 重複計算開銷
+  // 🌟 John Carmack 記憶化計算快取：當觀測資料與日期未變時，0 重複計算開銷
   BitePredictionResult? _cachedBiteResult;
   DateTime? _lastTargetDate;
   int _lastObsCount = 0;
@@ -80,6 +80,7 @@ class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 頂部活性總評
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -132,13 +133,15 @@ class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
                   border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.4), width: 0.5),
                 ),
                 child: Text(
-                  "${bite.overallBiteScore} 分 · 活性適中",
+                  "${bite.overallBiteScore} 分 · ${bite.biteLevel}",
                   style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.bioGold),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+
+          // 起流黃金窗口提示
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
             decoration: BoxDecoration(
@@ -166,13 +169,15 @@ class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
           ),
           const SizedBox(height: 12),
 
+          // Sean Ellis: 價值先行，免費用戶看見第 1 種魚（證明物理演算法真實性）
           if (isPro) ...[
             ...bite.speciesIndices.map((s) => _buildSpeciesRow(s, widget.isClassic)),
           ] else ...[
             if (bite.speciesIndices.isNotEmpty)
               _buildSpeciesRow(bite.speciesIndices.first, widget.isClassic),
-            const SizedBox(height: 4),
-            _buildLockedSpeciesTeaser(context, widget.isClassic),
+            const SizedBox(height: 6),
+            // 其餘 3 種魚以半透微光引流卡呈現 (附帶受眾痛點對比)
+            _buildLockedSpeciesTeaser(context, widget.isClassic, bite.speciesIndices.skip(1).toList()),
           ],
         ],
       ),
@@ -225,7 +230,7 @@ class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      "${species.biteProbability}% 活躍度",
+                      "${species.biteProbability}% ${species.statusBadge}",
                       style: TextStyle(color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
                     ),
                   ),
@@ -247,65 +252,116 @@ class _BiteRadarSectionState extends ConsumerState<BiteRadarSection> {
     );
   }
 
-  Widget _buildLockedSpeciesTeaser(BuildContext context, bool isClassic) {
+  Widget _buildLockedSpeciesTeaser(BuildContext context, bool isClassic, List<SpeciesBiteIndex> lockedSpecies) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.bioGold.withValues(alpha: isClassic ? 0.06 : 0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.bioGold.withValues(alpha: 0.3), 
+          color: AppColors.bioGold.withValues(alpha: 0.35), 
           width: 0.8,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 頂部引流抬頭
           Row(
             children: [
-              const Icon(Icons.lock_rounded, size: 14, color: AppColors.bioGold),
+              const Icon(Icons.workspace_premium_rounded, size: 16, color: AppColors.bioGold),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  "PRO 旗艦版完整解鎖其餘三大指標魚種水象指標：",
+                  "解鎖老船長 PRO · 掌握三大專項水文指標：",
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
                     color: isClassic ? const Color(0xFFB45309) : AppColors.bioGold,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            "• 軟絲透抽（清澈微流與小潮指標）• 紅甘煙仔虎（急流起流線）• 黑鯛石斑（底層推浪開口度）",
-            style: TextStyle(
-              fontSize: 11,
-              color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
-              height: 1.35,
+          const SizedBox(height: 8),
+
+          // 半透預覽專項受眾痛點條列 (von Cramon CPP 策略)
+          _buildLockedTeaserItem("🦑 軟絲 · 透抽 (岸拋木蝦/夜釣)", "近岸澄澈微流窗口 · 小潮平水抱餌時段分析", isClassic),
+          _buildLockedTeaserItem("🎯 紅甘 · 煙仔虎 (岸拋鐵板/船釣)", "天文大潮活水急流 · 氣壓降壓靠岸掠食衝擊線", isClassic),
+          _buildLockedTeaserItem("🦀 黑鯛 · 石斑 (前打/港區沉底)", "推浪拍岸捲底誘餌分析 · 底層障礙物開口時程", isClassic),
+
+          const SizedBox(height: 12),
+
+          // 零退費防禦標示 (降低心理摩擦)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: isClassic ? 0.6 : 0.04),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.verified_rounded, size: 12, color: Color(0xFF30D158)),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "年度方案享 7 天免費試用，隨時可於 Apple ID 輕鬆取消，支援家人共享",
+                    style: TextStyle(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
+
+          // CTA 轉換按鈕
           SizedBox(
             width: double.infinity,
-            height: 38,
+            height: 40,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bioGold,
                 foregroundColor: Colors.black87,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.bolt_rounded, size: 16),
               label: const Text(
-                "升級 PRO 指揮官 · 完整解鎖指標魚種水象",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                "開啟 7 天免費試用 · 解鎖全指標魚種",
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
               ),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLockedTeaserItem(String title, String desc, bool isClassic) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.bioGold),
+          const SizedBox(width: 6),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary,
+                  height: 1.35,
+                ),
+                children: [
+                  TextSpan(text: "$title：", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: desc),
+                ],
+              ),
             ),
           ),
         ],

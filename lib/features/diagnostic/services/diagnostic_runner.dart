@@ -19,6 +19,7 @@ import '../../tide/data/ugc_report_model.dart';
 import '../../tide/providers/ugc_provider.dart';
 import '../../premium/services/premium_service.dart';
 import '../data/diagnostic_model.dart';
+import '../suites/aso_masters_suite.dart';
 
 class DiagnosticRunner {
   static Future<List<DiagnosticResultItem>> runAll({
@@ -32,12 +33,13 @@ class DiagnosticRunner {
     } catch (_) {}
 
     final List<DiagnosticResultItem> allResults = [];
+    const double totalSteps = 41.0;
 
     // 1. 水文拓撲測試 (01~10)
     final topoResults = _runTopologyTests(stationsList);
     for (int i = 0; i < topoResults.length; i++) {
       allResults.add(topoResults[i]);
-      onProgress(allResults.length / 40.0, "正在檢驗 [${allResults.length}/40]：${topoResults[i].title}...");
+      onProgress(allResults.length / totalSteps, "正在檢驗 [${allResults.length}/41]：${topoResults[i].title}...");
       await Future.delayed(const Duration(milliseconds: 15));
     }
 
@@ -45,7 +47,7 @@ class DiagnosticRunner {
     final algoResults = _runAlgorithmTests();
     for (int i = 0; i < algoResults.length; i++) {
       allResults.add(algoResults[i]);
-      onProgress(allResults.length / 40.0, "正在檢驗 [${allResults.length}/40]：${algoResults[i].title}...");
+      onProgress(allResults.length / totalSteps, "正在檢驗 [${allResults.length}/41]：${algoResults[i].title}...");
       await Future.delayed(const Duration(milliseconds: 15));
     }
 
@@ -53,20 +55,20 @@ class DiagnosticRunner {
     final offlineResults = await _runOfflineAndStateTests(ref);
     for (int i = 0; i < offlineResults.length; i++) {
       allResults.add(offlineResults[i]);
-      onProgress(allResults.length / 40.0, "正在檢驗 [${allResults.length}/40]：${offlineResults[i].title}...");
+      onProgress(allResults.length / totalSteps, "正在檢驗 [${allResults.length}/41]：${offlineResults[i].title}...");
       await Future.delayed(const Duration(milliseconds: 15));
     }
 
-    // 4. 商業變現、85 站閘門與 B2B 通訊協定 (27~33)
+    // 4. 商業變現、85 站閘門、10大行銷大老與零退費自檢 (27~34)
     final commercialResults = await _runCommercialAuditTests(stationsList);
     for (int i = 0; i < commercialResults.length; i++) {
       allResults.add(commercialResults[i]);
-      onProgress(allResults.length / 40.0, "正在檢驗 [${allResults.length}/40]：${commercialResults[i].title}...");
+      onProgress(allResults.length / totalSteps, "正在檢驗 [${allResults.length}/41]：${commercialResults[i].title}...");
       await Future.delayed(const Duration(milliseconds: 15));
     }
 
-    // 5. 實體硬體、真實 Apple StoreKit 官方連線查詢 (34~40)
-    final hwResults = await _runHardwareAndNetworkTests(allResults.length, onProgress);
+    // 5. 實體硬體、真實 Apple StoreKit 官方連線查詢 (35~41)
+    final hwResults = await _runHardwareAndNetworkTests(allResults.length, onProgress, totalSteps);
     allResults.addAll(hwResults);
 
     return allResults;
@@ -80,7 +82,6 @@ class DiagnosticRunner {
       final lat = (s['lat'] ?? 0.0) as num;
       final lng = (s['lng'] ?? 0.0) as num;
       if (lat == 0.0 || lng == 0.0) zeroCount++;
-      // 含東沙島與外海浮標之合法經緯度區間 (緯度 20°~27.5°N、經度 116°~124°E)
       if (lat < 20.0 || lat > 27.5 || lng < 116.0 || lng > 124.0) outBounds++;
     }
 
@@ -266,7 +267,7 @@ class DiagnosticRunner {
     ];
   }
 
-  // ================= 4. 商業變現、85 站全庫審計與 B2B 通訊協定 (27~33) =================
+  // ================= 4. 商業變現、85 站全庫審計與 10 大 ASO 零退費組 (27~34) =================
   static Future<List<DiagnosticResultItem>> _runCommercialAuditTests(List<Map<String, dynamic>> stationsList) async {
     int freeCount = 0;
     int proCount = 0;
@@ -308,12 +309,14 @@ class DiagnosticRunner {
     }
     final bool fridayOk = target.weekday == DateTime.friday && target.isAfter(now);
 
-    // 真實檢驗內建 assets/stations_config.json 的測站機關合法性
     final bool allValidAgencies = stationsList.isNotEmpty &&
         stationsList.every((s) => ['中央氣象署', '水利署', '海委會'].contains(s['agency']));
     final String watchdogDetail = allValidAgencies 
         ? "85 測站權威機關（氣象署/水利署）歸屬與設定檔結構完整" 
         : "測站設定檔包含未知機關或短缺";
+
+    // 🌟 34. 實時發動 10 大行銷大老增長與零退費自檢
+    final asoSuiteResult = await AsoMastersDiagnosticSuite.run();
 
     return [
       DiagnosticResultItem(
@@ -358,24 +361,31 @@ class DiagnosticRunner {
         detail: watchdogDetail,
         metric: allValidAgencies ? "機關審計通過" : "結構異常",
       ),
+      DiagnosticResultItem(
+        category: "商業變現", title: "34. 10大ASO大老與VVIP零退費",
+        passed: asoSuiteResult.isAllPassed,
+        detail: asoSuiteResult.message,
+        metric: asoSuiteResult.isAllPassed ? "11項全過" : "${asoSuiteResult.issues.length}項警報",
+      ),
     ];
   }
 
-  // ================= 5. 實體硬體、真實 Apple StoreKit 伺服器校驗組 (34~40) =================
+  // ================= 5. 實體硬體、真實 Apple StoreKit 伺服器校驗組 (35~41) =================
   static Future<List<DiagnosticResultItem>> _runHardwareAndNetworkTests(
     int offset,
     void Function(double, String) onProgress,
+    double totalSteps,
   ) async {
     final List<DiagnosticResultItem> list = [];
 
-    // 34. 向 Apple StoreKit 官方伺服器連線查詢商品 ID
-    onProgress(34 / 40.0, "正在向 Apple 官方伺服器實時查詢 4 大商品 ID...");
+    // 35. 向 Apple StoreKit 官方伺服器連線查詢商品 ID
+    onProgress(35 / totalSteps, "正在向 Apple 官方伺服器實時查詢 4 大商品 ID...");
     try {
       final isAvailable = await InAppPurchase.instance.isAvailable();
       if (!isAvailable) {
         list.add(const DiagnosticResultItem(
           category: "實機硬體",
-          title: "34. Apple StoreKit 實時查詢",
+          title: "35. Apple StoreKit 實時查詢",
           passed: false,
           detail: "❌ 失敗: iOS StoreKit 服務未就緒 (設備未登入 Apple ID 或無網路)",
           metric: "通道未連通",
@@ -388,7 +398,7 @@ class DiagnosticRunner {
         if (response.error != null) {
           list.add(DiagnosticResultItem(
             category: "實機硬體",
-            title: "34. Apple StoreKit 實時查詢",
+            title: "35. Apple StoreKit 實時查詢",
             passed: false,
             detail: "❌ Apple 伺服器報錯: [${response.error!.code}] ${response.error!.message}",
             metric: "Apple 報錯",
@@ -398,7 +408,7 @@ class DiagnosticRunner {
           final foundCount = response.productDetails.length;
           list.add(DiagnosticResultItem(
             category: "實機硬體",
-            title: "34. Apple StoreKit 實時查詢",
+            title: "35. Apple StoreKit 實時查詢",
             passed: false,
             detail: "❌ 失敗: Apple 伺服器回傳未找到 ${notFoundList.length} 支商品 ID: $notFoundList" +
                 (foundCount > 0 ? " (已生效: $foundCount 支)" : " (待至 App Store Connect 建立)"),
@@ -408,7 +418,7 @@ class DiagnosticRunner {
           final priceList = response.productDetails.map((p) => "${p.id}:${p.price}").join(' | ');
           list.add(DiagnosticResultItem(
             category: "實機硬體",
-            title: "34. Apple StoreKit 實時查詢",
+            title: "35. Apple StoreKit 實時查詢",
             passed: true,
             detail: "✅ 4 支商品 100% 通過 Apple 官方伺服器驗證並取得最新定價 ($priceList)",
             metric: "4/4 通過",
@@ -416,7 +426,7 @@ class DiagnosticRunner {
         } else {
           list.add(DiagnosticResultItem(
             category: "實機硬體",
-            title: "34. Apple StoreKit 實時查詢",
+            title: "35. Apple StoreKit 實時查詢",
             passed: false,
             detail: "❌ 失敗: Apple 僅回傳 ${response.productDetails.length}/4 支商品",
             metric: "${response.productDetails.length}/4 失敗",
@@ -426,15 +436,15 @@ class DiagnosticRunner {
     } catch (e) {
       list.add(DiagnosticResultItem(
         category: "實機硬體",
-        title: "34. Apple StoreKit 實時查詢",
+        title: "35. Apple StoreKit 實時查詢",
         passed: false,
         detail: "❌ 查詢例外: $e",
         metric: "查詢崩潰",
       ));
     }
 
-    // 35. 實體快取磁碟讀寫一致性 Benchmark
-    onProgress(35 / 40.0, "正在檢驗 [35/40]：實測本地磁碟快取微秒級 I/O...");
+    // 36. 實體快取磁碟讀寫一致性 Benchmark
+    onProgress(36 / totalSteps, "正在檢驗 [36/41]：實測本地磁碟快取微秒級 I/O...");
     final prefs = await SharedPreferences.getInstance();
     final swIo = Stopwatch()..start();
     const key = "__strict_storage_test__";
@@ -443,14 +453,14 @@ class DiagnosticRunner {
     await prefs.remove(key);
     swIo.stop();
     list.add(DiagnosticResultItem(
-      category: "實機硬體", title: "35. 外海離線黑盒子磁碟 I/O",
+      category: "實機硬體", title: "36. 外海離線黑盒子磁碟 I/O",
       passed: val == "data_ok",
       detail: val == "data_ok" ? "磁碟讀寫微秒級響應，數據 100% 一致" : "磁碟快取校驗失敗",
       metric: "${swIo.elapsedMicroseconds} μs",
     ));
 
-    // 36. 氣象署官方專線多節點容災真實 Ping
-    onProgress(36 / 40.0, "正在檢驗 [36/40]：向中央氣象署專線發送真實測速封包...");
+    // 37. 氣象署官方專線多節點容災真實 Ping
+    onProgress(37 / totalSteps, "正在檢驗 [37/41]：向中央氣象署專線發送真實測速封包...");
     final swCwa = Stopwatch()..start();
     bool cwaSuccess = false;
     for (final sid in ["C6AH2", "46694A", "C4A01"]) {
@@ -462,14 +472,14 @@ class DiagnosticRunner {
     }
     swCwa.stop();
     list.add(DiagnosticResultItem(
-      category: "實機硬體", title: "36. 氣象署專線多節點實測 Ping",
+      category: "實機硬體", title: "37. 氣象署專線多節點實測 Ping",
       passed: cwaSuccess,
       detail: cwaSuccess ? "官方 API 專線連通正常" : "多節點連線逾時",
       metric: cwaSuccess ? "${swCwa.elapsedMilliseconds} ms" : "逾時",
     ));
 
-    // 37. GitHub Edge 快照 CDN 測速
-    onProgress(37 / 40.0, "正在檢驗 [37/40]：向 GitHub Edge CDN 節點測速...");
+    // 38. GitHub Edge 快照 CDN 測速
+    onProgress(38 / totalSteps, "正在檢驗 [38/41]：向 GitHub Edge CDN 節點測速...");
     final swEdge = Stopwatch()..start();
     bool edgeSuccess = false;
     try {
@@ -479,58 +489,58 @@ class DiagnosticRunner {
     } catch (_) {}
     swEdge.stop();
     list.add(DiagnosticResultItem(
-      category: "實機硬體", title: "37. GitHub Edge CDN 節點測速",
+      category: "實機硬體", title: "38. GitHub Edge CDN 節點測速",
       passed: edgeSuccess,
       detail: edgeSuccess ? "邊緣快照 CDN 響應流暢" : "CDN 節點連線逾時",
       metric: edgeSuccess ? "${swEdge.elapsedMilliseconds} ms" : "逾時",
     ));
 
-    // 38. 實體手機 GPS 晶片與坐標鎖定
-    onProgress(38 / 40.0, "正在檢驗 [38/40]：喚醒實體硬體 GPS 晶片獲取真實坐標...");
+    // 39. 實體手機 GPS 晶片與坐標鎖定
+    onProgress(39 / totalSteps, "正在檢驗 [39/41]：喚醒實體硬體 GPS 晶片獲取真實坐標...");
     try {
       final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium).timeout(const Duration(seconds: 4));
       list.add(DiagnosticResultItem(
-        category: "實機硬體", title: "38. 硬體 GPS 晶片真實鎖定",
+        category: "實機硬體", title: "39. 硬體 GPS 晶片真實鎖定",
         passed: true,
         detail: "GPS 鎖定成功 (${pos.latitude.toStringAsFixed(2)}°N, ${pos.longitude.toStringAsFixed(2)}°E)",
         metric: "${pos.accuracy.toStringAsFixed(0)}m 精度",
       ));
     } catch (_) {
       list.add(const DiagnosticResultItem(
-        category: "實機硬體", title: "38. 硬體 GPS 晶片真實鎖定",
+        category: "實機硬體", title: "39. 硬體 GPS 晶片真實鎖定",
         passed: true,
         detail: "定位授權就緒 (模擬器環境已配對)",
         metric: "GPS就緒",
       ));
     }
 
-    // 39. 觸覺震動馬達物理震動
-    onProgress(39 / 40.0, "正在檢驗 [39/40]：觸發手機觸覺震動馬達物理重擊...");
+    // 40. 觸覺震動馬達物理震動
+    onProgress(40 / totalSteps, "正在檢驗 [40/41]：觸發手機觸覺震動馬達物理重擊...");
     await HapticFeedback.heavyImpact();
     await Future.delayed(const Duration(milliseconds: 150));
     await HapticFeedback.vibrate();
     list.add(const DiagnosticResultItem(
-      category: "實機硬體", title: "39. 觸覺震動馬達物理體感",
+      category: "實機硬體", title: "40. 觸覺震動馬達物理體感",
       passed: true,
       detail: "已調用馬達物理重擊，確認防困礁具備體感警示",
       metric: "物理震動通過",
     ));
 
-    // 40. 繁體中文 TTS 揚聲器發音
-    onProgress(40 / 40.0, "正在檢驗 [40/40]：調用手機揚聲器朗讀繁體中文語料...");
+    // 41. 繁體中文 TTS 揚聲器發音
+    onProgress(41 / totalSteps, "正在檢驗 [41/41]：調用手機揚聲器朗讀繁體中文語料...");
     try {
       final tts = FlutterTts();
       await tts.setLanguage("zh-TW");
-      await tts.speak("老船長全系統四十項檢驗完畢");
+      await tts.speak("老船長全系統四十一項檢驗完畢");
       list.add(const DiagnosticResultItem(
-        category: "實機硬體", title: "40. 繁體中文語音合成 (TTS)",
+        category: "實機硬體", title: "41. 繁體中文語音合成 (TTS)",
         passed: true,
         detail: "已調用發音引擎朗讀語料，確認行車晨報可用",
         metric: "zh-TW 通過",
       ));
     } catch (_) {
       list.add(const DiagnosticResultItem(
-        category: "實機硬體", title: "40. 繁體中文語音合成 (TTS)",
+        category: "實機硬體", title: "41. 繁體中文語音合成 (TTS)",
         passed: false,
         detail: "TTS 發音異常",
         metric: "失敗",
