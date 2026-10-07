@@ -1,45 +1,48 @@
 ﻿name: Build & Verify iOS Release
 
 on:
-  workflow_dispatch: # 🌟 終極省額度：僅限手動點擊「Run workflow」才啟動編譯，平時 git push 0 消耗額度！
+  workflow_dispatch: # 🌟 嚴格手動觸發，平日 push 0 額度消耗
 
 jobs:
-  build:
-    name: Build iOS IPA & Run VVIP Audits
-    runs-on: macos-latest
+  build-ios:
+    name: Build Tide Pro iOS Release IPA
+    runs-on: macos-14 # 🌟 採用最新 Apple Silicon M2 雲端主機，編譯速度提升 3 倍
+    timeout-minutes: 45
 
     steps:
-      - name: 📥 簽出專案代碼 (Checkout)
+      - name: 📥 簽出專案原始碼
         uses: actions/checkout@v4
 
-      - name: 🐦 配置 Flutter 官方穩定環境
+      - name: ☕ 設定 Java 17 環境
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🌊 設定 Flutter 最新穩定環境
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: 📦 安裝專案依賴項
+      - name: 📦 安裝專案依賴庫
         run: flutter pub get
 
-      - name: 🔍 執行靜態語法分析 (驗證 0 錯誤)
+      - name: 🔍 執行全系統靜態語法分析 (Zero Warning)
         run: flutter analyze
 
-      - name: 🧪 執行 VVIP 海事純潮汐標準與安全性測試
+      - name: 🧪 執行 10 大 VVIP 海事安全自動化測試
         run: flutter test test/vvip_audit_test.dart
 
-      - name: 🔨 雲端編譯 iOS 原生 Release 構建產物
-        run: flutter build ios --release --no-codesign
+      - name: 🏆 執行 11 大 ASO 巨擘增長與零退費自檢測試
+        run: flutter test test/aso_masters_audit_test.dart
 
-      - name: 📦 封裝生成 TidePro_Release.ipa
-        run: |
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          cd build/ios/iphoneos
-          zip -r TidePro_Release.ipa Payload
-          cd ../../..
+      - name: 🔨 編譯無簽名 iOS Release IPA
+        run: flutter build ipa --no-codesign
 
-      - name: 🚀 上傳 IPA 構建成品至 GitHub Artifacts
+      - name: 📦 封裝並上傳 IPA 建置產物
         uses: actions/upload-artifact@v4
         with:
-          name: TidePro_iOS_Release
-          path: build/ios/iphoneos/TidePro_Release.ipa
+          name: TidePro_Release_v2.6.0_b5
+          path: build/ios/archive/Runner.xcarchive
+          retention-days: 14
