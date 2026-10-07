@@ -17,7 +17,7 @@ class VipCenterPage extends ConsumerStatefulWidget {
 class _VipCenterPageState extends ConsumerState<VipCenterPage> {
   final GlobalKey _vipCardKey = GlobalKey();
   
-  // 🌟 VVIP 離線預載防線狀態
+  // VVIP 離線預載防線狀態
   bool _isPreloading = false;
   double _preloadProgress = 0.0;
 
@@ -69,7 +69,6 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     final isClassic = ref.watch(isClassicThemeProvider);
 
     final currentYear = DateTime.now().year;
-    // 🌟 安全序列號演算法 (徹底消滅 RangeError 閃退)
     final String epochStr = (state.expiryDate?.millisecondsSinceEpoch ?? 1770000000000).toString();
     final String seq = epochStr.length >= 9 ? epochStr.substring(5, 9) : "8888";
     final String memberId = "CAPT-$currentYear-$seq";
@@ -316,42 +315,69 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 28),
 
-            // 4. 專屬 VIP 硬核專線與運作狀態
+            // 4. 專屬 VIP 硬核特權與運作狀態
             Row(
               children: [
                 Icon(Icons.shield_rounded, color: isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan, size: 18),
                 const SizedBox(width: 8),
                 Text(
-                  "專屬 VIP 硬核專線與運作狀態",
+                  "專屬 VIP 硬核特權與運作狀態",
                   style: TextStyle(color: sectionTitleColor, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 14),
 
+            // 特權 1：Apple 官方家人共享 (正式驗證開通)
+            _buildStatusCard(
+              icon: Icons.groups_rounded,
+              title: "Apple 官方「家人共享」機制",
+              statusText: "後台已認證生效 • 支援 5 位同行成員",
+              desc: "年度指揮官計畫完整相容 Apple 家人共享，同行作釣的家庭成員登入同群組 Apple ID，自動享有 PRO 旗艦特權，零重複扣款。",
+              statusColor: const Color(0xFF30D158),
+              isClassic: isClassic,
+            ),
+            const SizedBox(height: 12),
+
+            // 特權 2：老船長經典純潮汐對照表
+            _buildStatusCard(
+              icon: Icons.menu_book_rounded,
+              title: "老船長經典純潮汐對照表",
+              statusText: "VVIP 專屬純粹紙本排印已解鎖",
+              desc: "駕駛台純潮汐儀表直接置頂呈現傳統航海對照矩陣，大字體顯示全天滿乾潮、潮差變動與走水窗口，支援一鍵複製純文字至 LINE 群組。",
+              statusColor: AppColors.bioGold,
+              isClassic: isClassic,
+            ),
+            const SizedBox(height: 12),
+
+            // 特權 3：85 測站光纖直連專線
             _buildStatusCard(
               icon: Icons.bolt_rounded,
               title: "中央氣象署 85 測站光纖直連專線",
               statusText: "專線已連通 • 響應 38ms",
               desc: "具備浮標與 62 座潮位站智慧雙向路由，直達氣象署即時感測陣列，享有 0 延遲水文刷新特權。",
-              statusColor: const Color(0xFF30D158),
+              statusColor: const Color(0xFF00E5FF),
               isClassic: isClassic,
             ),
             const SizedBox(height: 12),
+
+            // 特權 4：Gemini 模型專屬推論通道
             _buildStatusCard(
               icon: Icons.auto_awesome,
               title: "Gemini Flash-Lite-Latest 專屬推論通道",
               statusText: "海事算力優先席位",
               desc: "獨享全維度湧浪週期、風切轉向點與咬度視窗 AI 加權計算，不排隊、無請求次數上限。",
-              statusColor: AppColors.bioGold,
+              statusColor: const Color(0xFFBF5AF2),
               isClassic: isClassic,
             ),
             const SizedBox(height: 12),
+
+            // 特權 5：30 分鐘滿潮防困礁主動守護盾
             _buildStatusCard(
               icon: Icons.notifications_active_rounded,
               title: "30 分鐘滿潮防困礁主動守護盾",
               statusText: "背景安全雷達運作中",
-              desc: "依據您關注測站之每日滿潮死線，於滿潮前 30 分鐘發出專屬高分貝突發湧浪防護警告。",
+              desc: "依據您關注測站之每日滿潮死線，於滿潮前 30 分鐘發出專屬高分貝突發湧浪防護警告，守護人身安全。",
               statusColor: Colors.cyanAccent,
               isClassic: isClassic,
             ),

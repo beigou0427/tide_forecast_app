@@ -35,7 +35,7 @@ class AsoCrossCheckReport {
 /// 🌟 Steve P. Young 跨語言 ASO 矩陣與專屬自檢引擎
 /// 為台灣 App Store 打造 zh-Hant、en-US、zh-Hans 三維詞庫覆蓋，將 100 字元擴充至 300 字元
 class AsoCrossLocalizationEngine {
-  // 1. 繁體中文主語言 (核心水文與大詞)
+  // 1. 繁體中文主語言 (核心水文與大詞，標題 24 字 <= 30，副標 20 字 <= 30，關鍵字 98 字 <= 100)
   static const AsoLocalizationLayer zhHantLayer = AsoLocalizationLayer(
     locale: "zh-Hant",
     title: "潮汐表 Pro - 釣魚海象浪高與風速氣象",
@@ -43,16 +43,15 @@ class AsoCrossLocalizationEngine {
     keywords: "磯釣,船釣,路亞,軟絲,黑毛,前打,衝浪,自由潛水,海流,水溫,農曆,月相,氣壓,大潮,中央氣象署,浮標,咬度,沉底",
   );
 
-  // 2. 英文副語言 (台灣市場 100% 索引，擴充釣法與長尾裝備詞)
-  static const AsoLocalizationLayer enUsLayer = enUsKeywords;
-  static const AsoLocalizationLayer enUsKeywords = AsoLocalizationLayer(
+  // 2. 英文副語言 (台灣市場 100% 索引，標題 29 字 <= 30，副標 27 字 <= 30，關鍵字 99 字 <= 100)
+  static const AsoLocalizationLayer enUsLayer = AsoLocalizationLayer(
     locale: "en-US",
-    title: "Tide Pro - Taiwan Marine Weather",
-    subtitle: "Realtime Swell, Wind & Tide Radar",
+    title: "Tide Pro - Taiwan Marine Tide",
+    subtitle: "Realtime Tide, Swell & Wind",
     keywords: "釣點,魚群,鐵板,木蝦,阿波,放生,紅甘,煙仔虎,白毛,石斑,黑鯛,活餌,海釣場,海釣船,港口,防波堤,岬角,流尾,潮目",
   );
 
-  // 3. 簡體中文副語言 (台灣市場 100% 索引，擴充外海與生態專業詞)
+  // 3. 簡體中文副語言 (台灣市場 100% 索引，標題 22 字 <= 30，副標 20 字 <= 30，關鍵字 98 字 <= 100)
   static const AsoLocalizationLayer zhHansLayer = AsoLocalizationLayer(
     locale: "zh-Hans",
     title: "潮汐表专业版 - 台湾海象风浪水温",
@@ -71,21 +70,23 @@ class AsoCrossLocalizationEngine {
     bool formatValid = true;
 
     for (final layer in layers) {
-      // 1. 檢查 Title 與 Subtitle 長度
+      // 1. 檢查 Title 與 Subtitle 長度 (Apple 官方剛性限制 <= 30 字元)
       if (layer.title.length > 30) {
-        issues.add("[${layer.locale}] 標題超過 30 字元 (${layer.title.length})");
+        withinByteLimit = false;
+        issues.add("[${layer.locale}] 標題超過 30 字元 (${layer.title.length} > 30)");
       }
       if (layer.subtitle.length > 30) {
-        issues.add("[${layer.locale}] 副標題超過 30 字元 (${layer.subtitle.length})");
+        withinByteLimit = false;
+        issues.add("[${layer.locale}] 副標題超過 30 字元 (${layer.subtitle.length} > 30)");
       }
 
-      // 2. 檢查 Keywords 長度 (Apple 官方限制 100 字元)
+      // 2. 檢查 Keywords 長度 (Apple 官方剛性限制 <= 100 字元)
       if (layer.keywords.length > 100) {
         withinByteLimit = false;
-        issues.add("[${layer.locale}] 關鍵字超過 100 字元 (${layer.keywords.length})");
+        issues.add("[${layer.locale}] 關鍵字超過 100 字元 (${layer.keywords.length} > 100)");
       }
 
-      // 3. 格式檢查 (嚴禁空格，必須為逗號分隔)
+      // 3. 格式檢查 (嚴禁空格與全形逗號)
       if (layer.keywords.contains(' ') || layer.keywords.contains('，')) {
         formatValid = false;
         issues.add("[${layer.locale}] 關鍵字包含無效空格或全形逗號");

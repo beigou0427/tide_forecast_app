@@ -1,28 +1,22 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/constants.dart';
 import '../../../../core/services/health_probe_service.dart';
 import '../../providers/tide_provider.dart';
-import '../../../catch_log/providers/catch_log_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../premium/presentation/premium_page.dart';
 import '../../../premium/presentation/vip_center_page.dart';
-import '../../../diagnostic/presentation/diagnostic_page.dart';
 import '../station_guide_page.dart';
 import '../../../catch_log/presentation/catch_log_page.dart';
-import '../aso_studio_page.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../home_page.dart';
+import 'support_privacy_modal.dart';
+import 'developer_master_panel.dart';
 
-/// 🌟 經海事嚴謹標準重塑之生產純淨化抽屜 (100% 商業成熟度)
-/// 內建「航海純潮汐 / 全雷達」戰術開關，徹底移除虛飾，保護駕駛台純粹航海作業
+/// 🌟 經海事嚴謹標準重構之純淨導航抽屜 (解耦後的單一職責純淨架構)
 class StationDrawer extends ConsumerStatefulWidget {
   final String currentId;
   const StationDrawer({super.key, required this.currentId});
@@ -48,7 +42,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
     if (_secretTapCount >= 5) {
       _secretTapCount = 0;
       HapticFeedback.heavyImpact();
-      _showSecretAuthDialog(context);
+      DeveloperMasterPanel.showAuthDialog(context, ref);
     }
   }
 
@@ -95,6 +89,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
                   physics: const BouncingScrollPhysics(),
                   padding: EdgeInsets.zero,
                   children: [
+                    // 我的最愛群組
                     favoriteIdsAsync.when(
                       data: (favIds) {
                         if (favIds.isEmpty) return const SizedBox.shrink();
@@ -119,6 +114,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
                     Divider(height: 1, color: dividerColor),
 
+                    // 各海域分區
                     ...AppConstants.regions.map((region) {
                       final List<StationModel> stations = allStations.where((s) {
                         final bool matchesRegion = s.region == region;
@@ -203,6 +199,7 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
 
           Divider(height: 1, color: dividerColor),
 
+          // 功能捷徑選單
           _buildActionTile(
             icon: Icons.phishing_rounded,
             title: "潮汐漁獲日誌",
@@ -231,19 +228,25 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             isClassic: isClassic,
             onTap: () {
               HapticFeedback.lightImpact();
-              _showSupportModal(context, isClassic);
+              SupportPrivacyModal.showSupportModal(
+                context, 
+                currentStationId: widget.currentId, 
+                isClassic: isClassic, 
+                ref: ref,
+              );
             },
           ),
           
           Divider(height: 1, color: dividerColor),
 
+          // 底部來源與創辦人彩蛋
           Padding(
             padding: const EdgeInsets.only(top: 14, bottom: 24),
             child: GestureDetector(
               onTap: _handleSecretEasterEgg,
               onLongPress: () {
                 HapticFeedback.heavyImpact();
-                _showSecretAuthDialog(context);
+                DeveloperMasterPanel.showAuthDialog(context, ref);
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -394,252 +397,6 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _eraseAllUserDataAndCloudFootprint(BuildContext context) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dlgCtx) => AlertDialog(
-        backgroundColor: AppColors.abyssCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.hazardCoral, width: 1)),
-        title: const Row(
-          children: [
-            Icon(Icons.delete_forever_rounded, color: AppColors.hazardCoral, size: 24),
-            SizedBox(width: 8),
-            Text("徹底銷毀個人資料", style: TextStyle(color: Colors.white, fontSize: 16.5, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: const Text(
-          "依據 Apple 規範與個資法規，此動作將不可逆地永久銷毀：\n• 雲端 Firestore 與 Storage 中的所有個人漁獲相片與紀錄\n• 本機快取、老船長積分餘額與個人偏好設定\n\n確定立即執行徹底銷毀？",
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dlgCtx, false),
-            child: const Text("取消", style: TextStyle(color: AppColors.textTertiary)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.hazardCoral, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(dlgCtx, true),
-            child: const Text("確認徹底銷毀", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final deviceId = prefs.getString('device_sync_id');
-
-      if (deviceId != null && deviceId.isNotEmpty) {
-        final logsCollection = FirebaseFirestore.instance.collection('users').doc(deviceId).collection('catch_logs');
-        final snapshot = await logsCollection.get();
-        for (var doc in snapshot.docs) {
-          await doc.reference.delete();
-        }
-        await FirebaseFirestore.instance.collection('users').doc(deviceId).delete();
-
-        try {
-          final storageRef = FirebaseStorage.instance.ref().child('users/$deviceId');
-          final listResult = await storageRef.listAll();
-          for (var item in listResult.items) {
-            await item.delete();
-          }
-        } catch (_) {}
-      }
-
-      await prefs.remove('catch_logs_v1');
-      await prefs.remove('captain_coins');
-      await prefs.remove('blocked_ugc_authors');
-      await prefs.remove('user_pref_region');
-      await prefs.remove('device_sync_id');
-
-      ref.invalidate(catchLogProvider);
-
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("🛡️ 依據被遺忘權規範，您的所有本機與雲端個人資料已徹底銷毀完畢！"),
-            backgroundColor: Color(0xFF0077B6),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("⚠️ [隱私銷毀例外]: $e");
-    }
-  }
-
-  void _showSupportModal(BuildContext context, bool isClassic) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: isClassic ? Colors.white : AppColors.abyssCard,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (ctx) {
-        final Color titleColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36, 
-                  height: 4, 
-                  decoration: BoxDecoration(
-                    color: isClassic ? Colors.grey.shade300 : Colors.white24, 
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: Colors.orangeAccent.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.support_agent_rounded, color: Colors.orangeAccent, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    "官方客服與隱私治理中心",
-                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: titleColor),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                "老船長團隊承諾於 24 小時內親自處理您的問題，嚴格遵守個資法與隱私規範。",
-                style: TextStyle(fontSize: 11.5, color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary),
-              ),
-              const SizedBox(height: 18),
-
-              _buildSupportOptionTile(
-                title: "聯繫技術團隊 / 回報測站水文異常",
-                desc: "附帶當前測站 ID 與設備資訊，工程師即刻排查修復",
-                icon: Icons.mark_email_read_rounded,
-                color: const Color(0xFF0077B6),
-                isClassic: isClassic,
-                onTap: () async {
-                  final Uri emailUri = Uri.parse(
-                    "mailto:support@beigou.app?subject=%E3%80%90TidePro%E5%AE%A2%E6%9C%8D%E5%B7%A5%E5%96%AE%E3%80%91%E6%B8%AC%E7%AB%99%E6%B0%B4%E6%96%87%E8%88%87%E4%BD%BF%E7%94%A8%E5%8F%8D%E6%98%A0&body=%E6%82%A8%E5%A5%BD%EF%BC%8C%E6%88%91%E5%9C%A8%E4%BD%BF%E7%94%A8%E6%BD%AE%E6%B1%90%E8%A1%A8%20Pro%20%E6%99%82%E9%81%87%E5%88%B0%E4%BB%A5%E4%B8%8B%E5%95%8F%E9%A1%8C%EF%BC%9A%0A%0A%E3%80%90%E7%99%BC%E7%94%9F%E6%B8%AC%E7%AB%99%E3%80%91%EF%BC%9A${widget.currentId}%0A%E3%80%90%E5%95%8F%E9%A1%8C%E6%8F%8F%E8%BF%B0%E3%80%91%EF%BC%9A",
-                  );
-                  if (await canLaunchUrl(emailUri)) {
-                    await launchUrl(emailUri);
-                  }
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildSupportOptionTile(
-                title: "訂閱條款說明與退訂指南",
-                desc: "說明如何至 Apple ID 取消自動續訂與申請消費爭議處理",
-                icon: Icons.receipt_long_rounded,
-                color: AppColors.bioGold,
-                isClassic: isClassic,
-                onTap: () async {
-                  final Uri subGuide = Uri.parse("https://support.apple.com/HT202039");
-                  if (await canLaunchUrl(subGuide)) {
-                    await launchUrl(subGuide, mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildSupportOptionTile(
-                title: "徹底銷毀個人資料與雲端紀錄",
-                desc: "符合 Apple 5.1.1 條款與台灣個資法第11條，一鍵永久抹除數位足跡",
-                icon: Icons.delete_forever_rounded,
-                color: AppColors.hazardCoral,
-                isClassic: isClassic,
-                onTap: () => _eraseAllUserDataAndCloudFootprint(context),
-              ),
-              const SizedBox(height: 14),
-
-              Text(
-                "⚠️ 消費者保障告知：所有訂閱購買均經由 Apple StoreKit 官方加密通道，您可隨時於 App Store 帳號中取消續訂，保障您的消費者權益。",
-                style: TextStyle(fontSize: 10, color: isClassic ? Colors.grey.shade500 : AppColors.textTertiary, height: 1.35),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSupportOptionTile({
-    required String title,
-    required String desc,
-    required IconData icon,
-    required Color color,
-    required bool isClassic,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder, 
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title, 
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800, 
-                      fontSize: 13,
-                      color: isClassic ? AppColors.classicText : AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    desc, 
-                    style: TextStyle(
-                      fontSize: 10.5, 
-                      color: isClassic ? Colors.grey.shade600 : AppColors.textTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded, 
-              size: 16, 
-              color: isClassic ? Colors.grey : AppColors.textTertiary,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1126,236 +883,5 @@ class _StationDrawerState extends ConsumerState<StationDrawer> {
         ),
       ),
     );
-  }
-
-  void _showSecretAuthDialog(BuildContext context) {
-    final textCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.abyssCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.terminal_rounded, color: AppColors.pelagicCyan, size: 20),
-            SizedBox(width: 8),
-            Text(
-              "創辦人專屬面板",
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: TextField(
-          controller: textCtrl,
-          obscureText: true,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: "請輸入通關密鑰 (密碼: beigou)...",
-            hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.glassBorder, width: 0.5)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.pelagicCyan, width: 1.0)),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("取消", style: TextStyle(color: AppColors.textTertiary)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.pelagicCyan,
-              foregroundColor: AppColors.abyssBlack,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              if (textCtrl.text.trim() == "beigou") {
-                Navigator.pop(ctx);
-                HapticFeedback.heavyImpact();
-                _showDeveloperMasterPanel(context);
-              } else {
-                HapticFeedback.vibrate();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("❌ 密鑰錯誤，存取被拒！"), backgroundColor: AppColors.hazardCoral, duration: Duration(seconds: 2)),
-                );
-              }
-            },
-            child: const Text("解鎖", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeveloperMasterPanel(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.abyssCard,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (ctx) {
-        final current = ref.watch(premiumProvider);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-              ),
-              const SizedBox(height: 16),
-              const Row(
-                children: [
-                  Icon(Icons.shield_rounded, color: AppColors.bioGold, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    "創辦人專屬後台 (全系統 41 項自檢)",
-                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                "內部除錯測試工具已全數歸攏於此，一般用戶與 Apple 審查員完全不可見",
-                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 18),
-
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.verified_user_rounded, color: Color(0xFF30D158)),
-                title: const Text("開啟 41 項海事實機自檢與混沌中心", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: const Text("包含 10 大行銷巨擘 ASO 與 VVIP 零退費實機診斷", style: TextStyle(color: Colors.white54, fontSize: 11)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticPage()));
-                },
-              ),
-
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.camera_alt_rounded, color: Colors.purpleAccent),
-                title: const Text("開啟 ASO 宣傳截圖攝影棚 (Studio)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: const Text("產生商店審查 6.7 吋與 6.5 吋宣傳照", style: TextStyle(color: Colors.white54, fontSize: 11)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AsoStudioPage()));
-                },
-              ),
-
-              const Divider(color: AppColors.glassBorder),
-              const SizedBox(height: 8),
-
-              const Text("即時身分狀態切換：", style: TextStyle(color: AppColors.bioGold, fontSize: 12, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-
-              _buildRoleTile(
-                title: "1. 一般免費用戶 (Regular User)",
-                subtitle: "鎖定 77 席測站、體驗 3 小時延遲與付費閘門",
-                icon: Icons.person_outline_rounded,
-                color: Colors.blueGrey,
-                isSelected: !current.isPremium && !current.isFounder,
-                onSelect: () => _applyRole(isPro: false, isFounder: false, type: SubscriptionType.none),
-              ),
-              const SizedBox(height: 8),
-              _buildRoleTile(
-                title: "2. PRO 專業用戶 (年度指揮官)",
-                subtitle: "解鎖 85 站光纖直連、走水黃金期與 AI 簡報",
-                icon: Icons.workspace_premium_rounded,
-                color: AppColors.pelagicCyan,
-                isSelected: current.isPremium && !current.isFounder,
-                onSelect: () => _applyRole(isPro: true, isFounder: false, type: SubscriptionType.yearly),
-              ),
-              const SizedBox(height: 8),
-              _buildRoleTile(
-                title: "3. 超級 VIP (創始天尊指揮官)",
-                subtitle: "終身黑金卡面、專屬語音問候、現場實證認證",
-                icon: Icons.military_tech_rounded,
-                color: AppColors.bioGold,
-                isSelected: current.isFounder,
-                onSelect: () => _applyRole(isPro: true, isFounder: true, type: SubscriptionType.lifetime),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRoleTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required bool isSelected,
-    required VoidCallback onSelect,
-  }) {
-    return InkWell(
-      onTap: onSelect,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? color : AppColors.glassBorder, width: isSelected ? 1.5 : 0.5),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: isSelected ? color : AppColors.textTertiary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: isSelected ? color : AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                  Text(subtitle, style: const TextStyle(color: AppColors.textTertiary, fontSize: 10.5)),
-                ],
-              ),
-            ),
-            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _applyRole({
-    required bool isPro,
-    required bool isFounder,
-    required SubscriptionType type,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_pro', isPro);
-    await prefs.setBool('is_founder', isFounder);
-    await prefs.setInt('sub_type', type.index);
-    if (isPro) {
-      if (isFounder) {
-        await prefs.setString('expiry_date', DateTime(2099, 12, 31).toIso8601String());
-      } else {
-        await prefs.setString('expiry_date', DateTime.now().add(const Duration(days: 365)).toIso8601String());
-      }
-    } else {
-      await prefs.remove('expiry_date');
-    }
-
-    ref.invalidate(premiumProvider);
-
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("⚡ 模式切換成功：已切換為 ${isFounder ? '👑 超級VIP (創始指揮官)' : (isPro ? '⚡ PRO 專業用戶' : '👤 一般免費用戶')}！"),
-          backgroundColor: isFounder ? const Color(0xFF2C1802) : (isPro ? const Color(0xFF0077B6) : Colors.blueGrey),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
   }
 }

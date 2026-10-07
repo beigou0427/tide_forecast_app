@@ -32,6 +32,7 @@ import 'widgets/ugc_radar_card.dart';
 import 'widgets/local_merchant_card.dart';
 import 'widgets/bite_radar_section.dart';
 import 'widgets/astro_hindcast_card.dart';
+import 'widgets/classic_pure_tide_table.dart';
 import '../../../shared/widgets/custom_card.dart';
 
 final isPureTideModeProvider = StateNotifierProvider<PureTideModeNotifier, bool>((ref) {
@@ -119,13 +120,13 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
         title: const Row(
           children: [
-            Icon(Icons.shield_rounded, color: AppColors.hazardCoral, size: 24),
+            Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 24),
             SizedBox(width: 10),
             Text(
-              "海事安全與法律免責聲明",
+              "老船長出海安全須知",
               style: TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 16.5,
+                fontSize: 17,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.3,
               ),
@@ -140,28 +141,28 @@ class _HomePageState extends ConsumerState<HomePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.hazardCoral.withValues(alpha: 0.1),
+                  color: AppColors.bioGold.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.hazardCoral.withValues(alpha: 0.3), width: 0.5),
+                  border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.3), width: 0.5),
                 ),
                 child: const Text(
-                  "⚠️ 敬告所有出海作釣、潛水與水上運動玩家：本聲明具備法律合意效力，進入前請務必詳閱。",
-                  style: TextStyle(fontSize: 11.5, color: AppColors.hazardCoral, fontWeight: FontWeight.bold, height: 1.4),
+                  "⚓ 歡迎登艦！出海作釣、潛水與航海活動具備自然不可抗力，請共同維護航行安全。",
+                  style: TextStyle(fontSize: 12, color: AppColors.bioGold, fontWeight: FontWeight.bold, height: 1.4),
                 ),
               ),
               const SizedBox(height: 14),
               const Text(
-                "1. 【非航行與人身安全唯一設備】\n本系統所有數據（包括即時浪高、風速、潮位走勢及安全評估）均來自氣象署公開遙測與數值演算法推算，僅供休閒與參考用途。嚴禁作為船舶正式航行、避難、外礁無防護登礁作業或人身財產安全之唯一依據。",
+                "1. 【海事水文參考用途】\n本系統即時浪高、風速、潮位走勢錨定中央氣象署官方遙測，供休閒作釣與行程規劃參考，嚴禁作為唯一避難或吃水航行依據。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
               const SizedBox(height: 10),
               const Text(
-                "2. 【海洋不可抗力與長湧風險】\n台灣近岸水文瞬息萬變，外海長週期湧浪（俗稱瘋狗浪）極具突發性。從事任何水上或沿岸活動，使用者應自備合格救生衣、防滑釘鞋及安全通訊設備，並隨時觀察現場浪況。",
+                "2. 【長湧與瘋狗浪自主防衛】\n台灣沿岸海象多變，外海長湧極易誘發近岸洗岸浪。登礁作業請務必穿著合格救生衣與防滑釘鞋，隨時注意身後退路。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
               const SizedBox(height: 10),
               const Text(
-                "3. 【完全自負風險與責任限制】\n使用者點擊同意進入本程式，即代表明確理解並承諾自負所有出海與作釣之人身安全責任。開發團隊不對因自然災害或使用本數據所衍生之直接或間接損失承擔損害賠償責任。",
+                "3. 【人身安全自主負責】\n進入本系統即代表您理解並承諾自負各項水上作業之人身安全責任，老船長團隊竭誠為您的航安提供最即時的情報支援。",
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45),
               ),
             ],
@@ -183,7 +184,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 await prefs.setBool('has_agreed_maritime_safety_v2', true);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
-              child: const Text("我已詳讀並承諾自負個人安全責任", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+              child: const Text("同意並進入海象指揮中心", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
             ),
           ),
         ],
@@ -215,6 +216,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     final Color classicModeColor = isToday 
         ? const Color(0xFF0077B6) 
         : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
+
+    final String pageTitle = isPureTide 
+        ? "純潮汐航海儀表" 
+        : (isToday ? "今日即時海象" : (isFuture ? "未來 30 天潮位預報" : "歷史水文實測"));
 
     return Scaffold(
       backgroundColor: isClassic ? AppColors.classicBg : AppColors.abyssBlack,
@@ -262,9 +267,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isPureTide 
-                          ? "純潮汐航海儀表板" 
-                          : (isToday ? "海象全雷達模式" : (isFuture ? "未來預報模式" : "歷史觀測回測")),
+                      pageTitle,
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -306,7 +309,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            isPureTide ? "純潮汐" : "全雷達",
+                            isPureTide ? "純潮汐" : "全海象",
                             style: TextStyle(
                               color: isPureTide ? Colors.black87 : Colors.white,
                               fontSize: 11,
@@ -407,14 +410,27 @@ class _HomePageState extends ConsumerState<HomePage> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
+                      // 1. 海事簡報卡 (全海象模式且今日時顯示)
                       if (isToday && !isPureTide) ...[
                         SeaBriefingCard(station: station, distance: viewData.distanceKm),
                         const SizedBox(height: 20),
                       ],
 
+                      // 2. 測站地標抬頭
                       StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
                       const SizedBox(height: 16),
                       
+                      // 🌟 3. 核心亮點：當開啟「純潮汐儀表」模式時，立即置頂呈現 VVIP 經典純潮汐對照表！
+                      if (isPureTide) ...[
+                        ClassicPureTideTable(
+                          station: station,
+                          selectedDate: selectedDate,
+                          isClassic: isClassic,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // 4. Waze 現場雷達 (全海象模式顯示)
                       if (isToday && !isPureTide) ...[
                         UgcRadarCard(
                           stationId: currentId,
@@ -425,9 +441,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 16),
                       ],
 
-                      SolunarCard(selectedDate: selectedDate),
-                      const SizedBox(height: 20),
+                      // 5. 天文月相卡 (全海象模式顯示)
+                      if (!isPureTide) ...[
+                        SolunarCard(selectedDate: selectedDate),
+                        const SizedBox(height: 20),
+                      ],
 
+                      // 6. 魚種活性雷達 (全海象模式顯示)
                       if (!isPureTide) ...[
                         BiteRadarSection(
                           station: station,
@@ -437,11 +457,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                         const SizedBox(height: 20),
                       ],
 
+                      // 7. 未來預報模式
                       if (isFuture) ...[
-                        _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 滿乾潮時程與潮差走水", accentColor: Colors.indigoAccent, isClassic: isClassic),
-                        const SizedBox(height: 12),
-                        _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
-                        const SizedBox(height: 22),
+                        if (!isPureTide) ...[
+                          _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 滿乾潮時程與潮差走水", accentColor: Colors.indigoAccent, isClassic: isClassic),
+                          const SizedBox(height: 12),
+                          _buildForecastList(context, dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList()),
+                          const SizedBox(height: 22),
+                        ],
                         
                         _sectionTitle("🌊 預測潮位走勢 (錨定官方極值)", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                         const SizedBox(height: 12),
@@ -461,6 +484,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           isClassic: isClassic,
                         ),
                       ] else if (activeObservation != null) ...[
+                        // 實測水文數據
                         HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
                         const SizedBox(height: 14),
 
@@ -469,7 +493,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
                         WindCompassCard(current: activeObservation),
 
-                        if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
+                        // 全海象模式下呈現標準條列時程；純潮汐模式已由頂部經典對照表接管
+                        if (!isPureTide && (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty)) ...[
                           const SizedBox(height: 22),
                           _sectionTitle(isToday ? "今日滿乾潮時程與走水黃金期" : "當日滿乾潮時程與走水黃金期", accentColor: isClassic ? const Color(0xFF0077B6) : AppColors.bioGold, isClassic: isClassic),
                           const SizedBox(height: 12),
@@ -494,7 +519,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         ],
                       ],
 
-                      // 🌟 VVIP 尊榮特權：已付費會員與創始指揮官 100% 完全屏蔽釣具補給店卡片，享受無廣告純淨航海！
+                      // 釣具店資訊 (僅在全海象且非 PRO 用戶時呈現)
                       if (!isPureTide && !isProUser) ...[
                         const SizedBox(height: 24),
                         LocalMerchantCard(
@@ -514,7 +539,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ),
 
-      // 🌟 駕駛台零遮擋：純潮汐儀表模式且在今日時，徹底隱藏 FAB，保障下方數據不被遮擋
       floatingActionButton: (isPureTide && isToday)
           ? null
           : (isToday
@@ -560,11 +584,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                 shape: BoxShape.circle,
                 border: Border.all(color: shieldColor.withValues(alpha: 0.35), width: 1.0),
               ),
-              child: Icon(Icons.shield_rounded, size: 48, color: shieldColor),
+              child: Icon(Icons.offline_bolt_rounded, size: 48, color: shieldColor),
             ),
             const SizedBox(height: 20),
             Text(
-              "外海離線黑盒子模式", 
+              "外海離線水文預報", 
               style: TextStyle(
                 fontWeight: FontWeight.w900, 
                 fontSize: 18, 
@@ -574,7 +598,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              "[$stationName] 外海無網路訊號\n系統已啟動本地水文存檔與天文調和演算法防線", 
+              "[$stationName] 目前通訊網路未連通\n已啟用天文調和模型，滿乾潮時程依然精準有效", 
               textAlign: TextAlign.center, 
               style: TextStyle(
                 color: isClassic ? Colors.grey.shade600 : AppColors.textSecondary, 
@@ -605,7 +629,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text("嘗試重連", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                  label: const Text("重新整理", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
                   onPressed: () => ref.refresh(tideViewDataProvider), 
                 ),
               ],

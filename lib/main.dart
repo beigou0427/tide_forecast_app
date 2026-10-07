@@ -1,4 +1,5 @@
-﻿import 'dart:ui';
+﻿import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,18 +18,13 @@ import 'core/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🌟 VVIP 航海人因工程：允許全向螢幕轉動 (支援 iPad / 駕駛台橫置)
+  // 1. 旋轉螢幕人因工程 (全向支援)
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
-
-  // 🌟 啟用螢幕常亮 (Wakelock)，保障航海儀表板在外海永不熄火黑屏
-  try {
-    await WakelockPlus.enable();
-  } catch (_) {}
 
   // 第 1 層：Flutter Widget 樹同步渲染例外攔截
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -52,23 +48,27 @@ void main() async {
     return true; 
   };
 
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await AnalyticsService.init();
-  } catch (e, stack) {
-    debugPrint("Firebase 初始化異常 (離線或測試環境): $e");
-    GlobalErrorTrap.recordException(
-      e,
-      stackTrace: stack,
-      contextTag: "FirebaseBootstrap",
-      severity: ErrorSeverity.warning,
-    );
-  }
+  // 🌟 非阻塞背景初始化 Firebase (加 3 秒超時保護，絕不卡死 main 執行緒)
+  unawaited(
+    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+        .timeout(const Duration(seconds: 3))
+        .then((_) => AnalyticsService.init())
+        .catchError((e, stack) {
+      debugPrint("Firebase 初始化異常 (離線或測試環境): $e");
+      GlobalErrorTrap.recordException(
+        e,
+        stackTrace: stack,
+        contextTag: "FirebaseBootstrap",
+        severity: ErrorSeverity.warning,
+      );
+    })
+  );
 
   final prefs = await SharedPreferences.getInstance();
   final bool hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
   final String? pendingCohort = prefs.getString('pending_deeplink_cohort');
 
+  // 🌟 50ms 內極速呼叫 runApp，讓 Flutter 視圖與 Dart VM Service 瞬間連通！
   runApp(
     ProviderScope(
       child: MyApp(
@@ -79,8 +79,8 @@ void main() async {
   );
 }
 
-/// 🌟 支援 3 模切換 (深淵黑金 / 經典白藍 / E-Ink烈日) 與 CPP 深度連結之全域根 Widget
-class MyApp extends ConsumerWidget {
+/// 🌟 支援 3 模切換、首幀安全防熄火與 CPP 深度連結之全域根 Widget
+class MyApp extends ConsumerStatefulWidget {
   final bool hasCompletedOnboarding;
   final String? initialCohort;
 
@@ -91,7 +91,23 @@ class MyApp extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // 🌟 在 Activity 視窗掛載完成的首幀回調中啟用螢幕常亮，徹底消滅死鎖！
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        WakelockPlus.enable();
+      } catch (_) {}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
 
     ThemeData activeTheme;
@@ -120,7 +136,6 @@ class MyApp extends ConsumerWidget {
         break;
     }
 
-    // 狀態列自適應深淺與 OLED 零發光純黑
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -144,15 +159,13 @@ class MyApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: activeThemeMode,
       
-      home: hasCompletedOnboarding 
+      home: widget.hasCompletedOnboarding 
           ? const HomePage() 
-          : OnboardingPage(initialCohort: initialCohort),
+          : OnboardingPage(initialCohort: widget.initialCohort),
 
-      // 🌟 Johannes von Cramon (CPP) & Moritz Daan (IAE) 專屬路由解析器
       onGenerateRoute: (settings) {
         final uri = Uri.tryParse(settings.name ?? '');
         if (uri != null) {
-          // 1. CPP 自訂產品頁面深度連結 (tidepro://onboarding?cohort=xxx)
           if (uri.path == '/onboarding' || uri.host == 'onboarding') {
             final cohort = uri.queryParameters['cohort'];
             return MaterialPageRoute(
@@ -160,7 +173,6 @@ class MyApp extends ConsumerWidget {
             );
           }
 
-          // 2. Apple In-App Events 活動深度跳轉 (tidepro://events/spring_tide_window)
           if (uri.path.contains('spring_tide_window') || uri.host == 'events') {
             return MaterialPageRoute(
               builder: (_) => const HomePage(),
@@ -168,11 +180,10 @@ class MyApp extends ConsumerWidget {
           }
         }
 
-        // 容錯防線：未知路由平滑返回首頁，絕無 404 崩潰
         return MaterialPageRoute(
-          builder: (_) => hasCompletedOnboarding 
+          builder: (_) => widget.hasCompletedOnboarding 
               ? const HomePage() 
-              : OnboardingPage(initialCohort: initialCohort),
+              : OnboardingPage(initialCohort: widget.initialCohort),
         );
       },
     );
