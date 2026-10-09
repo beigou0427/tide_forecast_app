@@ -1,12 +1,12 @@
 {
   "system_name": "TidePro Marine Telemetry Engine",
   "status": "OPERATIONAL",
-  "heartbeat_utc": "2026-10-09T17:49:36.553600+00:00",
-  "heartbeat_taipei": "2026-10-10T01:49:36.553141+08:00",
+  "heartbeat_utc": "2026-10-09T22:06:09.776941+00:00",
+  "heartbeat_taipei": "2026-10-10T06:06:09.776354+08:00",
   "total_stations": 85,
   "total_archives": 0,
   "circuit_breaker": false,
   "canary_version": "2.2.0-mission-critical",
-  "run_id": "37968225639",
+  "run_id": "37996710278",
   "run_attempt": "1"
 }
