@@ -1,20 +1,11 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>tel</string>
-		<string>https</string>
-		<string>http</string>
-	</array>
-
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tide Pro 潮汐海象</string>
+	<string>潮汐表 Pro</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -31,38 +22,7 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>「潮汐表」需要您的位置權限，以便自動為您切換至最近的測站。</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Tide Pro 需要取得您的所在位置，以便為您自動鎖定距離最近之中央氣象署潮位觀測站並計算離岸距離。</string>
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-		<key>UISceneConfigurations</key>
-		<dict>
-			<key>UIWindowSceneSessionRoleApplication</key>
-			<array>
-				<dict>
-					<key>UISceneClassName</key>
-					<string>UIWindowScene</string>
-					<key>UISceneConfigurationName</key>
-					<string>flutter</string>
-					<key>UISceneDelegateClassName</key>
-					<string>FlutterSceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
-				</dict>
-			</array>
-		</dict>
-	</dict>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -81,7 +41,47 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<!-- 🌟 海事安全與定位權限 (Apple 審查防拒審嚴格描述) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>潮汐表 Pro 需要您的位置權限，以便在您出海作釣或抵達港區時，自動定位並為您鎖定就近之氣象署實時海象測站。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>潮汐表 Pro 需要您的位置權限，以便在您出海作釣或抵達港區時，自動定位並為您鎖定就近之氣象署實時海象測站。</string>
+
+	<!-- 🌟 漁獲榮譽日誌相機與相簿權限 -->
+	<key>NSCameraUsageDescription</key>
+	<string>需要相機權限以供您現場拍攝大物戰利品，並自動為照片疊加當下官方實測水文數據。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要照片存取權限以供您從相簿挑選漁獲照片，登錄並備份至潮汐榮譽日誌金庫。</string>
+
+	<!-- 🌟 深層連結 URL Scheme (tidepro://) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.beigou.tideForecastApp</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tidepro</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- 🌟 背景推播與海象預警 (UIBackgroundModes) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- 🌟 Apple 出口合規免審宣告 (徹底消滅 TestFlight 手動問卷阻塞) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
-
-
