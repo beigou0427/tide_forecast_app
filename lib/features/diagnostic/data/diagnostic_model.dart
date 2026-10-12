@@ -1,3 +1,6 @@
+export '../../../core/services/global_error_trap.dart';
+
+/// 🌟 診斷中心單項檢驗結果實體
 class DiagnosticResultItem {
   final String category;
   final String title;
@@ -20,11 +23,4 @@ class DiagnosticResultItem {
     "detail": detail,
     "metric": metric,
   };
-}
-
-class GlobalErrorTrap {
-  static final List<String> caughtErrors = [];
-  static void record(String error) {
-    if (!caughtErrors.contains(error)) caughtErrors.add(error);
-  }
 }

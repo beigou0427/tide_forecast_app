@@ -64,7 +64,8 @@ class MaritimeDecision {
       String haltTitle = "極端危險 · 嚴禁外礁登礁";
       String haltAdvice = "外海偵測到致命長週期長湧或巨浪！具極端蓋礁瘋狗浪風險，嚴禁無防護水上作業！";
       
-      if (isBarometricSwellCombo && airPressure != null) {
+      // 🌟 核心修復：airPressure 已自動晉升為非空，直接使用 . 呼叫
+      if (isBarometricSwellCombo) {
         haltTitle = "低壓暴潮警示 · 嚴禁登礁";
         haltAdvice = "大氣氣壓降至 ${airPressure.toStringAsFixed(1)}hPa 疊加外海長湧，近岸洗岸巨浪動能劇烈，請即刻撤離！";
       } else if (isDeepSwellRogue) {
@@ -100,10 +101,6 @@ class MaritimeDecision {
 }
 
 /// 🌟 經海事流體力學與客觀感測器陣列重塑之海象簡報卡
-/// 100% 決策可視化與瘋傳裂變版：
-/// 1. 徹底消滅計算了 MaritimeDecision 卻從未渲染的嚴重浪費，頂部即時展示生死安全徽章！
-/// 2. 右上角整合「一鍵分享海況戰報」按鈕，無縫打通首頁瘋傳裂變動線！
-/// 3. 深度適配 E-Ink 烈日抗反光模式，正午強光直射 100% 銳利無眩光。
 class SeaBriefingCard extends ConsumerStatefulWidget {
   final TideStationData station;
   final double? distance;
@@ -164,7 +161,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
       rightMetricIcon = Icons.sensors_off_rounded;
     }
 
-    // 光學背景配色適配
     final BoxDecoration cardDecoration;
     final Color textColor;
     final Color subTextColor;
@@ -211,7 +207,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. 頂部抬頭與快捷工具列 (語音 + 分享戰報)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -239,7 +234,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
                 ),
                 Row(
                   children: [
-                    // 🌟 核心增長：首頁 1-Tap 一鍵海象戰報分享
                     InkWell(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -264,7 +258,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
                     ),
                     const SizedBox(width: 8),
 
-                    // 語音晨報按鈕
                     InkWell(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -290,7 +283,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
             ),
             const SizedBox(height: 8),
 
-            // 2. 測站名稱與 🌟 安全決策徽章實體化！
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -309,7 +301,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
                 ),
                 const SizedBox(width: 8),
                 
-                // 🌟 核心防線：將 MaritimeDecision 的安全等級實體呈現在視覺第一線！
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
@@ -333,8 +324,8 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
                       const SizedBox(width: 4),
                       Text(
                         decision.badgeText,
-                        style: TextStyle(
-                          color: isEInk ? Colors.white : Colors.white,
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
@@ -354,7 +345,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
             ),
             const SizedBox(height: 16),
 
-            // 3. 雙列感測器資料
             Row(
               children: [
                 Expanded(
@@ -419,7 +409,6 @@ class _SeaBriefingCardState extends ConsumerState<SeaBriefingCard> {
             ),
             const SizedBox(height: 16),
 
-            // 4. 老船長快報 (巨浪時紅字高亮警告)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),

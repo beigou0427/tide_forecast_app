@@ -1,4 +1,4 @@
-﻿name: tide_forecast_app
+name: tide_forecast_app
 description: "專業海象與潮汐預報系統"
 publish_to: 'none'
 version: 2.0.0+1
@@ -26,14 +26,18 @@ dependencies:
   in_app_purchase_storekit: ^0.3.16
   firebase_core: ^4.15.0
   firebase_analytics: ^12.6.0
+  firebase_messaging: ^16.7.0
+  cloud_firestore: ^6.10.0
+  firebase_storage: ^13.6.0
   share_plus: ^10.1.4
   path_provider: ^2.1.2
   in_app_review: ^2.0.9
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
   flutter_tts: ^4.2.2
-  firebase_messaging: ^16.7.0
   wakelock_plus: ^1.2.8
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

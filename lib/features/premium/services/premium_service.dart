@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'iap_manager.dart';
@@ -64,6 +64,9 @@ final iapManagerProvider = Provider<IAPManager>((ref) {
 });
 
 class PremiumNotifier extends StateNotifier<PremiumState> {
+  // 🌟 公開只讀狀態存取器，消除外部存取 @protected state 的警告
+  PremiumState get currentState => state;
+
   PremiumNotifier() : super(const PremiumState(isPremium: false)) {
     _loadStatus();
   }
@@ -135,7 +138,6 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
     }
   }
 
-  // 🌟 核心升級：接收 IAPManager 傳入的真實精算到期日 (exactExpiry)
   Future<void> setPremiumStatus(bool isPro, SubscriptionType type, {DateTime? exactExpiry}) async {
     final prefs = await SharedPreferences.getInstance();
     DateTime? expiry;
@@ -190,15 +192,16 @@ class PremiumNotifier extends StateNotifier<PremiumState> {
       isPro = true;
       newType = state.type == SubscriptionType.none ? SubscriptionType.monthly : state.type;
       
-      if (newExpiry != null && newExpiry!.isAfter(DateTime.now())) {
-        newExpiry = newExpiry!.add(const Duration(days: 30));
+      // 🌟 核心修復：移除冗餘的 ! 運算子，享受 Dart 3 型別自動晉升
+      if (newExpiry != null && newExpiry.isAfter(DateTime.now())) {
+        newExpiry = newExpiry.add(const Duration(days: 30));
       } else {
         newExpiry = DateTime.now().add(const Duration(days: 30));
       }
       
       await prefs.setBool('is_pro', true);
       await prefs.setInt('sub_type', newType.index);
-      await prefs.setString('expiry_date', newExpiry!.toIso8601String());
+      await prefs.setString('expiry_date', newExpiry.toIso8601String());
     }
 
     await prefs.setInt('captain_coins', newBalance);

@@ -1,4 +1,4 @@
-﻿import 'security_util.dart';
+import 'security_util.dart';
 
 class StationModel {
   final String id;
@@ -56,6 +56,15 @@ class AppConstants {
   static const String iapProMonthly = "com.beigou.tide_app.pro_monthly";
   static const String iapProYearly = "com.beigou.tide_app.pro_yearly";
   static const String iapProLifetime = "com.beigou.tide_app.pro_lifetime";
+
+  // 🌟 StoreKit 官方定價備援常數 (使用 Raw String r"..." 徹底消滅貨幣符號插值報錯)
+  static const String priceWeekly = r"NT$ 60";
+  static const String priceMonthly = r"NT$ 120";
+  static const String priceYearly = r"NT$ 990";
+  static const String priceLifetime = r"NT$ 2,990";
+
+  // 🌟 免費用戶雲端漁獲日誌照片上限 (COGS 伺服器成本防禦線)
+  static const int maxFreeCloudCatchLogs = 5;
   
   static const Set<String> iapProductIds = {
     iapProWeekly,

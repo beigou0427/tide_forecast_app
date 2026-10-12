@@ -85,7 +85,6 @@ class CatchLogPage extends ConsumerWidget {
     final Color descColor = isEInk 
         ? Colors.black87 
         : (isClassic ? Colors.grey.shade600 : AppColors.textSecondary);
-    final premium = ref.read(premiumProvider);
 
     return Center(
       child: Padding(
@@ -170,7 +169,6 @@ class CatchLogPage extends ConsumerWidget {
         final timeStr = DateFormat('yyyy/MM/dd HH:mm').format(item.dateTime);
         final bool isTrophy = item.rating >= 5;
 
-        // 🌟 新鄉重夫防呆：海上顛簸防誤刪確認彈窗
         return Dismissible(
           key: Key(item.id),
           direction: DismissDirection.endToStart,
@@ -382,7 +380,6 @@ class CatchLogPage extends ConsumerWidget {
   Future<void> _shareCatchRecord(CatchLogItem item, BuildContext btnContext, WidgetRef ref) async {
     HapticFeedback.lightImpact();
 
-    // 🌟 iPad 安全幾何錨點防線：避免全螢幕邊界造成 iPadOS Popover 閃退
     Rect? shareOrigin;
     try {
       final box = btnContext.findRenderObject() as RenderBox?;

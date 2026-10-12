@@ -1,4 +1,5 @@
-﻿import 'dart:async';
+// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -30,7 +31,12 @@ class IAPManager {
       (purchaseDetailsList) => _listenToPurchaseUpdated(purchaseDetailsList),
       onDone: () => _subscription.cancel(),
       onError: (error, stack) {
-        GlobalErrorTrap.recordException(error, stackTrace: stack, contextTag: "IAP_Stream", severity: ErrorSeverity.warning);
+        GlobalErrorTrap.recordException(
+          error, 
+          stackTrace: stack, 
+          contextTag: "IAP_Stream", 
+          severity: ErrorSeverity.warning,
+        );
       },
     );
   }
@@ -65,8 +71,13 @@ class IAPManager {
           continue; 
         }
 
+        // 🌟 核心修復：正確呼叫 recordException，消除未定義參數報錯
         if (purchaseDetails.status == PurchaseStatus.error) {
-          GlobalErrorTrap.record("StoreKit 購買失敗: ${purchaseDetails.error?.message}", contextTag: "IAP_Error", severity: ErrorSeverity.warning);
+          GlobalErrorTrap.recordException(
+            purchaseDetails.error?.message ?? "StoreKit 購買失敗",
+            contextTag: "IAP_Error",
+            severity: ErrorSeverity.warning,
+          );
           continue;
         }
 

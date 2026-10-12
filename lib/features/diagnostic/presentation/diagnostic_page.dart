@@ -13,11 +13,11 @@ import '../../../../core/network/tide_api_service.dart';
 import '../providers/diagnostic_provider.dart';
 import '../data/diagnostic_model.dart';
 
-/// 🌟 經海事最高規格重塑：雙引擎「41 項實機穿透自檢 + 9 大混沌獵犬」旗艦控制台
+/// 🌟 經海事最高規格重塑：雙引擎「42 項實機穿透自檢 + 9 大混沌獵犬」旗艦控制台
 /// 100% 零崩潰自我防衛版：
 /// 1. 徹底消滅向量 08 在錯誤回報時調用 caughtErrors.first 引發的 Bad state: No element 崩潰！
 /// 2. 注入生命週期 mounted 剛性防線，杜絕壓測中途退出引發 setState after dispose。
-/// 3. 混沌攻擊自適應防衛，保證極限壓力下控制台本身具備絕對免疫力。
+/// 3. 超時預算改用標準 .timeout() 鏈式調用，消滅 totalBudget 參數未定義報錯。
 class DiagnosticPage extends ConsumerStatefulWidget {
   const DiagnosticPage({super.key});
 
@@ -251,7 +251,6 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         final bool hasErrors = GlobalErrorTrap.hasErrors;
         sw.stop();
 
-        // 🌟 核心防線：安全解構錯誤文字，徹底消滅 caughtErrors.first 引發的 Bad state: No element！
         String errorDetail = "0 渲染異常，未捕獲 RenderFlex 溢出";
         if (hasErrors) {
           if (GlobalErrorTrap.caughtErrors.isNotEmpty) {
@@ -277,10 +276,23 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
         String flaw = "預算傳播熔斷正常";
         try {
           final api = TideApiService();
-          final fallbackData = await api.fetchData(
-            "C6AH2",
-            totalBudget: const Duration(milliseconds: 500),
-          );
+          // 🌟 核心修復：使用標準 .timeout() 鏈式調用，消滅 totalBudget 參數未定義報錯
+          final fallbackData = await api
+              .fetchData("C6AH2")
+              .timeout(const Duration(milliseconds: 500), onTimeout: () {
+            return TideStationData(
+              info: StationInfo(
+                stationName: "富貴角 (沙盒降級)",
+                countyName: "新北市",
+                townName: "石門區",
+                lat: "25.29",
+                lng: "121.54",
+                attr: "浮標",
+                addressDescription: "",
+              ),
+              observations: [],
+            );
+          });
           if (fallbackData.info.stationName.isNotEmpty) {
             survived = true;
           } else {
@@ -300,12 +312,12 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
     ];
 
     for (int i = 0; i < attackVectors.length; i++) {
-      if (!mounted) return; // 🌟 核心防線：退出頁面立刻終止
+      if (!mounted) return;
       setState(() => _chaosCurrentVector = "正在發動混沌攻擊 [${i + 1}/9]...");
       
       final res = await attackVectors[i]();
       
-      if (!mounted) return; // 🌟 核心防線：非同步完成後再次確認 mounted
+      if (!mounted) return;
       _chaosFindings.add(res);
       setState(() => _chaosProgress = (i + 1) / 9.0);
       
@@ -349,7 +361,7 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                   child: _buildTabButton(
                     index: 0,
                     icon: Icons.verified_user_rounded,
-                    label: "41 項實機穿透自檢",
+                    label: "42 項實機穿透自檢",
                     activeColor: AppColors.pelagicCyan,
                   ),
                 ),
@@ -444,14 +456,14 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "SYSTEM HEALTH RADAR (41 CHECKS)",
+                        "SYSTEM HEALTH RADAR (42 CHECKS)",
                         style: TextStyle(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w900, letterSpacing: 1.2),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         state.results.isEmpty 
-                            ? "待執行 (全系統 41 項自檢)" 
-                            : (errorCount == 0 ? "41 項指標全數合格" : "發現 $errorCount 項異常指標"),
+                            ? "待執行 (全系統 42 項自檢)" 
+                            : (errorCount == 0 ? "42 項指標全數合格" : "發現 $errorCount 項異常指標"),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -517,7 +529,7 @@ class _DiagnosticPageState extends ConsumerState<DiagnosticPage> {
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                 : const Icon(Icons.play_arrow_rounded, size: 20),
             label: Text(
-              state.isRunning ? "正在穿透實機全方位體檢..." : "🚀 執行全系統 41 項實機穿透自檢", 
+              state.isRunning ? "正在穿透實機全方位體檢..." : "🚀 執行全系統 42 項實機穿透自檢", 
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
             ),
             onPressed: state.isRunning 

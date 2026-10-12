@@ -29,7 +29,6 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
     final themeMode = ref.watch(themeModeProvider);
     final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
     final bool isClassic = themeMode == AppThemeMode.classicLight;
-    final bool isDark = themeMode == AppThemeMode.darkAbyss;
 
     final stationsAsync = ref.watch(stationListProvider);
     final premiumState = ref.watch(premiumProvider);
@@ -310,7 +309,6 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
           onTap: () {
             HapticFeedback.lightImpact();
 
-            // 🚨 商業金流核心防線：若測站帶有商業鎖定且用戶非 PRO，強制攔截導向付費牆！
             if (isLocked) {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
               return;
@@ -353,7 +351,6 @@ class _StationGuidePageState extends ConsumerState<StationGuidePage> {
               ),
               const SizedBox(width: 8),
 
-              // 🌟 商業防線：77 席 VIP 測站強制掛載金色 PRO 鎖頭標章！
               if (isLocked)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

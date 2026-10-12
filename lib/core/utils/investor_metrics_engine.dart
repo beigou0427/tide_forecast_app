@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 /// 🌟 專為 AppWorks & 心元資本 打造之盡職調查指標實體
 class VcInvestmentMetrics {
   final double mrr;               // 每月經常性收入 (Monthly Recurring Revenue)
@@ -44,7 +42,7 @@ class NuclearWinterMetrics {
 }
 
 /// 🌟 商業增長駭客與創投級量化引擎 (Venture Capital Quant Engine)
-/// 100% 4 大 StoreKit 定價矩陣精確折算版
+/// 100% 4 大 StoreKit 定價矩陣精確折算版 (常數宣告純淨修復)
 class InvestorMetricsEngine {
   static const double priceWeekly = 60.0;
   static const double priceMonthly = 120.0;
@@ -71,7 +69,8 @@ class InvestorMetricsEngine {
 
     const double churnRate = 0.025; // 2.5% 超低流失率
     const double blendedArpu = 82.5; 
-    final double ltv = blendedArpu / churnRate; 
+    // 🌟 核心修復：升格為 const，達成 prefer_const_declarations 零提示
+    const double ltv = blendedArpu / churnRate; 
 
     final double cac = newAcquiredUsers > 0 ? marketingSpendThisMonth / newAcquiredUsers : 0.0;
     final double ltvToCac = cac > 0 ? ltv / cac : double.infinity;
@@ -93,11 +92,11 @@ class InvestorMetricsEngine {
   // ---------------------------------------------------------
   static NuclearWinterMetrics calculateNuclearWinterSurvival() {
     // 極端悲觀假設：整個月只有 3 個免費用戶訂閱了月費版，0 年費，0 買斷。
-    final double pessimisticRevenue = 3 * priceMonthly; // NT$ 360
+    const double pessimisticRevenue = 3 * priceMonthly; // NT$ 360
 
     // 伺服器邊緣運算零成本 (GitHub Pages Edge + Firebase Free Tier)
     const double serverBurnRate = 0.0; 
-    final double netCashFlow = pessimisticRevenue - serverBurnRate;
+    const double netCashFlow = pessimisticRevenue - serverBurnRate;
 
     return const NuclearWinterMetrics(
       monthlyRevenueTwd: pessimisticRevenue,
@@ -127,7 +126,7 @@ class InvestorMetricsEngine {
     sb.writeln("📈 [基準預測 - 4大產品矩陣有效流量情境]:");
     sb.writeln(" • 當前推估 MRR: NT\$ ${optimistic.mrr.toStringAsFixed(0)}");
     sb.writeln(" • 當前推估 ARR: NT\$ ${optimistic.arr.toStringAsFixed(0)}");
-    sb.writeln(" • LTV/CAC 比值: ${optimistic.ltvToCacRatio.isInfinite ? '無限大 (100% 自然 ASO 裂變獲客)' : optimistic.ltvToCacRatio.toStringAsFixed(1) + 'x'}");
+    sb.writeln(" • LTV/CAC 比值: ${optimistic.ltvToCacRatio.isInfinite ? '無限大 (100% 自然 ASO 裂變獲客)' : '${optimistic.ltvToCacRatio.toStringAsFixed(1)}x'}");
     sb.writeln("");
     sb.writeln("💀 [終極悲觀預測 - 零曝光核冬情境 (Stress Test)]:");
     sb.writeln(" • 極端悲觀月營收: NT\$ ${pessimistic.monthlyRevenueTwd.toStringAsFixed(0)} (約 11 美金)");

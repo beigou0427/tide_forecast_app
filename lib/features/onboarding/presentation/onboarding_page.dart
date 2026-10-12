@@ -141,6 +141,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('has_completed_onboarding', true);
           
+          // 🌟 核心修復：非同步寫入後再次校驗 mounted，消除分析器提示
+          if (!mounted) return;
+          
           final premium = ref.read(premiumProvider);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -228,7 +231,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           currentPremium.type == SubscriptionType.yearly || 
           currentPremium.type == SubscriptionType.lifetime;
 
-      // 🚨 商業金流核心防線：若使用者已具備年度或創始特權，絕對不降級覆蓋！
       if (!isSkipped && !hasClaimedTrial && !alreadyHasHigherTier) {
         await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
         await prefs.setBool('has_claimed_survey_trial', true);
@@ -251,7 +253,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           );
         }
       } else if (!isSkipped && alreadyHasHigherTier && mounted) {
-        // 針對既有 VIP 會員提供尊榮問候
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Row(

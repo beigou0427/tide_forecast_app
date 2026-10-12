@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -173,8 +173,9 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
         iconTheme: IconThemeData(color: AppColors.eInkBlack, size: 28),
-        shape: const Border(bottom: BorderSide(color: AppColors.eInkBlack, width: 3.0)),
-        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.eInkBlack, letterSpacing: 0),
+        // 🌟 核心修復：外層已有 const，移除子屬性前多餘的 const 關鍵字
+        shape: Border(bottom: BorderSide(color: AppColors.eInkBlack, width: 3.0)),
+        titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.eInkBlack, letterSpacing: 0),
       ),
       textTheme: GoogleFonts.notoSansTcTextTheme(
         ThemeData.light().textTheme.copyWith(

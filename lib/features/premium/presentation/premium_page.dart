@@ -12,10 +12,7 @@ import '../../tide/presentation/home_page.dart';
 import 'vip_center_page.dart';
 
 /// 🌟 Phil Schiller (App Store 零拒審) + Alex Hormozi (Ch.9 稀缺性 & Ch.10 贈品矩陣)
-/// 100% 商業金流完備版：
-/// 1. 付費成功後底部常駐按鈕自動翻轉為「進入 VIP 指揮中心」，消除已付費用戶的認知焦慮。
-/// 2. 結帳時若定價未就緒，自動發起即時重拉重試，徹底粉碎「永遠無法結帳」之死鎖！
-/// 3. 全局監聽交易成功回呼，提供即時震動與無縫導航體驗。
+/// 100% 商業金流完備版：已轉義所有貨幣字串插值，消滅 missing_identifier 編譯錯誤
 class PremiumPage extends ConsumerStatefulWidget {
   final bool fromOnboarding;
   const PremiumPage({super.key, this.fromOnboarding = false});
@@ -124,7 +121,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     if (matchedProduct != null) {
       await ref.read(iapManagerProvider).buySubscription(matchedProduct);
     } else {
-      // 🌟 核心防線：若商品為空，自動發起即時重拉，絕不讓用戶卡死！
       _loadStoreProducts();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +146,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     final premiumState = ref.watch(premiumProvider);
     final int seatsLeft = _getDynamicScarcitySeats();
 
-    // 🌟 全局監聽：一旦付費或恢復購買成功，給予震動反饋
     ref.listen<PremiumState>(premiumProvider, (previous, next) {
       if (next.isPremium && (previous == null || !previous.isPremium)) {
         HapticFeedback.heavyImpact();
@@ -372,7 +367,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
               ),
             ),
 
-            // 🌟 核心修復：底部常駐按鈕自適應翻轉
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
@@ -560,9 +554,9 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
             ],
           ),
           const SizedBox(height: 12),
-          _buildBonusRow("Apple 家人共享", "一人訂閱，5 位同行親友免費享有 PRO 權限", "價值 NT$ 4,950/年"),
-          _buildBonusRow("VVIP 優先客服通道", "工單免排隊，3 秒直通創辦人手機推送", "價值 NT$ 3,600/年"),
-          _buildBonusRow("85 站水文百科指南", "內建台灣沿海特有魚種索餌習性與潮目對照表", "價值 NT$ 1,200"),
+          _buildBonusRow("Apple 家人共享", "一人訂閱，5 位同行親友免費享有 PRO 權限", "價值 NT\$ 4,950/年"),
+          _buildBonusRow("VVIP 優先客服通道", "工單免排隊，3 秒直通創辦人手機推送", "價值 NT\$ 3,600/年"),
+          _buildBonusRow("85 站水文百科指南", "內建台灣沿海特有魚種索餌習性與潮目對照表", "價值 NT\$ 1,200"),
         ],
       ),
     );
@@ -627,10 +621,10 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
             ],
           ),
           const SizedBox(height: 12),
-          _buildValueRow("中央氣象署 85 站光纖直連", "NT$ 1,200/年"),
-          _buildValueRow("AI 長湧瘋狗浪預警引擎", "NT$ 1,800/年"),
-          _buildValueRow("離線神盾全島水文預載", "NT$ 600/年"),
-          _buildValueRow("E-Ink 烈日抗反光航海模式", "NT$ 800/年"),
+          _buildValueRow("中央氣象署 85 站光纖直連", "NT\$ 1,200/年"),
+          _buildValueRow("AI 長湧瘋狗浪預警引擎", "NT\$ 1,800/年"),
+          _buildValueRow("離線神盾全島水文預載", "NT\$ 600/年"),
+          _buildValueRow("E-Ink 烈日抗反光航海模式", "NT\$ 800/年"),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Divider(color: Colors.white24, height: 1),
@@ -639,7 +633,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text("核心模塊真實價值", style: TextStyle(color: Colors.white60, fontSize: 12)),
-              Text("NT$ 4,400 /年", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, decoration: TextDecoration.lineThrough)),
+              Text("NT\$ 4,400 /年", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, decoration: TextDecoration.lineThrough)),
             ],
           ),
         ],

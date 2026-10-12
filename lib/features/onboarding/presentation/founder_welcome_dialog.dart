@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
@@ -10,9 +10,13 @@ class FounderWelcomeDialog {
       final isFounder = prefs.getBool('is_founder') ?? false;
       final hasShown = prefs.getBool('has_shown_founder_welcome_v2') ?? false;
 
-      if (isFounder && !hasShown && context.mounted) {
+      if (isFounder && !hasShown) {
+        if (!context.mounted) return;
         await prefs.setBool('has_shown_founder_welcome_v2', true);
         HapticFeedback.heavyImpact();
+        
+        // 🌟 核心修復：在非同步間隙 (await) 之後再度檢查 mounted，消除分析器提示
+        if (!context.mounted) return;
         
         showDialog(
           context: context,

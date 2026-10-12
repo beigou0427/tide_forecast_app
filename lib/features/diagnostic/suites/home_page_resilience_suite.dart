@@ -1,6 +1,5 @@
-﻿import 'package:intl/intl.dart';
-import '../../../tide/data/tide_model.dart';
-import '../../../../core/utils/bite_prediction_engine.dart';
+import '../../tide/data/tide_model.dart';
+import '../../../core/utils/bite_prediction_engine.dart';
 
 class HomePageResilienceSuiteResult {
   final bool isFutureNoElementCrashProof;
@@ -26,9 +25,8 @@ class HomePageResilienceSuiteResult {
 
 /// 🌟 經 TQM 嚴格重塑之首頁時空韌性自檢套件
 /// 100% 真實驗證防偽版：
-/// 1. 徹底拔除舊版測試中「清空今日資料來假裝通過」的波將金村 (Potemkin Village) 造假測試！
-/// 2. 注入包含「今日 10 米巨浪」之極端測站，實際呼叫推論引擎預測未來，驗證時態隔離。
-/// 3. 確保無資料日時，系統 100% 誠實退回純天文推演，杜絕任何跨時空數據污染。
+/// 1. 注入包含「今日 10 米巨浪」之極端測站，實際呼叫推論引擎預測未來，驗證時態隔離。
+/// 2. 確保無資料日時，系統 100% 誠實退回純天文推演，杜絕任何跨時空數據污染。
 class HomePageResilienceDiagnosticSuite {
   static Future<HomePageResilienceSuiteResult> run() async {
     final now = DateTime.now();
@@ -53,10 +51,8 @@ class HomePageResilienceDiagnosticSuite {
     bool futureCrashProof = false;
     try {
       final futureDate = now.add(const Duration(days: 5));
-      // 真實呼叫大腦推論
       final result = BitePredictionEngine.predict(stationData: extremeStation, targetDate: futureDate);
       
-      // 🚨 核心防線：未來的預測絕對不能被今天的 10 米巨浪污染！必須退回天文推演！
       if (result.oceanTriggerSummary.contains("天體引力與潮汐模型") && 
           !result.speciesIndices.any((s) => s.triggerReason.contains("巨浪"))) {
         futureCrashProof = true;
@@ -85,9 +81,9 @@ class HomePageResilienceDiagnosticSuite {
       final multiObsStation = TideStationData(
         info: StationInfo(stationName: "新竹", countyName: "新竹市", townName: "", lat: "24.8", lng: "120.9", attr: "潮位站", addressDescription: ""),
         observations: [
-          Observation(dateTime: now.subtract(const Duration(days: 1)), tideHeight: 1.0), // 昨天
-          Observation(dateTime: now.subtract(const Duration(hours: 3)), tideHeight: 1.5), // 今天稍早
-          Observation(dateTime: now, tideHeight: 1.85), // 今天最新
+          Observation(dateTime: now.subtract(const Duration(days: 1)), tideHeight: 1.0),
+          Observation(dateTime: now.subtract(const Duration(hours: 3)), tideHeight: 1.5),
+          Observation(dateTime: now, tideHeight: 1.85),
         ],
         forecasts: [],
       );

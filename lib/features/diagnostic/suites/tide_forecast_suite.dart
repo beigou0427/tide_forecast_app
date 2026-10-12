@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../tide/data/tide_model.dart';
 
 /// 🌟 潮汐預報自檢套件 (100% 快取鍵值隔離版)
-/// 1. 徹底消滅複製貼上遺留之 _testStorageKey 鍵值碰撞，保護漁獲日誌測試快取獨立性！
+/// 1. 徹底消滅冗餘欄位，維持靜態分析零警告。
 /// 2. 實裝潮高單位 (m/cm) 自適應格式化，消滅 (1.85cm) 單位標籤瑕疵。
 /// 3. 多階梯水文預報資料管道驗證，確保 30 天滿乾潮交替率 >= 88% 嚴格符合海洋物理規律。
 class TideForecastSuiteResult {
@@ -42,9 +42,6 @@ class TideForecastSuiteResult {
 }
 
 class TideForecastDiagnosticSuite {
-  // 🌟 核心修復：獨立專屬測試快取 Key，徹底斷絕與 CatchLogSuite 的鍵值碰撞！
-  static const String _testStorageKey = "tide_forecast_test_suite_v1";
-
   static Future<TideForecastSuiteResult> run() async {
     List rawForecasts = [];
 
