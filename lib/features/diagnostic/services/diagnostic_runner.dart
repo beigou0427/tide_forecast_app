@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -20,6 +20,7 @@ import '../../tide/providers/ugc_provider.dart';
 import '../../premium/services/premium_service.dart';
 import '../data/diagnostic_model.dart';
 import '../suites/aso_masters_suite.dart';
+import '../suites/nasa_jpl_audit_suite.dart';
 
 class DiagnosticRunner {
   static Future<List<DiagnosticResultItem>> runAll({
@@ -70,6 +71,17 @@ class DiagnosticRunner {
     // 5. 實體硬體、真實 Apple StoreKit 官方連線查詢 (35~41)
     final hwResults = await _runHardwareAndNetworkTests(allResults.length, onProgress, totalSteps);
     allResults.addAll(hwResults);
+
+        // 6. NASA JPL 極限防禦測試 (42)
+    onProgress(42 / 42.0, "正在檢驗 [42/42]：NASA JPL 記憶體邊界與 OOM 防護...");
+    final nasaResult = await NasaJplAuditSuite.run();
+    allResults.add(DiagnosticResultItem(
+      category: "實機硬體",
+      title: "42. NASA JPL 記憶體邊界審計",
+      passed: nasaResult.isAllPassed,
+      detail: nasaResult.message,
+      metric: nasaResult.isAllPassed ? "無記憶體洩漏" : "OOM 風險",
+    ));
 
     return allResults;
   }

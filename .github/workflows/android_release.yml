@@ -1,0 +1,67 @@
+﻿name: Tide Pro Android Play Store Release (SSOT Pipeline)
+
+on:
+  push:
+    tags:
+      - 'v*' # 僅在打上版本 Tag 時觸發 (例如: git tag v2.6.0)
+
+jobs:
+  build_and_upload:
+    name: 🤖 Build and Upload Android AAB
+    runs-on: ubuntu-latest # 強制指定現代 Ubuntu 雲端環境
+
+    steps:
+      - name: 📥 Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17' # 嚴格對齊 Android 現代 Gradle 構建要求
+
+      - name: ⚙️ Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 📦 Install Dependencies
+        run: flutter pub get
+
+      - name: 🔐 Decode Android Keystore & Properties
+        # 🚨 核心防線 1：動態還原簽名金鑰，絕對禁止將 JKS 檔案提交到 Git 儲存庫！
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_PROPERTIES_BASE64: ${{ secrets.ANDROID_KEY_PROPERTIES_BASE64 }}
+        run: |
+          echo -n "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo -n "$KEY_PROPERTIES_BASE64" | base64 --decode > android/key.properties
+
+      - name: 🔨 Build Flutter Android AAB (Release)
+        # 🚨 核心防線 2：動態注入 GitHub Run Number 避免 Google Play 拒收重複版本號！
+        run: |
+          flutter build appbundle --release \
+            --build-number=${{ github.run_number }} \
+            --obfuscate --split-debug-info=build/app/outputs/symbols
+
+      - name: 🧠 Upload Obfuscated Symbols to Firebase Crashlytics
+        # 🚨 核心防線 3：強制上傳 Android 專屬崩潰符號表，避免後台全盲！
+        env:
+          FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_CLI_TOKEN }}
+          FIREBASE_APP_ID: 1:725347285427:android:8fedba4d5822725c6c33c6
+        run: |
+          npm install -g firebase-tools
+          firebase crashlytics:symbols:upload \
+            --app=$FIREBASE_APP_ID \
+            --token=$FIREBASE_CLI_TOKEN \
+            build/app/outputs/symbols
+
+      - name: 🚀 Upload to Google Play Console
+        # 🚨 核心防線 4：調用 Google Play Developer API 自動發布至內部測試軌道
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.beigou.tideForecastApp
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal # 部署至內部測試軌道，隨後可一鍵提拔至正式環境
+          status: completed

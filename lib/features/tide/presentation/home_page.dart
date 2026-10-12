@@ -1,12 +1,21 @@
+﻿import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/tide_provider.dart';
 import '../data/tide_model.dart';
 import '../../../core/utils/constants.dart';
-import '../../../core/utils/share_util.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/services/fcm_service.dart';
+import '../../../core/services/global_error_trap.dart';
+import '../../onboarding/presentation/founder_welcome_dialog.dart';
 import '../../premium/services/premium_service.dart';
+import '../../premium/presentation/premium_page.dart';
 
 import 'tide_chart_sheet.dart';
 import 'widgets/station_drawer.dart';
@@ -16,32 +25,227 @@ import 'widgets/metric_grid.dart';
 import 'widgets/safety_alert.dart';
 import 'widgets/sea_briefing_card.dart';
 import 'widgets/date_ribbon.dart';
-import 'widgets/shareable_report_card.dart';
-import 'widgets/solunar_card.dart';
 import 'widgets/wind_compass_card.dart';
-import 'widgets/ugc_radar_card.dart';
+import 'widgets/classic_pure_tide_table.dart';
 import 'widgets/local_merchant_card.dart';
+import 'widgets/solunar_card.dart';
+import 'widgets/bite_radar_section.dart';
+import 'widgets/astro_hindcast_card.dart';
+import 'widgets/ugc_radar_card.dart';
 import '../../../shared/widgets/custom_card.dart';
 
-class HomePage extends ConsumerWidget {
+/// 🌟 零學習成本：純潮汐儀表模式狀態機
+final isPureTideModeProvider = StateNotifierProvider<PureTideModeNotifier, bool>((ref) {
+  return PureTideModeNotifier();
+});
+
+class PureTideModeNotifier extends StateNotifier<bool> {
+  static const String _prefKey = 'is_pure_tide_mode_v2';
+  static const String _legacyMigratedKey = 'has_migrated_pure_tide_default';
+
+  PureTideModeNotifier() : super(false) {
+    _loadPreference();
+  }
+
+  Future<void> _loadPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasMigrated = prefs.getBool(_legacyMigratedKey) ?? false;
+      final isFounder = prefs.getBool('is_founder') ?? false;
+
+      if (isFounder && !hasMigrated) {
+        state = true;
+        await prefs.setBool(_prefKey, true);
+        await prefs.setBool(_legacyMigratedKey, true);
+      } else {
+        state = prefs.getBool(_prefKey) ?? false;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> toggle() async {
+    await setMode(!state);
+  }
+
+  Future<void> setMode(bool isPure) async {
+    state = isPure;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefKey, state);
+    } catch (_) {}
+  }
+}
+
+/// 🌟 指揮中心首頁 (100% 空間導航與防呆修正版)
+/// 1. 徹底喚醒 nearestStationIdProvider 幽靈代碼，將無效的後台 GPS 算力轉換為 Context-Aware 智能導航按鈕！
+/// 2. 當老船長抵達異地漁港時，0 點擊自動彈出「📍 切換就近測站」引導，達成極致人因工程體驗。
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen<String?>(nearestStationIdProvider, (previous, next) {
-      if (next != null && previous == null) {
-        ref.read(currentStationIdProvider.notifier).state = next;
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      _checkMaritimeSafetyConsent();
+      _checkLegacyVvipThemeMigration();
+      FounderWelcomeDialog.checkAndShowIfNeeded(context);
+      
+      try {
+        NotificationService.setNavigatorKey(appNavigatorKey);
+        FcmService.setNavigatorKey(appNavigatorKey);
+        await NotificationService.init();
+        await FcmService.init();
+      } catch (e, stack) {
+        GlobalErrorTrap.recordException(e, stackTrace: stack, contextTag: "PushNotificationInit", severity: ErrorSeverity.warning);
       }
     });
+  }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _checkLegacyVvipThemeMigration() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool hasMigratedTheme = prefs.getBool('has_migrated_theme_v26') ?? false;
+      
+      if (!hasMigratedTheme) {
+        final bool isPro = prefs.getBool('is_pro') ?? false;
+        if (isPro) {
+          ref.read(themeModeProvider.notifier).setTheme(AppThemeMode.classicLight);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.wb_sunny_rounded, color: AppColors.bioGold, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "⚓ 歡迎登艦，老朋友！", 
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Colors.white, letterSpacing: 0.5)
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "我們已為您保留最熟悉的「經典白藍介面」。\n若想體驗全新的「深淵黑金」或「E-Ink 烈日抗反光」模式，請點擊右上角的 ☀️ 圖示隨時切換！",
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5, height: 1.45),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF005696),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 10,
+              ),
+            );
+          }
+        }
+        await prefs.setBool('has_migrated_theme_v26', true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _checkMaritimeSafetyConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final bool hasAgreed = prefs.getBool('has_agreed_maritime_safety_v2') ?? false;
+    
+    if (!hasAgreed && mounted) {
+      _showMandatorySafetyDisclaimer(context, prefs);
+    }
+  }
+
+  void _showMandatorySafetyDisclaimer(BuildContext context, SharedPreferences prefs) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 24),
+            SizedBox(width: 10),
+            Text(
+              "老船長出海安全須知",
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.3),
+            ),
+          ],
+        ),
+        content: const Text(
+          "歡迎登艦！出海作釣與航海活動具備自然不可抗力。本系統即時數據錨定氣象署官方遙測，供休閒參考，出海請務必穿著合格救生衣與防滑釘鞋，注意人身安全。",
+          style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.45),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pelagicCyan,
+                foregroundColor: AppColors.abyssBlack,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                HapticFeedback.heavyImpact();
+                await prefs.setBool('has_agreed_maritime_safety_v2', true);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text("同意並進入指揮中心", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPureTide = ref.watch(isPureTideModeProvider);
     final tideViewAsync = ref.watch(tideViewDataProvider);
     final currentId = ref.watch(currentStationIdProvider);
     final selectedDate = ref.watch(selectedDateProvider);
-    final premiumState = ref.watch(premiumProvider);
     final favoritesAsync = ref.watch(favoriteStationsProvider);
     
+    final bool isPro = ref.watch(premiumProvider.select((s) => s.isPremium || s.isFounder));
+
+    final themeMode = ref.watch(themeModeProvider);
+    final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
+    final bool isClassicTheme = themeMode == AppThemeMode.classicLight;
+    final bool isDarkAbyss = themeMode == AppThemeMode.darkAbyss;
+    final bool isClassicUI = themeMode != AppThemeMode.darkAbyss;
+
     final allStations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
     final currentStation = allStations.firstWhere((s) => s.id == currentId, orElse: () => allStations.first);
+
+    // 🌟 核心防線：喚醒幽靈 GPS 引擎，與狀態機強制耦合！
+    final nearestId = ref.watch(nearestStationIdProvider);
+    final nearestStation = nearestId != null 
+        ? allStations.firstWhere((s) => s.id == nearestId, orElse: () => allStations.first)
+        : null;
 
     final bool isFavorited = favoritesAsync.value?.contains(currentId) ?? false;
     final now = DateTime.now();
@@ -49,279 +253,459 @@ class HomePage extends ConsumerWidget {
     final String todayKey = DateFormat('yyyyMMdd').format(now);
     final bool isToday = selectedKey == todayKey;
     final bool isFuture = selectedDate.isAfter(now) && !isToday;
+    final bool isPast = !isToday && !isFuture;
 
-    final Color modeColor = isToday ? const Color(0xFF0077B6) : (isFuture ? const Color(0xFF3F51B5) : const Color(0xFFE65100));
+    final Color modeThemeColor = isToday 
+        ? const Color(0xFF1E40AF)
+        : (isFuture ? const Color(0xFF2563EB) : const Color(0xFFD84315));
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      drawer: StationDrawer(currentId: currentId),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 185,
-            backgroundColor: modeColor,
-            elevation: 0,
-            leadingWidth: 100,
-            leading: Builder(builder: (context) => _buildRegionButton(context)),
-            centerTitle: true,
-            title: Text(
-              isToday ? "海象指揮中心" : (isFuture ? "未來預報模式" : "歷史觀測回測"),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share_rounded, color: Colors.white),
-                tooltip: "產出海象戰報分享",
-                onPressed: tideViewAsync.value == null
-                    ? null
-                    : () => _showShareModal(context, tideViewAsync.value!.stationData),
-              ),
-              IconButton(
-                icon: Icon(isFavorited ? Icons.star : Icons.star_border, color: isFavorited ? Colors.amberAccent : Colors.white),
-                onPressed: () async {
-                  await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
-                  ref.invalidate(favoriteStationsProvider);
-                },
-              ),
-              IconButton(
-                icon: Icon(Icons.calendar_month, color: premiumState.isPremium ? Colors.amberAccent : Colors.white),
-                onPressed: () => _openCalendar(context, ref),
-              )
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  DateRibbon(selectedDate: selectedDate, themeColor: modeColor),
-                  const SizedBox(height: 15),
-                ],
-              ),
-            ),
-          ),
+    final Color pageBg = isEInk ? Colors.white : (isClassicTheme ? AppColors.classicBg : AppColors.abyssBlack);
+    final Color appBarBg = isEInk ? Colors.white : (isClassicTheme ? modeThemeColor : AppColors.abyssBlack.withValues(alpha: 0.88));
+    final Color topIconColor = isEInk ? Colors.black : Colors.white;
+    final Color ribbonThemeColor = isEInk ? Colors.black : modeThemeColor;
 
-          tideViewAsync.when(
-            loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF0077B6)))),
-            error: (err, _) => SliverFillRemaining(child: _buildErrorUI(err.toString(), ref)),
-            data: (viewData) {
-              final station = viewData.stationData;
-              final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
+    final String pageTitle = isPureTide 
+        ? "純潮汐航海儀表" 
+        : (isToday ? "今日即時海象" : (isFuture ? "未來預報模式" : "歷史觀測回測"));
 
-              final dayForecasts = station.forecasts.where((f) =>
-                  DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
+    AppThemeMode nextMode;
+    IconData themeIcon;
+    if (isDarkAbyss) {
+      nextMode = AppThemeMode.classicLight;
+      themeIcon = Icons.nights_stay_rounded;
+    } else if (isClassicTheme) {
+      nextMode = AppThemeMode.eInkHighContrast;
+      themeIcon = Icons.wb_sunny_rounded;
+    } else {
+      nextMode = AppThemeMode.darkAbyss;
+      themeIcon = Icons.contrast_rounded;
+    }
 
-              final dayObservations = isToday
-                  ? station.observations
-                  : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
-
-              // 非預報模式且該日實測為空時安全返回
-              if (!isFuture && dayObservations.isEmpty) {
-                return SliverFillRemaining(child: _buildNoDataUI(ref, selectedDate, station.info.stationName));
-              }
-
-              // 🌟 徹底消滅 Bad state: No element！安全提取最新實測（永不在空陣列調用 .last）
-              final Observation? activeObservation = dayObservations.isNotEmpty
-                  ? dayObservations.last
-                  : (station.observations.isNotEmpty ? station.observations.last : null);
-
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    if (isToday) ...[
-                      SeaBriefingCard(station: station, distance: viewData.distanceKm),
-                      const SizedBox(height: 24),
-                    ],
-                    StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
-                    const SizedBox(height: 16),
-                    
-                    if (isToday) ...[
-                      UgcRadarCard(
-                        stationId: currentId,
-                        stationName: station.info.stationName,
-                        waveHeight: activeObservation?.waveHeight,
-                        windSpeed: activeObservation?.windSpeed,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    SolunarCard(selectedDate: selectedDate),
-                    const SizedBox(height: 20),
-
-                    if (isFuture) ...[
-                      _sectionTitle("🌟 ${DateFormat('MM/dd').format(selectedDate)} 專家級潮汐預報", modeColor),
-                      const SizedBox(height: 12),
-                      _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
-                      const SizedBox(height: 20),
-                      _infoCard("預報模式說明", "您正在查看未來預報。滿乾潮水位與走水轉向點已透過氣象署模型完成推算。"),
-                    ] else if (activeObservation != null) ...[
-                      HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
-                      const SizedBox(height: 16),
-                      SafetyAlert(current: activeObservation),
-                      const SizedBox(height: 16),
-                      
-                      WindCompassCard(current: activeObservation),
-
-                      if (dayForecasts.isNotEmpty || station.forecasts.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        _sectionTitle(isToday ? "⏱️ 今日滿乾潮預測" : "⏱️ 當日滿乾潮預測", modeColor),
-                        const SizedBox(height: 12),
-                        _buildForecastList(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), modeColor),
-                      ],
-                      const SizedBox(height: 24),
-                      _sectionTitle(isToday ? "🌊 24h 走勢監控" : "🗓️ ${DateFormat('MM/dd').format(selectedDate)} 歷史走勢圖", modeColor),
-                      const SizedBox(height: 12),
-                      CustomCard(child: TideChartSheet(observations: dayObservations)),
-                      const SizedBox(height: 24),
-                      _sectionTitle("📋 ${isToday ? '詳細觀測參數' : '歷史時空記錄參數'}", modeColor),
-                      const SizedBox(height: 12),
-                      MetricGrid(current: activeObservation),
-                    ],
-                    const SizedBox(height: 24),
-
-                    LocalMerchantCard(
-                      stationName: station.info.stationName,
-                      region: currentStation.region,
-                    ),
-                    const SizedBox(height: 24),
-
-                    _buildFooter(station.info.addressDescription),
-                  ]),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: !isToday
-          ? FloatingActionButton.extended(
-              onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
-              backgroundColor: modeColor,
-              icon: const Icon(Icons.today, color: Colors.white),
-              label: const Text("返回今日", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
-    );
-  }
-
-  void _showShareModal(BuildContext context, TideStationData station) {
-    final GlobalKey reportKey = GlobalKey();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF021B33),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 16),
-              SingleChildScrollView(
-                child: ShareableReportCard(
-                  boundaryKey: reportKey,
-                  station: station,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B4D8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.send_rounded, color: Colors.black87),
-                  label: const Text("生成戰報並分享至 LINE / 社群", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 15)),
-                  onPressed: () async {
-                    await ShareUtil.captureAndShare(reportKey, stationName: station.info.stationName);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRegionButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 12.0, top: 10, bottom: 10),
-      child: InkWell(
-        onTap: () => Scaffold.of(context).openDrawer(),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.map_outlined, color: Colors.white, size: 16),
-              SizedBox(width: 4),
-              Text("地區", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title, Color color) => Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color.withValues(alpha: 0.9)));
-
-  Widget _buildForecastList(List<TideForecast> forecasts, Color themeColor) {
-    if (forecasts.isEmpty) {
-      return const CustomCard(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text("該日期暫無潮位轉向紀錄", style: TextStyle(color: Colors.grey)),
-          ),
-        ),
+    // 🌟 自働化 (Jidoka) 狀態按鈕邏輯
+    Widget? smartFab;
+    if (!isToday) {
+      smartFab = FloatingActionButton.extended(
+        onPressed: () {
+          HapticFeedback.mediumImpact();
+          ref.read(selectedDateProvider.notifier).state = DateTime.now();
+        },
+        backgroundColor: isEInk ? Colors.black : modeThemeColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.calendar_today_rounded, size: 16),
+        label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+      );
+    } else if (nearestId != null && nearestId != currentId && nearestStation != null) {
+      String shortName = nearestStation.name.replaceAll(RegExp(r'[\(（].*?[\)）]'), '').trim();
+      if (shortName.length > 8) shortName = "${shortName.substring(0, 8)}...";
+      
+      smartFab = FloatingActionButton.extended(
+        onPressed: () {
+          HapticFeedback.heavyImpact();
+          ref.read(currentStationIdProvider.notifier).state = nearestId;
+        },
+        backgroundColor: isEInk ? Colors.black : const Color(0xFF10B981), // 翠綠色引導
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.my_location_rounded, size: 16),
+        label: Text("切換就近測站 ($shortName)", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
       );
     }
-    return CustomCard(
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      drawer: StationDrawer(currentId: currentId),
+      body: RefreshIndicator(
+        color: ribbonThemeColor,
+        backgroundColor: Colors.white,
+        onRefresh: () async {
+          HapticFeedback.mediumImpact();
+          try {
+            return await ref.refresh(tideViewDataProvider.future);
+          } catch (_) {}
+        },
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 180,
+              backgroundColor: appBarBg,
+              elevation: isEInk ? 1 : 0,
+              leadingWidth: 84,
+              leading: Builder(builder: (context) => _buildRegionButton(context, topIconColor, isEInk)),
+              centerTitle: true,
+              title: Text(
+                pageTitle,
+                style: TextStyle(fontWeight: FontWeight.w900, color: topIconColor, fontSize: 18, letterSpacing: -0.3),
+              ),
+              actions: [
+                _buildCompactAction(
+                  icon: isPureTide ? Icons.waves_rounded : Icons.radar_rounded,
+                  color: isPureTide ? (isEInk ? Colors.black : AppColors.bioGold) : topIconColor,
+                  tooltip: isPureTide ? "切換全海象" : "切換純潮汐",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(isPureTideModeProvider.notifier).toggle();
+                  },
+                ),
+                _buildCompactAction(
+                  icon: themeIcon,
+                  color: topIconColor,
+                  tooltip: "循環切換顯示模式",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(themeModeProvider.notifier).setTheme(nextMode);
+                  },
+                ),
+                _buildCompactAction(
+                  icon: isFavorited ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: isFavorited ? (isEInk ? Colors.black : AppColors.bioGold) : topIconColor,
+                  tooltip: isFavorited ? "已收藏" : "加入收藏",
+                  onPressed: () async {
+                    HapticFeedback.selectionClick();
+                    await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
+                    ref.invalidate(favoriteStationsProvider);
+                  },
+                ),
+                _buildCompactAction(
+                  icon: Icons.calendar_month_rounded,
+                  color: topIconColor,
+                  tooltip: "選擇日期",
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    _openCalendar(context, ref);
+                  },
+                ),
+                const SizedBox(width: 6),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    DateRibbon(selectedDate: selectedDate, themeColor: ribbonThemeColor),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            ),
+
+            tideViewAsync.when(
+              loading: () => SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator(color: ribbonThemeColor, strokeWidth: 2.5)),
+              ),
+              error: (err, _) => SliverFillRemaining(
+                child: _buildOfflineArmorUI(ref, currentStation.name, isClassicUI, isEInk),
+              ),
+              data: (viewData) {
+                final station = viewData.stationData;
+                final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
+
+                final dayForecasts = station.forecasts.where((f) =>
+                    DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
+
+                final dayObservations = isToday
+                    ? station.observations
+                    : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
+
+                final Observation? activeObservation = dayObservations.isNotEmpty
+                    ? dayObservations.last
+                    : null;
+
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      
+                      if (isPureTide) ...[
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "升級 PRO 解鎖經典純潮汐對照表",
+                          child: ClassicPureTideTable(station: station, selectedDate: selectedDate, isClassic: isClassicUI),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (isToday && !isPureTide) ...[
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 獲取 AI 長湧與走水安全預警",
+                          child: SeaBriefingCard(station: station, distance: viewData.distanceKm),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
+                      const SizedBox(height: 16),
+
+                      if (isFuture) ...[
+                        _buildSectionHeader("🌟 專家級潮汐預報 (30日)", isEInk ? Colors.black : const Color(0xFF1E40AF)),
+                        const SizedBox(height: 10),
+
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 查看未來 30 天詳細滿乾潮時間",
+                          child: _buildV1ForecastCard(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), isClassicUI, isEInk),
+                        ),
+                        const SizedBox(height: 14),
+
+                        _buildFutureInfoCard(isClassicUI),
+                        const SizedBox(height: 16),
+
+                        _buildSectionHeader("🌊 預測潮位走勢", isEInk ? Colors.black : const Color(0xFF1E40AF)),
+                        const SizedBox(height: 10),
+                        
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 查看全天候極值走勢與起流窗口",
+                          child: CustomCard(
+                            child: TideChartSheet(observations: const [], futureForecasts: station.forecasts, targetDate: selectedDate),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ] 
+                      else if (isPast && activeObservation == null) ...[
+                        AstroHindcastCard(
+                          selectedDate: selectedDate,
+                          stationName: station.info.stationName,
+                          isClassic: isClassicUI,
+                        ),
+                        const SizedBox(height: 16),
+                      ] 
+                      else ...[
+                        if (activeObservation != null) ...[
+                          HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
+                          const SizedBox(height: 14),
+
+                          SafetyAlert(current: activeObservation),
+                          const SizedBox(height: 14),
+
+                          CustomCard(
+                            child: TideChartSheet(observations: dayObservations, targetDate: selectedDate),
+                          ),
+                          const SizedBox(height: 20),
+
+                          if (!isPureTide) ...[
+                            _buildSectionHeader("📋 詳細觀測參數", isEInk ? Colors.black : modeThemeColor),
+                            const SizedBox(height: 12),
+                            MetricGrid(current: activeObservation),
+                            const SizedBox(height: 16),
+
+                            WindCompassCard(current: activeObservation),
+                            const SizedBox(height: 20),
+                          ],
+                        ],
+                      ],
+
+                      if (!isPureTide) ...[
+                        SolunarCard(selectedDate: selectedDate),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (!isPureTide) ...[
+                        BiteRadarSection(
+                          station: station,
+                          selectedDate: selectedDate,
+                          isClassic: isClassicUI,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (isToday && !isPureTide) ...[
+                        UgcRadarCard(
+                          stationId: currentId,
+                          stationName: station.info.stationName,
+                          waveHeight: activeObservation?.waveHeight,
+                          windSpeed: activeObservation?.windSpeed,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (!isPureTide) ...[
+                        _buildSectionHeader("🏪 港區補給與海事支援", isEInk ? Colors.black : modeThemeColor),
+                        const SizedBox(height: 12),
+                        LocalMerchantCard(
+                          stationName: station.info.stationName,
+                          region: currentStation.region,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      const SizedBox(height: 16),
+                      _buildV1Footer(isFuture, isClassicUI),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+
+      floatingActionButton: smartFab,
+    );
+  }
+
+  Widget _buildPaywallBlurredWrapper({
+    required bool isPro,
+    required String blurMessage,
+    required Widget child,
+  }) {
+    if (isPro) return child;
+
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+            child: Opacity(
+              opacity: 0.6,
+              child: IgnorePointer(child: child),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_rounded, color: AppColors.bioGold, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      blurMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bioGold,
+                          foregroundColor: Colors.black87,
+                          elevation: 8,
+                          shadowColor: AppColors.bioGold.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: () {
+                          HapticFeedback.heavyImpact();
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
+                        },
+                        child: const Text("立即解鎖", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildV1ForecastCard(List<TideForecast> forecasts, bool isClassicUI, bool isEInk) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isClassicUI ? Colors.white : AppColors.abyssCard,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: isClassicUI ? (isEInk ? Colors.black : Colors.grey.shade100) : AppColors.glassBorder, width: isEInk ? 1.5 : 0.5),
+        boxShadow: (isClassicUI && !isEInk) ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))] : null,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         children: forecasts.map((f) {
-          bool isHigh = f.tideType.contains("滿");
-          return ListTile(
-            dense: true,
-            leading: Icon(isHigh ? Icons.arrow_upward : Icons.arrow_downward, color: isHigh ? Colors.redAccent : Colors.blueAccent, size: 20),
-            title: Text("${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}", style: const TextStyle(fontWeight: FontWeight.w600)),
-            trailing: Text("${f.tideHeight} cm", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
+          final bool isHigh = f.tideType.contains("滿");
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      isHigh ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      color: isEInk ? Colors.black : (isHigh ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      "${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  "${f.tideHeight} cm",
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: isEInk ? Colors.black : (isClassicUI ? const Color(0xFF334155) : AppColors.pelagicCyan),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
           );
         }).toList(),
       ),
     );
   }
 
-  Widget _infoCard(String title, String content) {
-    return CustomCard(
+  Widget _buildFutureInfoCard(bool isClassicUI) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isClassicUI ? Colors.white : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isClassicUI ? Colors.grey.shade100 : AppColors.glassBorder, width: 0.5),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: Colors.blueGrey),
+          Icon(Icons.memory_rounded, color: isClassicUI ? const Color(0xFF3B82F6) : AppColors.pelagicCyan, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(content, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(
+                  "M4 物理調和與天體推演引擎",
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "未來時空預測模式已啟動。系統正以天體引力模型結合氣象署歷史參數進行高維度推算。實況波高與陣風數據將於該日由實體感測器回傳。",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isClassicUI ? Colors.grey.shade600 : AppColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
               ],
             ),
           ),
@@ -330,15 +714,121 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildFooter(String desc) {
+  Widget _buildV1Footer(bool isFuture, bool isClassicUI) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("站點資訊", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        Text(
+          "SSOT 官方數據庫節點",
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(desc.isEmpty ? "中央氣象署官方數據。動態配置架構版。" : desc, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 40),
+        Text(
+          isFuture
+              ? "天體引力模型推算中 (非即時感測)"
+              : "中央氣象署官方 30 天數據備份節點。光纖數據每小時更新以確保單一真相來源。",
+          style: TextStyle(
+            fontSize: 11.5,
+            color: isClassicUI ? Colors.grey.shade500 : AppColors.textTertiary,
+          ),
+        ),
+        const SizedBox(height: 30),
       ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color accentColor) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+        color: accentColor,
+      ),
+    );
+  }
+
+  Widget _buildRegionButton(BuildContext context, Color topIconColor, bool isEInk) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 14.0, top: 12, bottom: 12),
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Scaffold.of(context).openDrawer();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isEInk ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isEInk ? Colors.black26 : Colors.white30, width: 0.5),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.map_outlined, color: topIconColor, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                "地區", 
+                style: TextStyle(color: topIconColor, fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactAction({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, color: color, size: 20),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildOfflineArmorUI(WidgetRef ref, String stationName, bool isClassicUI, bool isEInk) {
+    final Color textColor = isEInk ? Colors.black : (isClassicUI ? AppColors.classicText : AppColors.textPrimary);
+    final Color iconColor = isEInk ? Colors.black : AppColors.bioGold;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.offline_bolt_rounded, size: 48, color: iconColor),
+            const SizedBox(height: 16),
+            Text(
+              "[$stationName] 天文潮位接管中", 
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textColor),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isEInk ? Colors.black : AppColors.bioGold,
+                foregroundColor: isEInk ? Colors.white : AppColors.abyssBlack,
+              ),
+              onPressed: () => ref.refresh(tideViewDataProvider),
+              child: const Text("重新整理", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -349,45 +839,860 @@ class HomePage extends ConsumerWidget {
       initialDate: ref.read(selectedDateProvider),
       firstDate: now.subtract(const Duration(days: 30)),
       lastDate: now.add(const Duration(days: 30)),
-      helpText: "選擇回測或預報日期",
     );
-    if (picked != null) ref.read(selectedDateProvider.notifier).state = picked;
+    if (picked != null && mounted) {
+      ref.read(selectedDateProvider.notifier).state = picked;
+    }
+  }
+}
+EOF
+echo "✅ home_page.dart 幽靈 GPS 引擎與智能導航按鈕已覆寫修復！"
+$outFile = ".\lib\features\tide\presentation\home_page.dart"
+$content = @'
+import 'dart:async';
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../providers/tide_provider.dart';
+import '../data/tide_model.dart';
+import '../../../core/utils/constants.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/services/fcm_service.dart';
+import '../../../core/services/global_error_trap.dart';
+import '../../onboarding/presentation/founder_welcome_dialog.dart';
+import '../../premium/services/premium_service.dart';
+import '../../premium/presentation/premium_page.dart';
+
+import 'tide_chart_sheet.dart';
+import 'widgets/station_drawer.dart';
+import 'widgets/station_header.dart';
+import 'widgets/hero_metric_card.dart';
+import 'widgets/metric_grid.dart';
+import 'widgets/safety_alert.dart';
+import 'widgets/sea_briefing_card.dart';
+import 'widgets/date_ribbon.dart';
+import 'widgets/wind_compass_card.dart';
+import 'widgets/classic_pure_tide_table.dart';
+import 'widgets/local_merchant_card.dart';
+import 'widgets/solunar_card.dart';
+import 'widgets/bite_radar_section.dart';
+import 'widgets/astro_hindcast_card.dart';
+import 'widgets/ugc_radar_card.dart';
+import '../../../shared/widgets/custom_card.dart';
+
+/// 🌟 零學習成本：純潮汐儀表模式狀態機
+final isPureTideModeProvider = StateNotifierProvider<PureTideModeNotifier, bool>((ref) {
+  return PureTideModeNotifier();
+});
+
+class PureTideModeNotifier extends StateNotifier<bool> {
+  static const String _prefKey = 'is_pure_tide_mode_v2';
+  static const String _legacyMigratedKey = 'has_migrated_pure_tide_default';
+
+  PureTideModeNotifier() : super(false) {
+    _loadPreference();
   }
 
-  Widget _buildErrorUI(String error, WidgetRef ref) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.wifi_off_rounded, size: 60, color: Colors.red),
-          const SizedBox(height: 16),
-          const Text("資料加載失敗", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 8),
-            child: Text("請檢查網路連線或稍後再試", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+  Future<void> _loadPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasMigrated = prefs.getBool(_legacyMigratedKey) ?? false;
+      final isFounder = prefs.getBool('is_founder') ?? false;
+
+      if (isFounder && !hasMigrated) {
+        state = true;
+        await prefs.setBool(_prefKey, true);
+        await prefs.setBool(_legacyMigratedKey, true);
+      } else {
+        state = prefs.getBool(_prefKey) ?? false;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> toggle() async {
+    await setMode(!state);
+  }
+
+  Future<void> setMode(bool isPure) async {
+    state = isPure;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefKey, state);
+    } catch (_) {}
+  }
+}
+
+/// 🌟 指揮中心首頁 (100% 空間導航與防呆修正版)
+/// 1. 徹底喚醒 nearestStationIdProvider 幽靈代碼，將無效的後台 GPS 算力轉換為 Context-Aware 智能導航按鈕！
+/// 2. 當老船長抵達異地漁港時，0 點擊自動彈出「📍 切換就近測站」引導，達成極致人因工程體驗。
+class HomePage extends ConsumerStatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      _checkMaritimeSafetyConsent();
+      _checkLegacyVvipThemeMigration();
+      FounderWelcomeDialog.checkAndShowIfNeeded(context);
+      
+      try {
+        NotificationService.setNavigatorKey(appNavigatorKey);
+        FcmService.setNavigatorKey(appNavigatorKey);
+        await NotificationService.init();
+        await FcmService.init();
+      } catch (e, stack) {
+        GlobalErrorTrap.recordException(e, stackTrace: stack, contextTag: "PushNotificationInit", severity: ErrorSeverity.warning);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _checkLegacyVvipThemeMigration() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool hasMigratedTheme = prefs.getBool('has_migrated_theme_v26') ?? false;
+      
+      if (!hasMigratedTheme) {
+        final bool isPro = prefs.getBool('is_pro') ?? false;
+        if (isPro) {
+          ref.read(themeModeProvider.notifier).setTheme(AppThemeMode.classicLight);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.wb_sunny_rounded, color: AppColors.bioGold, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "⚓ 歡迎登艦，老朋友！", 
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Colors.white, letterSpacing: 0.5)
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "我們已為您保留最熟悉的「經典白藍介面」。\n若想體驗全新的「深淵黑金」或「E-Ink 烈日抗反光」模式，請點擊右上角的 ☀️ 圖示隨時切換！",
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5, height: 1.45),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF005696),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 10,
+              ),
+            );
+          }
+        }
+        await prefs.setBool('has_migrated_theme_v26', true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _checkMaritimeSafetyConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final bool hasAgreed = prefs.getBool('has_agreed_maritime_safety_v2') ?? false;
+    
+    if (!hasAgreed && mounted) {
+      _showMandatorySafetyDisclaimer(context, prefs);
+    }
+  }
+
+  void _showMandatorySafetyDisclaimer(BuildContext context, SharedPreferences prefs) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.abyssCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 24),
+            SizedBox(width: 10),
+            Text(
+              "老船長出海安全須知",
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.3),
+            ),
+          ],
+        ),
+        content: const Text(
+          "歡迎登艦！出海作釣與航海活動具備自然不可抗力。本系統即時數據錨定氣象署官方遙測，供休閒參考，出海請務必穿著合格救生衣與防滑釘鞋，注意人身安全。",
+          style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.45),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pelagicCyan,
+                foregroundColor: AppColors.abyssBlack,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                HapticFeedback.heavyImpact();
+                await prefs.setBool('has_agreed_maritime_safety_v2', true);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text("同意並進入指揮中心", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+            ),
           ),
-          TextButton(onPressed: () => ref.refresh(tideViewDataProvider), child: const Text("重試")),
         ],
       ),
     );
   }
 
-  Widget _buildNoDataUI(WidgetRef ref, DateTime date, String name) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+  @override
+  Widget build(BuildContext context) {
+    final isPureTide = ref.watch(isPureTideModeProvider);
+    final tideViewAsync = ref.watch(tideViewDataProvider);
+    final currentId = ref.watch(currentStationIdProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+    final favoritesAsync = ref.watch(favoriteStationsProvider);
+    
+    final bool isPro = ref.watch(premiumProvider.select((s) => s.isPremium || s.isFounder));
+
+    final themeMode = ref.watch(themeModeProvider);
+    final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
+    final bool isClassicTheme = themeMode == AppThemeMode.classicLight;
+    final bool isDarkAbyss = themeMode == AppThemeMode.darkAbyss;
+    final bool isClassicUI = themeMode != AppThemeMode.darkAbyss;
+
+    final allStations = ref.watch(stationListProvider).value ?? AppConstants.fallbackStations;
+    final currentStation = allStations.firstWhere((s) => s.id == currentId, orElse: () => allStations.first);
+
+    // 🌟 核心防線：喚醒幽靈 GPS 引擎，與狀態機強制耦合！
+    final nearestId = ref.watch(nearestStationIdProvider);
+    final nearestStation = nearestId != null 
+        ? allStations.firstWhere((s) => s.id == nearestId, orElse: () => allStations.first)
+        : null;
+
+    final bool isFavorited = favoritesAsync.value?.contains(currentId) ?? false;
+    final now = DateTime.now();
+    final String selectedKey = DateFormat('yyyyMMdd').format(selectedDate);
+    final String todayKey = DateFormat('yyyyMMdd').format(now);
+    final bool isToday = selectedKey == todayKey;
+    final bool isFuture = selectedDate.isAfter(now) && !isToday;
+    final bool isPast = !isToday && !isFuture;
+
+    final Color modeThemeColor = isToday 
+        ? const Color(0xFF1E40AF)
+        : (isFuture ? const Color(0xFF2563EB) : const Color(0xFFD84315));
+
+    final Color pageBg = isEInk ? Colors.white : (isClassicTheme ? AppColors.classicBg : AppColors.abyssBlack);
+    final Color appBarBg = isEInk ? Colors.white : (isClassicTheme ? modeThemeColor : AppColors.abyssBlack.withValues(alpha: 0.88));
+    final Color topIconColor = isEInk ? Colors.black : Colors.white;
+    final Color ribbonThemeColor = isEInk ? Colors.black : modeThemeColor;
+
+    final String pageTitle = isPureTide 
+        ? "純潮汐航海儀表" 
+        : (isToday ? "今日即時海象" : (isFuture ? "未來預報模式" : "歷史觀測回測"));
+
+    AppThemeMode nextMode;
+    IconData themeIcon;
+    if (isDarkAbyss) {
+      nextMode = AppThemeMode.classicLight;
+      themeIcon = Icons.nights_stay_rounded;
+    } else if (isClassicTheme) {
+      nextMode = AppThemeMode.eInkHighContrast;
+      themeIcon = Icons.wb_sunny_rounded;
+    } else {
+      nextMode = AppThemeMode.darkAbyss;
+      themeIcon = Icons.contrast_rounded;
+    }
+
+    // 🌟 自働化 (Jidoka) 狀態按鈕邏輯
+    Widget? smartFab;
+    if (!isToday) {
+      smartFab = FloatingActionButton.extended(
+        onPressed: () {
+          HapticFeedback.mediumImpact();
+          ref.read(selectedDateProvider.notifier).state = DateTime.now();
+        },
+        backgroundColor: isEInk ? Colors.black : modeThemeColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.calendar_today_rounded, size: 16),
+        label: const Text("返回今日", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+      );
+    } else if (nearestId != null && nearestId != currentId && nearestStation != null) {
+      String shortName = nearestStation.name.replaceAll(RegExp(r'[\(（].*?[\)）]'), '').trim();
+      if (shortName.length > 8) shortName = "${shortName.substring(0, 8)}...";
+      
+      smartFab = FloatingActionButton.extended(
+        onPressed: () {
+          HapticFeedback.heavyImpact();
+          ref.read(currentStationIdProvider.notifier).state = nearestId;
+        },
+        backgroundColor: isEInk ? Colors.black : const Color(0xFF10B981), // 翠綠色引導
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.my_location_rounded, size: 16),
+        label: Text("切換就近測站 ($shortName)", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      drawer: StationDrawer(currentId: currentId),
+      body: RefreshIndicator(
+        color: ribbonThemeColor,
+        backgroundColor: Colors.white,
+        onRefresh: () async {
+          HapticFeedback.mediumImpact();
+          try {
+            return await ref.refresh(tideViewDataProvider.future);
+          } catch (_) {}
+        },
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 180,
+              backgroundColor: appBarBg,
+              elevation: isEInk ? 1 : 0,
+              leadingWidth: 84,
+              leading: Builder(builder: (context) => _buildRegionButton(context, topIconColor, isEInk)),
+              centerTitle: true,
+              title: Text(
+                pageTitle,
+                style: TextStyle(fontWeight: FontWeight.w900, color: topIconColor, fontSize: 18, letterSpacing: -0.3),
+              ),
+              actions: [
+                _buildCompactAction(
+                  icon: isPureTide ? Icons.waves_rounded : Icons.radar_rounded,
+                  color: isPureTide ? (isEInk ? Colors.black : AppColors.bioGold) : topIconColor,
+                  tooltip: isPureTide ? "切換全海象" : "切換純潮汐",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(isPureTideModeProvider.notifier).toggle();
+                  },
+                ),
+                _buildCompactAction(
+                  icon: themeIcon,
+                  color: topIconColor,
+                  tooltip: "循環切換顯示模式",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    ref.read(themeModeProvider.notifier).setTheme(nextMode);
+                  },
+                ),
+                _buildCompactAction(
+                  icon: isFavorited ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: isFavorited ? (isEInk ? Colors.black : AppColors.bioGold) : topIconColor,
+                  tooltip: isFavorited ? "已收藏" : "加入收藏",
+                  onPressed: () async {
+                    HapticFeedback.selectionClick();
+                    await ref.read(tideRepositoryProvider).toggleFavorite(currentId);
+                    ref.invalidate(favoriteStationsProvider);
+                  },
+                ),
+                _buildCompactAction(
+                  icon: Icons.calendar_month_rounded,
+                  color: topIconColor,
+                  tooltip: "選擇日期",
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    _openCalendar(context, ref);
+                  },
+                ),
+                const SizedBox(width: 6),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    DateRibbon(selectedDate: selectedDate, themeColor: ribbonThemeColor),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            ),
+
+            tideViewAsync.when(
+              loading: () => SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator(color: ribbonThemeColor, strokeWidth: 2.5)),
+              ),
+              error: (err, _) => SliverFillRemaining(
+                child: _buildOfflineArmorUI(ref, currentStation.name, isClassicUI, isEInk),
+              ),
+              data: (viewData) {
+                final station = viewData.stationData;
+                final isBuoy = allStations.any((s) => s.id == currentId && s.isBuoy);
+
+                final dayForecasts = station.forecasts.where((f) =>
+                    DateFormat('yyyyMMdd').format(f.dateTime) == selectedKey).toList();
+
+                final dayObservations = isToday
+                    ? station.observations
+                    : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
+
+                final Observation? activeObservation = dayObservations.isNotEmpty
+                    ? dayObservations.last
+                    : null;
+
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      
+                      if (isPureTide) ...[
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "升級 PRO 解鎖經典純潮汐對照表",
+                          child: ClassicPureTideTable(station: station, selectedDate: selectedDate, isClassic: isClassicUI),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (isToday && !isPureTide) ...[
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 獲取 AI 長湧與走水安全預警",
+                          child: SeaBriefingCard(station: station, distance: viewData.distanceKm),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      StationHeader(info: station.info, distanceKm: isToday ? viewData.distanceKm : null),
+                      const SizedBox(height: 16),
+
+                      if (isFuture) ...[
+                        _buildSectionHeader("🌟 專家級潮汐預報 (30日)", isEInk ? Colors.black : const Color(0xFF1E40AF)),
+                        const SizedBox(height: 10),
+
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 查看未來 30 天詳細滿乾潮時間",
+                          child: _buildV1ForecastCard(dayForecasts.isNotEmpty ? dayForecasts : station.forecasts.take(4).toList(), isClassicUI, isEInk),
+                        ),
+                        const SizedBox(height: 14),
+
+                        _buildFutureInfoCard(isClassicUI),
+                        const SizedBox(height: 16),
+
+                        _buildSectionHeader("🌊 預測潮位走勢", isEInk ? Colors.black : const Color(0xFF1E40AF)),
+                        const SizedBox(height: 10),
+                        
+                        _buildPaywallBlurredWrapper(
+                          isPro: isPro,
+                          blurMessage: "解鎖 PRO 查看全天候極值走勢與起流窗口",
+                          child: CustomCard(
+                            child: TideChartSheet(observations: const [], futureForecasts: station.forecasts, targetDate: selectedDate),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ] 
+                      else if (isPast && activeObservation == null) ...[
+                        AstroHindcastCard(
+                          selectedDate: selectedDate,
+                          stationName: station.info.stationName,
+                          isClassic: isClassicUI,
+                        ),
+                        const SizedBox(height: 16),
+                      ] 
+                      else ...[
+                        if (activeObservation != null) ...[
+                          HeroMetricCard(current: activeObservation, isBuoy: isBuoy),
+                          const SizedBox(height: 14),
+
+                          SafetyAlert(current: activeObservation),
+                          const SizedBox(height: 14),
+
+                          CustomCard(
+                            child: TideChartSheet(observations: dayObservations, targetDate: selectedDate),
+                          ),
+                          const SizedBox(height: 20),
+
+                          if (!isPureTide) ...[
+                            _buildSectionHeader("📋 詳細觀測參數", isEInk ? Colors.black : modeThemeColor),
+                            const SizedBox(height: 12),
+                            MetricGrid(current: activeObservation),
+                            const SizedBox(height: 16),
+
+                            WindCompassCard(current: activeObservation),
+                            const SizedBox(height: 20),
+                          ],
+                        ],
+                      ],
+
+                      if (!isPureTide) ...[
+                        SolunarCard(selectedDate: selectedDate),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (!isPureTide) ...[
+                        BiteRadarSection(
+                          station: station,
+                          selectedDate: selectedDate,
+                          isClassic: isClassicUI,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (isToday && !isPureTide) ...[
+                        UgcRadarCard(
+                          stationId: currentId,
+                          stationName: station.info.stationName,
+                          waveHeight: activeObservation?.waveHeight,
+                          windSpeed: activeObservation?.windSpeed,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (!isPureTide) ...[
+                        _buildSectionHeader("🏪 港區補給與海事支援", isEInk ? Colors.black : modeThemeColor),
+                        const SizedBox(height: 12),
+                        LocalMerchantCard(
+                          stationName: station.info.stationName,
+                          region: currentStation.region,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      const SizedBox(height: 16),
+                      _buildV1Footer(isFuture, isClassicUI),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+
+      floatingActionButton: smartFab,
+    );
+  }
+
+  Widget _buildPaywallBlurredWrapper({
+    required bool isPro,
+    required String blurMessage,
+    required Widget child,
+  }) {
+    if (isPro) return child;
+
+    return Stack(
       children: [
-        const SizedBox(height: 100),
-        const Icon(Icons.event_busy, size: 80, color: Colors.grey),
-        const SizedBox(height: 16),
-        Text("$name 歷史觀測存檔", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-        const SizedBox(height: 8),
-        Text("氣象署實測資料僅即時保留近 48 小時\n${DateFormat('yyyy/MM/dd').format(date)} 暫無實測存檔", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, height: 1.4)),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () => ref.read(selectedDateProvider.notifier).state = DateTime.now(),
-          child: const Text("返回今日觀測"),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+            child: Opacity(
+              opacity: 0.6,
+              child: IgnorePointer(child: child),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_rounded, color: AppColors.bioGold, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      blurMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bioGold,
+                          foregroundColor: Colors.black87,
+                          elevation: 8,
+                          shadowColor: AppColors.bioGold.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: () {
+                          HapticFeedback.heavyImpact();
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
+                        },
+                        child: const Text("立即解鎖", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
+  }
+
+  Widget _buildV1ForecastCard(List<TideForecast> forecasts, bool isClassicUI, bool isEInk) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isClassicUI ? Colors.white : AppColors.abyssCard,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: isClassicUI ? (isEInk ? Colors.black : Colors.grey.shade100) : AppColors.glassBorder, width: isEInk ? 1.5 : 0.5),
+        boxShadow: (isClassicUI && !isEInk) ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))] : null,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: forecasts.map((f) {
+          final bool isHigh = f.tideType.contains("滿");
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      isHigh ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      color: isEInk ? Colors.black : (isHigh ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      "${DateFormat('HH:mm').format(f.dateTime)} - ${f.tideType}",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  "${f.tideHeight} cm",
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: isEInk ? Colors.black : (isClassicUI ? const Color(0xFF334155) : AppColors.pelagicCyan),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildFutureInfoCard(bool isClassicUI) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isClassicUI ? Colors.white : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isClassicUI ? Colors.grey.shade100 : AppColors.glassBorder, width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.memory_rounded, color: isClassicUI ? const Color(0xFF3B82F6) : AppColors.pelagicCyan, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "M4 物理調和與天體推演引擎",
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "未來時空預測模式已啟動。系統正以天體引力模型結合氣象署歷史參數進行高維度推算。實況波高與陣風數據將於該日由實體感測器回傳。",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isClassicUI ? Colors.grey.shade600 : AppColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildV1Footer(bool isFuture, bool isClassicUI) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "SSOT 官方數據庫節點",
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: isClassicUI ? const Color(0xFF0F172A) : AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          isFuture
+              ? "天體引力模型推算中 (非即時感測)"
+              : "中央氣象署官方 30 天數據備份節點。光纖數據每小時更新以確保單一真相來源。",
+          style: TextStyle(
+            fontSize: 11.5,
+            color: isClassicUI ? Colors.grey.shade500 : AppColors.textTertiary,
+          ),
+        ),
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color accentColor) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+        color: accentColor,
+      ),
+    );
+  }
+
+  Widget _buildRegionButton(BuildContext context, Color topIconColor, bool isEInk) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 14.0, top: 12, bottom: 12),
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Scaffold.of(context).openDrawer();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isEInk ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isEInk ? Colors.black26 : Colors.white30, width: 0.5),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.map_outlined, color: topIconColor, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                "地區", 
+                style: TextStyle(color: topIconColor, fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactAction({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, color: color, size: 20),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildOfflineArmorUI(WidgetRef ref, String stationName, bool isClassicUI, bool isEInk) {
+    final Color textColor = isEInk ? Colors.black : (isClassicUI ? AppColors.classicText : AppColors.textPrimary);
+    final Color iconColor = isEInk ? Colors.black : AppColors.bioGold;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.offline_bolt_rounded, size: 48, color: iconColor),
+            const SizedBox(height: 16),
+            Text(
+              "[$stationName] 天文潮位接管中", 
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textColor),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isEInk ? Colors.black : AppColors.bioGold,
+                foregroundColor: isEInk ? Colors.white : AppColors.abyssBlack,
+              ),
+              onPressed: () => ref.refresh(tideViewDataProvider),
+              child: const Text("重新整理", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: ref.read(selectedDateProvider),
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 30)),
+    );
+    if (picked != null && mounted) {
+      ref.read(selectedDateProvider.notifier).state = picked;
+    }
   }
 }
