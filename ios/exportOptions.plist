@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.beigou.tideForecastApp</key>
+        <string>Tide Pro App Store Profile</string>
+    </dict>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>stripSwiftSymbols</key>
+    <true/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>manageAppVersionAndBuildNumber</key>
+    <true/>
+    <!-- 🌟 核心校正：設定為 export，確保本地精確產出實體 .ipa 供 altool 調用 -->
+    <key>destination</key>
+    <string>export</string>
+</dict>
+</plist>
