@@ -1,20 +1,25 @@
-﻿import Flutter
 import UIKit
+import Flutter
+import flutter_local_notifications
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+@objc class AppDelegate: FlutterAppDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-  }
+    
+    // 🌟 1. 註冊本地推播通知 (確保背景執行緒能喚醒 UI 與處理 Deep Link)
+    FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { (registry) in
+        GeneratedPluginRegistrant.register(with: registry)
+    }
 
-  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-        if #available(iOS 10.0, *) {
+    // 🌟 2. 接管 iOS 10+ 的原生通知中心代理 (Apple APNs)
+    if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
     }
-    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    GeneratedPluginRegistrant.register(with: self)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
-

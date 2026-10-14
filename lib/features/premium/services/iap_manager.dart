@@ -1,4 +1,3 @@
-// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -6,6 +5,8 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/investor_metrics_engine.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/review_service.dart';
 import '../../../core/services/global_error_trap.dart';
 import 'premium_service.dart';
@@ -14,7 +15,7 @@ import 'premium_service.dart';
 /// 100% 商業金流防禦版：
 /// 1. 實裝真實交易時序解析，精算 exactExpiryDate，杜絕重裝 App 時到期日從 today 重新起算的邏輯漏洞。
 /// 2. 歷史收據物理阻斷：過期收據恢復時嚴格攔截，徹底封死無限白嫖 VIP 的駭客漏洞！
-/// 3. 防降級護城河：無序收據抵達時，保護現有長效期不被舊有短效期覆蓋。
+/// 3. 【增長駭客】ROAS 廣告價值歸因：交易成功瞬間上報金流數據，餵養 AI 廣告投放演算法！
 class IAPManager {
   final InAppPurchase _iap = InAppPurchase.instance;
   late StreamSubscription<List<PurchaseDetails>> _subscription;
@@ -71,7 +72,6 @@ class IAPManager {
           continue; 
         }
 
-        // 🌟 核心修復：正確呼叫 recordException，消除未定義參數報錯
         if (purchaseDetails.status == PurchaseStatus.error) {
           GlobalErrorTrap.recordException(
             purchaseDetails.error?.message ?? "StoreKit 購買失敗",
@@ -83,7 +83,7 @@ class IAPManager {
 
         if (purchaseDetails.status == PurchaseStatus.purchased || purchaseDetails.status == PurchaseStatus.restored) {
           final bool isRestoreOperation = purchaseDetails.status == PurchaseStatus.restored;
-          final bool isCurrentlyPro = premiumNotifier.state.isPremium;
+          final bool isCurrentlyPro = premiumNotifier.currentState.isPremium;
 
           if (_processedPurchaseIds.contains(txId) && isCurrentlyPro && !isRestoreOperation) {
             continue;
@@ -124,7 +124,7 @@ class IAPManager {
             }
 
             // 🚨 核心防線 3：高階防降級護城河，抵禦 Apple 無序收據覆蓋
-            final currentState = premiumNotifier.state;
+            final currentState = premiumNotifier.currentState;
             if (currentState.isPremium && currentState.expiryDate != null && type != SubscriptionType.lifetime) {
               if (currentState.expiryDate!.isAfter(exactExpiry)) {
                 debugPrint("🛡️ [StoreKit 降級攔截] 收到較舊的憑證效期 ($exactExpiry)，為保護現有更長效期，拒絕降級！");
@@ -138,9 +138,27 @@ class IAPManager {
             await _recordProcessedTransaction(txId);
             debugPrint("💎 [StoreKit IAP] 權限解鎖成功: ${type.name} (到期日: $exactExpiry)");
 
-            if (purchaseDetails.status == PurchaseStatus.purchased &&
-                (type == SubscriptionType.yearly || type == SubscriptionType.lifetime)) {
-              ReviewService.onVvipUnlocked();
+            // 🌟 商業防線：補齊 ROAS 歸因漏斗，餵養 AI 廣告投放演算法！
+            if (purchaseDetails.status == PurchaseStatus.purchased) {
+              double actualPrice = 0.0;
+              switch (type) {
+                case SubscriptionType.weekly: actualPrice = InvestorMetricsEngine.priceWeekly; break;
+                case SubscriptionType.monthly: actualPrice = InvestorMetricsEngine.priceMonthly; break;
+                case SubscriptionType.yearly: actualPrice = InvestorMetricsEngine.priceYearly; break;
+                case SubscriptionType.lifetime: actualPrice = InvestorMetricsEngine.priceLifetime; break;
+                default: break;
+              }
+              
+              // 上報交易金額，讓 Firebase 訓練高淨值受眾模型
+              AnalyticsService.logPurchaseSuccess(
+                productId: purchaseDetails.productID, 
+                price: actualPrice
+              );
+
+              // AHA Moment 評價引導
+              if (type == SubscriptionType.yearly || type == SubscriptionType.lifetime) {
+                ReviewService.onVvipUnlocked();
+              }
             }
           }
         }

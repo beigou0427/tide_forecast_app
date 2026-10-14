@@ -9,13 +9,13 @@ import '../../tide/presentation/home_page.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/global_error_trap.dart';
 import '../../premium/services/premium_service.dart';
+import '../../premium/presentation/premium_page.dart';
 import '../../../core/services/analytics_service.dart';
 
-/// 🌟 經海事嚴謹標準重塑之極速前置引導 (Zero Friction Onboarding)
-/// 100% 商業金流與特權防衛版：
-/// 1. 實裝特權防降級金庫鎖，徹底杜絕年度會員與創始天尊填寫問卷被覆蓋成 7 天過期版！
-/// 2. 恢復購買動態輪詢守衛 (300ms 響應 / 6秒容錯)，消滅誤報「無購買紀錄」之假警報。
-/// 3. 自適應尊榮問卷引導與零方數據收集，確保冷啟動 100% 順暢。
+/// 🌟 經 CMO / 銷冠標準重塑之百萬 ARR 訂閱前置引導 (High-ARR Onboarding)
+/// 100% 商業變現閉環版：
+/// 1. 【銷冠殺招】長官親授：問卷完成不再白送本地假特權，直接引導至 Apple StoreKit「年度指揮官 7 天免費試用」！
+/// 2. 透過 FaceID 預先綁定 Apple 訂閱隊列，利用「預設續訂慣性 (Auto-Renewal)」，將試用轉化為每年 990 元的實質 ARR！
 class OnboardingPage extends ConsumerStatefulWidget {
   final String? initialCohort; 
   const OnboardingPage({super.key, this.initialCohort});
@@ -110,7 +110,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
   }
 
-  /// 🌟 VVIP 恢復購買：實裝動態輪詢守衛，消滅 3 秒硬超時假報錯
   Future<void> _handleVvipRestore() async {
     if (_isRestoring || _isTransitioning) return;
     
@@ -120,7 +119,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     try {
       await ref.read(iapManagerProvider).restorePurchases();
       
-      // 動態輪詢探測：以 300ms 為週期，最高等待 6 秒
       int elapsedMs = 0;
       bool isRestored = false;
 
@@ -132,7 +130,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         final currentPremium = ref.read(premiumProvider);
         if (currentPremium.isPremium || currentPremium.isFounder) {
           isRestored = true;
-          break; // 憑證一到立即放行，絕不白等！
+          break;
         }
       }
 
@@ -141,7 +139,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('has_completed_onboarding', true);
           
-          // 🌟 核心修復：非同步寫入後再次校驗 mounted，消除分析器提示
           if (!mounted) return;
           
           final premium = ref.read(premiumProvider);
@@ -191,13 +188,17 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     if (_isTransitioning) return; 
     HapticFeedback.selectionClick();
     
-    if (_currentStep == 0) _selectedRegion = value;
-    if (_currentStep == 1) _selectedStyle = value;
-    if (_currentStep == 2) _selectedRisk = value;
-    if (_currentStep == 3) _selectedJtbd = value;
+    setState(() {
+      if (_currentStep == 0) _selectedRegion = value;
+      if (_currentStep == 1) _selectedStyle = value;
+      if (_currentStep == 2) _selectedRisk = value;
+      if (_currentStep == 3) _selectedJtbd = value;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 150));
 
     if (_currentStep < 3) {
-      setState(() => _currentStep++);
+      if (mounted) setState(() => _currentStep++);
     } else {
       await _completeAndEnterCockpit(isSkipped: false);
     }
@@ -220,72 +221,54 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       await prefs.setString('user_pref_style', finalStyle);
       await prefs.setString('user_pref_risk', finalRisk);
       await prefs.setString('user_jtbd_reason', finalJtbd);
-      
       await prefs.setBool('has_completed_onboarding', true);
 
-      final bool hasClaimedTrial = prefs.getBool('has_claimed_survey_trial') ?? false;
-      bool actuallyClaimed7Days = false;
-      
       final currentPremium = ref.read(premiumProvider);
       final bool alreadyHasHigherTier = currentPremium.isFounder || 
           currentPremium.type == SubscriptionType.yearly || 
           currentPremium.type == SubscriptionType.lifetime;
 
-      if (!isSkipped && !hasClaimedTrial && !alreadyHasHigherTier) {
-        await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
-        await prefs.setBool('has_claimed_survey_trial', true);
-        actuallyClaimed7Days = true;
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.workspace_premium_rounded, color: AppColors.bioGold, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(child: Text("🎉 感謝完成問卷！已為您解鎖 7 天 PRO 旗艦版體驗！", style: TextStyle(fontWeight: FontWeight.bold))),
-                ],
-              ),
-              backgroundColor: Color(0xFF0C1624),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-      } else if (!isSkipped && alreadyHasHigherTier && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.anchor_rounded, color: AppColors.bioGold, size: 20),
-                SizedBox(width: 8),
-                Expanded(child: Text("⚓ 感謝完成問卷！已為您客製化鎖定專屬海域標點！", style: TextStyle(fontWeight: FontWeight.bold))),
-              ],
-            ),
-            backgroundColor: Color(0xFF0077B6),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      } else if (isSkipped && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("⚠️ 已跳過問卷。您目前以【免費受限版】登入，部分進階功能已被鎖定。"),
-            backgroundColor: AppColors.hazardCoral.withValues(alpha: 0.9),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      
       AnalyticsService.logOnboardingCompleted(
         region: finalRegion,
         style: finalStyle,
         risk: finalRisk,
         jtbdReason: finalJtbd,
         isSkipped: isSkipped,
-        claimed7DaysTrial: actuallyClaimed7Days,
+        claimed7DaysTrial: !isSkipped && !alreadyHasHigherTier,
       ).catchError((_) {});
+
+      // 🌟 銷冠核心變現：問卷完成不再白送本地假特權！
+      // 而是直接推進 Apple StoreKit 付費牆，預選「年度指揮官（首週 0 元試用，第 8 天自動扣款 990）」！
+      if (!isSkipped && !alreadyHasHigherTier) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            PageRouteBuilder(
+              transitionDuration: const Duration(milliseconds: 400),
+              pageBuilder: (_, __, ___) => const PremiumPage(fromOnboarding: true),
+              transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (isSkipped && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.directions_boat_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text("⚓ 歡迎登艦！已為您啟用訪客模式，隨時可至設定解鎖 PRO 特權！", style: TextStyle(fontWeight: FontWeight.bold))),
+              ],
+            ),
+            backgroundColor: Color(0xFF0077B6),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
 
       _navigateToHome();
     } catch (e, stack) {
@@ -407,7 +390,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text(
-                  "跳過 (直接進入) ➔", 
+                  "訪客模式 (直接看浪) ➔", 
                   style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -445,7 +428,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   child: Text(
                     isAlreadyPro
                         ? "尊榮船長您好！完成調查將為您客製化鎖定出海專屬標點！"
-                        : "完成 4 題海事調查，立即免費領取 7 天 PRO 旗艦版！",
+                        : "完成 4 題海事調查，免費獲取官方「年度指揮官 7 天免費試用」！",
                     style: TextStyle(
                       fontSize: 11.5, 
                       color: isAlreadyPro ? AppColors.pelagicCyan : AppColors.bioGold, 

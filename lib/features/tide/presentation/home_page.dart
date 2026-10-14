@@ -16,9 +16,12 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/fcm_service.dart';
 import '../../../core/services/global_error_trap.dart';
+import '../../../core/services/analytics_service.dart';
+import '../../../core/services/review_service.dart';
 import '../../onboarding/presentation/founder_welcome_dialog.dart';
 import '../../premium/services/premium_service.dart';
 import '../../premium/presentation/premium_page.dart';
+import '../../catch_log/presentation/catch_log_page.dart';
 
 import 'tide_chart_sheet.dart';
 import 'widgets/station_drawer.dart';
@@ -92,21 +95,78 @@ class _HomePageState extends ConsumerState<HomePage> {
       _checkMaritimeSafetyConsent();
       _checkLegacyVvipThemeMigration();
       FounderWelcomeDialog.checkAndShowIfNeeded(context);
-
-      try {
-        NotificationService.setNavigatorKey(appNavigatorKey);
-        FcmService.setNavigatorKey(appNavigatorKey);
-        await NotificationService.init();
-        await FcmService.init();
-      } catch (e, stack) {
-        GlobalErrorTrap.recordException(
-          e,
-          stackTrace: stack,
-          contextTag: "PushNotificationInit",
-          severity: ErrorSeverity.warning,
-        );
-      }
+      _checkAndPrimeNotifications();
     });
+  }
+
+  Future<void> _checkAndPrimeNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPrimed = prefs.getBool('has_primed_notifications_v3') ?? false;
+
+    if (!hasPrimed) {
+      if (!mounted) return;
+      final agreed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.abyssCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.notifications_active_rounded, color: AppColors.pelagicCyan, size: 24),
+              SizedBox(width: 10),
+              Text("老船長通訊請求", style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            "為了在滿潮前 30 分鐘向您發布「撤礁保命警報」，以及每週五派送「週末大潮出海黃金窗口」，請允許 Tide Pro 傳送推播通知給您。\n\n我們承諾：絕不發送無用垃圾訊息。",
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("暫時不要", style: TextStyle(color: AppColors.textTertiary, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pelagicCyan,
+                foregroundColor: AppColors.abyssBlack,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("開啟安全警報", style: TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+      );
+
+      await prefs.setBool('has_primed_notifications_v3', true);
+      
+      if (agreed == true) {
+        _initPushServices();
+      }
+    } else {
+      _initPushServices();
+    }
+  }
+
+  Future<void> _initPushServices() async {
+    try {
+      NotificationService.setNavigatorKey(appNavigatorKey);
+      FcmService.setNavigatorKey(appNavigatorKey);
+      await NotificationService.init();
+      await FcmService.init();
+    } catch (e, stack) {
+      GlobalErrorTrap.recordException(
+        e,
+        stackTrace: stack,
+        contextTag: "PushNotificationInit",
+        severity: ErrorSeverity.warning,
+      );
+    }
   }
 
   Future<void> _checkLegacyVvipThemeMigration() async {
@@ -240,6 +300,17 @@ class _HomePageState extends ConsumerState<HomePage> {
       themeIcon = Icons.contrast_rounded;
     }
 
+    // 🌟 盲點一：引擎點火！將遙測與評價引擎對接潮汐視圖的生命週期
+    ref.listen<AsyncValue<TideViewData>>(tideViewDataProvider, (previous, next) {
+      if (next.hasValue && next.value != null && !next.isRefreshing) {
+        final stationName = next.value!.stationData.info.stationName;
+        // 點火 1：全漏斗遙測，餵養 Firebase 演算法
+        AnalyticsService.logStationView(currentId, stationName);
+        // 點火 2：喚醒被遺忘的 ASO 五星增長引擎！
+        ReviewService.checkAndTriggerReview();
+      }
+    });
+
     Widget? smartFab;
     if (!isToday) {
       smartFab = FloatingActionButton.extended(
@@ -269,6 +340,20 @@ class _HomePageState extends ConsumerState<HomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: const Icon(Icons.my_location_rounded, size: 16),
         label: Text("切換就近測站 ($shortName)", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+      );
+    } else {
+      // 🌟 盲點二修復：把被藏在衣櫃裡的「印鈔機」搬到首頁黃金右下角！
+      smartFab = FloatingActionButton.extended(
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const CatchLogPage()));
+        },
+        backgroundColor: isEInk ? Colors.black : AppColors.bioGold,
+        foregroundColor: isEInk ? Colors.white : AppColors.abyssBlack,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.add_a_photo_rounded, size: 16),
+        label: const Text("現場登錄大物", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
       );
     }
 
@@ -368,6 +453,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ? station.observations
                     : station.observations.where((o) => DateFormat('yyyyMMdd').format(o.dateTime) == selectedKey).toList();
 
+                List<Observation> chartObservations = List.from(dayObservations);
+                if (isFuture && chartObservations.isEmpty && dayForecasts.isNotEmpty) {
+                  chartObservations = dayForecasts.map((f) {
+                    double h = double.tryParse(f.tideHeight.replaceAll(RegExp(r'[^0-9.-]'), '')) ?? 0.0;
+                    if (h.abs() >= 6.0) h = h / 100.0; 
+                    return Observation(dateTime: f.dateTime, tideHeight: h);
+                  }).toList();
+                }
+
                 final Observation? activeObservation = dayObservations.isNotEmpty
                     ? dayObservations.last
                     : null;
@@ -418,8 +512,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                         _buildPaywallBlurredWrapper(
                           isPro: isPro,
                           blurMessage: "解鎖 PRO 查看全天候極值走勢與起流窗口",
-                          child: const CustomCard(
-                            child: TideChartSheet(observations: []),
+                          child: CustomCard(
+                            child: TideChartSheet(observations: chartObservations),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -441,7 +535,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           const SizedBox(height: 14),
 
                           CustomCard(
-                            child: TideChartSheet(observations: dayObservations),
+                            child: TideChartSheet(observations: chartObservations),
                           ),
                           const SizedBox(height: 20),
 

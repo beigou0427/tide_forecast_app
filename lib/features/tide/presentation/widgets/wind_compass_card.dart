@@ -1,20 +1,63 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-class WindCompassCard extends StatelessWidget {
+/// 🌟 經海事光學對比重塑之 360° 風浪作戰羅盤卡 (Wind Compass Card)
+/// 100% 三模光學適配版：徹底消滅深色模式下風速大字寫死深黑色的隱形死穴！
+class WindCompassCard extends ConsumerWidget {
   final Observation current;
 
   const WindCompassCard({super.key, required this.current});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
+    final bool isClassic = themeMode == AppThemeMode.classicLight;
+
     final double windDir = current.windDirection ?? 0.0;
     final double windSpeed = current.windSpeed ?? 0.0;
     final String windDirName = _getWindDirectionName(windDir);
     final String beaufortInfo = _getBeaufortScale(windSpeed);
     final String tacticTip = _getTacticAdvice(windSpeed, windDir);
+
+    // 🌟 核心修復：語意化動態色彩矩陣，消滅寫死深黑色風速大字
+    final Color titleColor = isEInk 
+        ? Colors.black 
+        : (isClassic ? AppColors.classicText : AppColors.textPrimary);
+    final Color subtitleColor = isEInk 
+        ? Colors.black54 
+        : (isClassic ? Colors.grey.shade600 : AppColors.textSecondary);
+    final Color windSpeedColor = isEInk 
+        ? Colors.black 
+        : (isClassic ? AppColors.classicText : AppColors.textPrimary); // 🌟 深色模式純白高亮！
+    final Color compassDialBg = isEInk 
+        ? Colors.white 
+        : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.04));
+    final Color compassDialBorder = isEInk 
+        ? Colors.black 
+        : (isClassic ? Colors.grey.shade300 : AppColors.glassBorder);
+    final Color compassDirectionColor = isEInk 
+        ? Colors.black87 
+        : (isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary);
+    final Color tacticsBoxBg = isEInk 
+        ? Colors.white 
+        : (isClassic ? Colors.blueGrey.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.04));
+    final Color tacticsBoxBorder = isEInk 
+        ? Colors.black 
+        : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder);
+    final Color tacticTextColor = isEInk 
+        ? Colors.black87 
+        : (isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary);
+    final Color beaufortBadgeBg = isEInk 
+        ? Colors.black12 
+        : (isClassic ? Colors.teal.withValues(alpha: 0.12) : Colors.teal.withValues(alpha: 0.18));
+    final Color beaufortBadgeText = isEInk 
+        ? Colors.black 
+        : (isClassic ? Colors.teal.shade800 : Colors.tealAccent);
 
     return CustomCard(
       child: Column(
@@ -28,17 +71,21 @@ class WindCompassCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0077B6).withValues(alpha: 0.1),
+                      color: isEInk ? Colors.black12 : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.explore_rounded, color: Color(0xFF0077B6), size: 20),
+                    child: Icon(
+                      Icons.explore_rounded, 
+                      color: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan), 
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("360° 風浪作戰羅盤", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text("實時方位角與蒲福風力等級", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      Text("360° 風浪作戰羅盤", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: titleColor)),
+                      Text("實時方位角與蒲福風力等級", style: TextStyle(fontSize: 10, color: subtitleColor)),
                     ],
                   ),
                 ],
@@ -46,12 +93,20 @@ class WindCompassCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.blueGrey.withValues(alpha: 0.1),
+                  color: isEInk ? Colors.black12 : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.3) : AppColors.pelagicCyan.withValues(alpha: 0.3)),
+                    width: isEInk ? 1.5 : 0.5,
+                  ),
                 ),
                 child: Text(
                   "${windDir.toStringAsFixed(0)}° $windDirName",
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF023E8A)),
+                  style: TextStyle(
+                    fontSize: 11, 
+                    fontWeight: FontWeight.bold, 
+                    color: isEInk ? Colors.black : (isClassic ? const Color(0xFF023E8A) : AppColors.pelagicCyan),
+                  ),
                 ),
               ),
             ],
@@ -67,20 +122,19 @@ class WindCompassCard extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // 外刻度圈
                     Container(
                       width: 116,
                       height: 116,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.2), width: 1.5),
-                        color: const Color(0xFF021B33).withValues(alpha: 0.03),
+                        border: Border.all(color: compassDialBorder, width: isEInk ? 1.5 : 1.0),
+                        color: compassDialBg,
                       ),
                     ),
                     const Positioned(top: 4, child: Text("N", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.redAccent))),
-                    const Positioned(bottom: 4, child: Text("S", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey))),
-                    const Positioned(left: 6, child: Text("W", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey))),
-                    const Positioned(right: 6, child: Text("E", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey))),
+                    Positioned(bottom: 4, child: Text("S", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
+                    Positioned(left: 6, child: Text("W", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
+                    Positioned(right: 6, child: Text("E", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
                     
                     // 旋轉風向指針
                     Transform.rotate(
@@ -88,12 +142,25 @@ class WindCompassCard extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.navigation_rounded, size: 36, color: windSpeed >= 8.0 ? Colors.redAccent : const Color(0xFF0077B6)),
+                          Icon(
+                            Icons.navigation_rounded, 
+                            size: 36, 
+                            color: windSpeed >= 8.0 
+                                ? AppColors.hazardCoral 
+                                : (isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan)),
+                          ),
                           const SizedBox(height: 20),
                         ],
                       ),
                     ),
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.amber)),
+                    Container(
+                      width: 8, 
+                      height: 8, 
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle, 
+                        color: isEInk ? Colors.black : AppColors.bioGold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -107,34 +174,41 @@ class WindCompassCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // 🌟 核心修復：風速大字在深色模式下切換為純白高亮！
                         Text(
                           "${windSpeed.toStringAsFixed(1)} m/s",
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF021B33)),
+                          style: TextStyle(
+                            fontSize: 22, 
+                            fontWeight: FontWeight.w900, 
+                            color: windSpeedColor,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.teal.withValues(alpha: 0.1),
+                            color: beaufortBadgeBg,
                             borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: beaufortBadgeText.withValues(alpha: 0.3), width: 0.5),
                           ),
                           child: Text(
                             beaufortInfo,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: beaufortBadgeText),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.blueGrey.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
+                        color: tacticsBoxBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: tacticsBoxBorder, width: isEInk ? 1.5 : 0.5),
                       ),
                       child: Text(
                         tacticTip,
-                        style: const TextStyle(fontSize: 11, color: Colors.blueGrey, height: 1.35),
+                        style: TextStyle(fontSize: 11, color: tacticTextColor, height: 1.35, fontWeight: FontWeight.w500),
                       ),
                     ),
                   ],

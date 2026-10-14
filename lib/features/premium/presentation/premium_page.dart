@@ -9,10 +9,11 @@ import '../../../core/services/analytics_service.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../tide/presentation/home_page.dart';
+import '../../onboarding/presentation/onboarding_page.dart';
 import 'vip_center_page.dart';
 
 /// 🌟 Phil Schiller (App Store 零拒審) + Alex Hormozi (Ch.9 稀缺性 & Ch.10 贈品矩陣)
-/// 100% 商業金流完備版：已轉義所有貨幣字串插值，消滅 missing_identifier 編譯錯誤
+/// 100% 商業金流完備版：100% 真實軟體功能價值堆疊 + 問卷免綁卡換 7 天試用
 class PremiumPage extends ConsumerStatefulWidget {
   final bool fromOnboarding;
   const PremiumPage({super.key, this.fromOnboarding = false});
@@ -274,7 +275,11 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                         isGold: true,
                         warningHighlight: seatsLeft <= 5,
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
+
+                      // 🌟 核心突破：免綁信用卡！填寫 4 題問卷直接兌換 7 天試用通道！
+                      _buildSurveyTrialBanner(),
+                      const SizedBox(height: 16),
                     ],
 
                     if (!premiumState.isPremium && (_selectedTier == 2 || _selectedTier == 3)) ...[
@@ -437,6 +442,79 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     );
   }
 
+  Widget _buildSurveyTrialBanner() {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.heavyImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const OnboardingPage(initialCohort: 'survey_trial')),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F3B2A), Color(0xFF051C12)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF10B981), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: const BoxDecoration(
+                color: Color(0xFF10B981),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.card_giftcard_rounded, color: Colors.black87, size: 18),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        "免綁卡！填問卷領 7 天 PRO 試用",
+                        style: TextStyle(
+                          color: Color(0xFF34D399),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Text("🔥 零摩擦", style: TextStyle(color: Colors.amber, fontSize: 9.5, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    "只需回答 4 題海事作業特徵，無需綁卡，立即啟用 85 站光纖直連與防困礁預警！",
+                    style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF34D399)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDynamicUrgencyBanner() {
     final now = DateTime.now();
     int daysToSaturday = DateTime.saturday - now.weekday;
@@ -548,13 +626,15 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
               Icon(Icons.card_giftcard_rounded, color: AppColors.bioGold, size: 18),
               SizedBox(width: 8),
               Text(
-                "🎁 訂閱加碼：今日立享 3 大尊榮贈品", 
+                "🎁 訂閱加碼：今日立享 4 大尊榮贈品", 
                 style: TextStyle(color: AppColors.bioGold, fontSize: 13.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
               ),
             ],
           ),
           const SizedBox(height: 12),
           _buildBonusRow("Apple 家人共享", "一人訂閱，5 位同行親友免費享有 PRO 權限", "價值 NT\$ 4,950/年"),
+          // 🌟 核心重塑：剔除假特約！換成真正硬核的「全島 85 站離線預載神盾」！
+          _buildBonusRow("全島 85 站離線預載神盾", "出海前 10 秒一鍵封裝，無基地台訊號外礁照常秒級導航", "價值 NT\$ 1,800/年"),
           _buildBonusRow("VVIP 優先客服通道", "工單免排隊，3 秒直通創辦人手機推送", "價值 NT\$ 3,600/年"),
           _buildBonusRow("85 站水文百科指南", "內建台灣沿海特有魚種索餌習性與潮目對照表", "價值 NT\$ 1,200"),
         ],

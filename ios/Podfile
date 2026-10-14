@@ -1,5 +1,7 @@
+# 🌟 Tide Pro - 官方全域 iOS 15.0 鎖定 Podfile
 platform :ios, '15.0'
 
+# 關閉 CocoaPods 匿名統計以加速本地編譯
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -38,6 +40,7 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # 🌟 核心防線：強制將所有第三方 Pod Target 的編譯目標提升至 15.0
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
     end

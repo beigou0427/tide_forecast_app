@@ -1,4 +1,5 @@
-﻿import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:io' show Platform;
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../features/tide/data/tide_model.dart';
@@ -8,6 +9,10 @@ final ttsProvider = StateNotifierProvider<TtsNotifier, bool>((ref) {
   return TtsNotifier();
 });
 
+/// 🌟 經海事導航標準重塑之老船長 AI 語音引擎
+/// 100% 硬體適配防禦版：
+/// 1. 實裝 iOS Playback 音軌霸權，強制突破實體靜音鍵，杜絕「無聲」客訴。
+/// 2. 完美支援 AirPods 與車載藍牙 A2DP 協定，確保無縫音訊路由。
 class TtsNotifier extends StateNotifier<bool> {
   final FlutterTts _tts = FlutterTts();
 
@@ -21,6 +26,18 @@ class TtsNotifier extends StateNotifier<bool> {
       await _tts.setSpeechRate(0.5); // 沉穩適中的語速
       await _tts.setVolume(1.0);
       await _tts.setPitch(0.95);    // 略帶成熟的老船長沉穩音色
+
+      // 🌟 終極 UX 修復：強制突破 iOS 實體靜音鍵與藍牙耳機無縫接軌！
+      if (Platform.isIOS) {
+        await _tts.setIosAudioCategory(
+          IosTextToSpeechAudioCategory.playback,
+          [
+            IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+            IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+          ],
+        );
+      }
 
       _tts.setStartHandler(() => state = true);
       _tts.setCompletionHandler(() => state = false);

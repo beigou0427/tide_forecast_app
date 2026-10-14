@@ -116,6 +116,7 @@ final currentStationIdProvider = NotifierProvider<CurrentStationNotifier, String
 
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
+/// 🌟 航海級 GPS 尋星引擎 (Maritime-Grade GPS Engine)
 final userLocationProvider = FutureProvider<Position?>((ref) async {
   try {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -125,7 +126,15 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return null;
     }
-    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low).timeout(const Duration(seconds: 4));
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      ).timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      debugPrint("⚠️ 外海 GPS 尋星超時 (15s)，啟動最後已知坐標保底");
+      return await Geolocator.getLastKnownPosition();
+    }
   } catch (_) { 
     return null; 
   }
@@ -142,8 +151,6 @@ final nearestStationIdProvider = Provider<String?>((ref) {
 
   final stations = ref.watch(stationListProvider).value;
   
-  // 🚨 核心防線：唯有當全島完整 85 站（至少 >= 80 站）完全加載就緒時，才進行最近測站計算！
-  // 嚴禁使用 2 席北部備援站先行計算，徹底粉碎全台釣友被鎖死在淡水的空間死鎖！
   if (stations == null || stations.length < 80) {
     return null;
   }
@@ -164,7 +171,6 @@ final nearestStationIdProvider = Provider<String?>((ref) {
   double minDistance = double.infinity;
   String? nearestId;
   for (var station in stations) {
-    // 嚴格過濾 Null Island (0,0) 與偏離台灣海域的噪訊坐標
     if (station.lat < 20.0 || station.lat > 28.0 || station.lng < 116.0 || station.lng > 124.0) continue;
     double d = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, station.lat, station.lng);
     if (d < minDistance) { 
@@ -182,15 +188,14 @@ final nearestStationIdProvider = Provider<String?>((ref) {
 class TideViewData {
   final TideStationData stationData;
   final double? distanceKm;
-  final DateTime selectedDate;
-  TideViewData({required this.stationData, this.distanceKm, required this.selectedDate});
+  // 🌟 PM 核心優化：剔除 selectedDate，徹底解耦資料與 UI 日期狀態！
+  TideViewData({required this.stationData, this.distanceKm});
 }
 
 final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
   final isInit = ref.watch(isStationInitializedProvider);
   final stationId = ref.watch(currentStationIdProvider);
 
-  // 若開機偏好尚未完成讀取，暫緩等待響應式觸發，不發送多餘預設站點請求
   if (!isInit) {
     return Completer<TideViewData>().future;
   }
@@ -198,7 +203,9 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
   final api = ref.watch(tideApiServiceProvider);
   final locationAsync = ref.watch(userLocationProvider);
   final isPremium = ref.watch(premiumProvider).isPremium;
-  final activeDate = ref.watch(selectedDateProvider);
+
+  // 🚨 終極摩擦力消除：移除 ref.watch(selectedDateProvider)！
+  // 現在點擊日期彩帶，再也不會觸發任何網路請求，達成真正 0ms 本地極速切換！
 
   try {
     final TideStationData stationData = await api.fetchData(stationId, isPremium: isPremium);
@@ -228,7 +235,6 @@ final tideViewDataProvider = FutureProvider<TideViewData>((ref) async {
     return TideViewData(
       stationData: stationData, 
       distanceKm: distance, 
-      selectedDate: activeDate,
     );
   } catch (e) { 
     rethrow; 

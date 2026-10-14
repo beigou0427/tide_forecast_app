@@ -1,6 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'global_error_trap.dart';
@@ -40,7 +41,6 @@ class NotificationService {
       final androidImplementation = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await androidImplementation?.requestNotificationsPermission();
 
-      // 🌟 修復三：Terminated (冷啟動) 狀態本地推播接管
       final launchDetails = await _notificationsPlugin.getNotificationAppLaunchDetails();
       if (launchDetails != null && launchDetails.didNotificationLaunchApp) {
         final payload = launchDetails.notificationResponse?.payload;
@@ -65,9 +65,35 @@ class NotificationService {
     await scheduleWeekendBriefing();
   }
 
+  /// 🌟 CMO 增長駭客：零方數據高轉換推播引擎 (Zero-Party Data CRM Engine)
+  /// 徹底消滅千篇一律的「罐頭推播」，透過冷啟動取得的「海域」與「作釣風格」，
+  /// 組合出高點擊率 (High CTR) 與引起 FOMO 的客製化喚回訊息！
   static Future<void> scheduleWeekendBriefing() async {
     await ensureInitialized();
     try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 讀取 Onboarding 問卷留下的「零方數據」
+      final String rawRegion = prefs.getString('user_pref_region') ?? '全台';
+      final String rawStyle = prefs.getString('user_pref_style') ?? '出海';
+
+      // 動態客製化標籤萃取 (Identity Personalization)
+      String targetPersona = "釣友";
+      String fomoEmoji = "🚢";
+      if (rawStyle.contains("磯釣") || rawStyle.contains("前打")) {
+        targetPersona = "磯釣客";
+        fomoEmoji = "🎣";
+      } else if (rawStyle.contains("船釣")) {
+        targetPersona = "船長";
+        fomoEmoji = "🛥️";
+      } else if (rawStyle.contains("潛水")) {
+        targetPersona = "潛水員";
+        fomoEmoji = "🤿";
+      }
+
+      // 精煉地名 (如：「北部沿海 (基隆 / 東北角 / 淡水)」 -> 「北部」)
+      String shortRegion = rawRegion.split(' ').first.replaceAll('沿海', '').replaceAll('太平洋沿線', '');
+
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         'weekend_briefing_channel', '週末海象決策快報',
         importance: Importance.high, priority: Priority.high,
@@ -79,8 +105,12 @@ class NotificationService {
 
       final tz.TZDateTime scheduledDate = _nextInstanceOfFriday18();
 
+      // 🌟 拋棄冰冷的罐頭訊息，植入高轉換率的定錨文案！
+      final String pushTitle = '$fomoEmoji $shortRegion$targetPersona 週末決策警報！';
+      final String pushBody = 'M4 物理引擎已更新本週【$shortRegion】沿岸最新走水與湧浪週期。點擊立即查看您的專屬黃金起流窗口！';
+
       await _notificationsPlugin.zonedSchedule(
-        1001, '🚢 老船長週末海象情報已出爐！', '全台測站最新風浪、水溫與咬度模型已更新，立即規劃週末出海窗口。',
+        1001, pushTitle, pushBody,
         scheduledDate, platformDetails,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,

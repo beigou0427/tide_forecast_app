@@ -15,11 +15,8 @@
     <true/>
     <key>uploadSymbols</key>
     <true/>
-    <key>uploadBitcode</key>
-    <false/>
     <key>manageAppVersionAndBuildNumber</key>
     <true/>
-    <!-- 🌟 核心校正：設定為 export，確保本地精確產出實體 .ipa 供 altool 調用 -->
     <key>destination</key>
     <string>export</string>
 </dict>

@@ -1,11 +1,19 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/ugc_report_model.dart';
 import '../../providers/ugc_provider.dart';
 import '../../../premium/services/premium_service.dart';
 import '../../../../shared/widgets/custom_card.dart';
+import '../../../../core/theme/app_theme.dart';
 
-class UgcRadarCard extends ConsumerWidget {
+/// 🌟 經海事與增長駭客重塑之 UGC 雷達卡 (UGC Radar Card)
+/// 100% 商業金流與資料潔淨防禦版：
+/// 1. 實裝 30 分鐘冷卻時間 (Cooldown)，徹底杜絕假情報洗版與資料毒化！
+/// 2. 封殺無限白嫖漏洞：首交通報送 7 天 PRO，後續自動降級為發放「老船長代幣」。
+/// 3. 【銷冠優化】VVIP 綠色通道：年度/終身指揮官豁免 30 分鐘冷卻，享有無限開火權！
+class UgcRadarCard extends ConsumerStatefulWidget {
   final String stationId;
   final String stationName;
   final double? waveHeight;
@@ -20,13 +28,37 @@ class UgcRadarCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UgcRadarCard> createState() => _UgcRadarCardState();
+}
+
+class _UgcRadarCardState extends ConsumerState<UgcRadarCard> {
+  bool _hasClaimedPro = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewardStatus();
+  }
+
+  Future<void> _loadRewardStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _hasClaimedPro = prefs.getBool('has_claimed_ugc_pro_reward') ?? false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.watch(ugcReportProvider);
     // 🌟 若無真人回報，自動由 AI 巡航哨兵依實況波高風速補位，絕不留白
     final stationReports = ref.read(ugcReportProvider.notifier).getReportsForStation(
-      stationId,
-      waveHeight: waveHeight,
-      windSpeed: windSpeed,
+      widget.stationId,
+      waveHeight: widget.waveHeight,
+      windSpeed: widget.windSpeed,
     );
 
     return CustomCard(
@@ -132,7 +164,10 @@ class UgcRadarCard extends ConsumerWidget {
             ),
           ),
           InkWell(
-            onTap: () => ref.read(ugcReportProvider.notifier).upvote(report.id),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              ref.read(ugcReportProvider.notifier).upvote(report.id);
+            },
             borderRadius: BorderRadius.circular(16),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -162,6 +197,34 @@ class UgcRadarCard extends ConsumerWidget {
   }
 
   void _showQuickReportSheet(BuildContext context, WidgetRef ref) {
+    HapticFeedback.mediumImpact();
+    
+    final premium = ref.read(premiumProvider);
+    final bool isVvip = premium.isFounder || premium.type == SubscriptionType.yearly || premium.type == SubscriptionType.lifetime;
+
+    // 🌟 PM 核心：根據用戶「身分階級」動態變化文案，賦予最高尊榮感！
+    final String bannerText;
+    final Color bannerColor;
+    final IconData bannerIcon;
+    final Color bannerTextColor;
+
+    if (isVvip) {
+      bannerText = "⚓ 航海家特權：無冷卻時間，實況直通全台雷達！";
+      bannerColor = AppColors.bioGold;
+      bannerIcon = Icons.military_tech_rounded;
+      bannerTextColor = const Color(0xFF3D2605);
+    } else if (_hasClaimedPro) {
+      bannerText = "🪙 實況互助獎勵：通報即賺 5 枚老船長代幣！";
+      bannerColor = Colors.teal;
+      bannerIcon = Icons.monetization_on_rounded;
+      bannerTextColor = const Color(0xFF004D40);
+    } else {
+      bannerText = "🎁 實況互助獎勵：首交通報，免費啟動 7 天 Pro 旗艦特權！";
+      bannerColor = Colors.amber;
+      bannerIcon = Icons.workspace_premium_rounded;
+      bannerTextColor = const Color(0xFF5D4037);
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -178,22 +241,21 @@ class UgcRadarCard extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
 
-              // 🌟 利益激勵誘餌：回報即送 Pro 會員體驗
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.15),
+                  color: bannerColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.shade300),
+                  border: Border.all(color: bannerColor.withValues(alpha: 0.4)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.workspace_premium_rounded, color: Colors.amber, size: 18),
-                    SizedBox(width: 8),
+                    Icon(bannerIcon, color: bannerColor, size: 18),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "🎁 實況互助獎勵：通報 1 次現場海況，免費啟動 Pro 旗艦特權！",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
+                        bannerText,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: bannerTextColor),
                       ),
                     ),
                   ],
@@ -202,7 +264,7 @@ class UgcRadarCard extends ConsumerWidget {
               const SizedBox(height: 14),
 
               Text(
-                "📢 一鍵回報 [$stationName] 現場實況",
+                "📢 一鍵回報 [${widget.stationName}] 現場實況",
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF021B33)),
               ),
               const SizedBox(height: 4),
@@ -215,20 +277,78 @@ class UgcRadarCard extends ConsumerWidget {
                   final dummyItem = UgcReportItem(id: '', stationId: '', timestamp: DateTime.now(), type: type);
                   return InkWell(
                     onTap: () async {
-                      ref.read(ugcReportProvider.notifier).reportCondition(stationId, type);
-                      // 激勵回饋：通報後直接贈送 Pro 體驗
-                      await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
-                      if (ctx.mounted) Navigator.pop(ctx);
+                      HapticFeedback.lightImpact();
+                      
+                      final prefs = await SharedPreferences.getInstance();
+                      final lastTime = prefs.getInt('last_ugc_report_time') ?? 0;
+                      final nowMs = DateTime.now().millisecondsSinceEpoch;
 
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("🎉 感謝通報【${dummyItem.label}】！已為您啟動 Pro 旗艦特權以示感謝！"),
-                            backgroundColor: Colors.deepOrange,
-                            duration: const Duration(seconds: 3),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                      // 🚨 銷冠防護網：VVIP 擁有特權，直接 bypass 30 分鐘冷卻時間！
+                      if (!isVvip && (nowMs - lastTime < 1800000)) {
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("⏳ 雷達冷卻中：為維持情報品質，請等待 30 分鐘後再發布新實況！"),
+                              backgroundColor: Colors.blueGrey,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      await prefs.setInt('last_ugc_report_time', nowMs);
+                      
+                      // 🌟 使用正規方法呼叫，杜絕 Riverpod .state 越權編譯報錯！
+                      ref.read(ugcReportProvider.notifier).reportCondition(widget.stationId, type);
+
+                      // VVIP 專屬回饋
+                      if (isVvip) {
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("👑 指揮官，已發布您的特權戰報！"),
+                              backgroundColor: AppColors.bioGold,
+                              duration: Duration(seconds: 3),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      // 一般用戶獎勵發放邏輯
+                      if (!_hasClaimedPro) {
+                        await prefs.setBool('has_claimed_ugc_pro_reward', true);
+                        await ref.read(premiumProvider.notifier).setPremiumStatus(true, SubscriptionType.weekly);
+                        if (mounted) setState(() => _hasClaimedPro = true);
+                        
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("🎉 感謝通報！首交獎勵：已為您啟動 7 天 Pro 旗艦特權！"),
+                              backgroundColor: Colors.deepOrange,
+                              duration: const Duration(seconds: 4),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } else {
+                        await ref.read(premiumProvider.notifier).addCoins(5);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("🪙 感謝通報！已發放 5 枚老船長代幣！"),
+                              backgroundColor: Colors.teal,
+                              duration: Duration(seconds: 3),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
                       }
                     },
                     borderRadius: BorderRadius.circular(12),

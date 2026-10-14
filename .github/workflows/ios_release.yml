@@ -69,16 +69,18 @@ jobs:
           APP_STORE_ISSUER_ID: 7c8a4cba-398c-4e88-88bb-9252f72ecdc9
           APP_STORE_KEY_ID: WC3YUQ44X5
           APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY_BASE64 }}
+          APP_APPLE_ID: 6761328495
         run: |
-          # 建立 Apple 官方規範的 AuthKey 目錄結構
           mkdir -p ~/.appstoreconnect/private_keys
           echo -n "$APP_STORE_PRIVATE_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_KEY_ID}.p8
 
-          # 抓取編譯出的 ipa 檔案路徑
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" -print -quit)
 
-          # 🌟 官方認證標準：調用 xcrun altool 上傳 iOS 二進位檔
-          xcrun altool --upload-app --type ios -f "$IPA_PATH" \
+          # 🌟 官方認證升級：使用最新支援的 upload-package，消滅 Deprecated 崩潰！
+          xcrun altool --upload-package "$IPA_PATH" \
+            --type ios \
+            --apple-id "$APP_APPLE_ID" \
+            --bundle-id "com.beigou.tideForecastApp" \
             --apiKey "$APP_STORE_KEY_ID" \
             --apiIssuer "$APP_STORE_ISSUER_ID" \
             --show-progress

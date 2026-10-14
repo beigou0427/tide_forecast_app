@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🌟 經海事嚴謹標準重塑之港口補給與在地聯絡資訊卡
-/// 100% 全環境光學對齊版：
-/// 1. 補齊 E-Ink 烈日高對比黑白適配，達成首頁 10 大組件光學防護 100% 完全貫通！
-/// 2. 消除強光下淺灰邊框與彩色按鈕的灰濁現象，極致對比、0 眩光。
-/// 3. RFC 3986 絕對安全地圖導航 URL 與 iPadOS 剪貼簿自動降級備援。
-class LocalMerchantCard extends StatelessWidget {
+/// 🌟 經海事航安與真實水文標準重塑之港區補給雷達與海難救護中心
+/// 100% 真實可用版：
+/// 1. 拒絕虛假特約，改以地圖 API 即時動態搜尋周邊真實活餌釣具行。
+/// 2. 整合海委會海巡署 118 官方 24 小時海上緊急救難直通專線。
+/// 3. 深度適配深淵黑金、經典白藍、E-Ink 烈日抗反光三模光學標準。
+class LocalMerchantCard extends ConsumerWidget {
   final String stationName;
   final String region;
 
@@ -20,36 +21,38 @@ class LocalMerchantCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final merchant = _getMerchantInfo(region, stationName);
-    final theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final bool isEInk = theme.scaffoldBackgroundColor == AppColors.eInkWhite;
-    final bool isLight = !isDark && !isEInk;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
+    final bool isClassic = themeMode == AppThemeMode.classicLight;
 
     final Color titleColor = isEInk 
         ? Colors.black 
-        : (isLight ? AppColors.classicText : AppColors.textPrimary);
+        : (isClassic ? AppColors.classicText : AppColors.textPrimary);
     final Color badgeColor = isEInk 
         ? Colors.black 
-        : (isLight ? const Color(0xFF0077B6) : AppColors.pelagicCyan);
+        : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan);
     final Color subtitleColor = isEInk 
         ? Colors.black54 
-        : (isLight ? Colors.blueGrey.shade600 : AppColors.textTertiary);
+        : (isClassic ? Colors.grey.shade600 : AppColors.textTertiary);
+    final Color emergencyColor = isEInk ? Colors.black : AppColors.hazardCoral;
 
     final Color innerBg = isEInk 
         ? Colors.white 
-        : (isLight ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04));
+        : (isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.04));
     final Color innerBorder = isEInk 
         ? Colors.black 
-        : (isLight ? Colors.grey.shade200 : AppColors.glassBorder);
+        : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder);
+
+    // 乾淨的測站名稱作為地圖搜尋關鍵字
+    final String cleanStation = stationName.replaceAll(RegExp(r'[\(（].*?[\)）]'), '').trim();
 
     return CustomCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 頂部推薦標題列
+          // 1. 頂部標題列
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -62,30 +65,44 @@ class LocalMerchantCard extends StatelessWidget {
                         color: isEInk ? Colors.black.withValues(alpha: 0.08) : badgeColor.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.anchor_rounded, color: badgeColor, size: 18),
+                      child: Icon(Icons.radar_rounded, color: badgeColor, size: 18),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "港區補給與海事聯絡點",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              color: titleColor,
-                              letterSpacing: -0.2,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                "港區補給雷達與海事支援",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14.5,
+                                  color: titleColor,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: isEInk ? Colors.black12 : badgeColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  "實時定位",
+                                  style: TextStyle(color: badgeColor, fontSize: 9, fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            "在地活餌常備 · 港況諮詢 · 海事支援",
+                            "[$cleanStation] 周邊釣具活餌搜尋 · 海難緊急專線",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 10.5, color: subtitleColor),
+                            style: TextStyle(fontSize: 11, color: subtitleColor),
                           ),
                         ],
                       ),
@@ -93,31 +110,11 @@ class LocalMerchantCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                decoration: BoxDecoration(
-                  color: isEInk ? Colors.black : badgeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isEInk ? Colors.black : badgeColor.withValues(alpha: 0.35), width: isEInk ? 1.0 : 0.5),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.verified_rounded, size: 11, color: isEInk ? Colors.white : badgeColor),
-                    const SizedBox(width: 3),
-                    Text(
-                      "在地資訊",
-                      style: TextStyle(color: isEInk ? Colors.white : badgeColor, fontSize: 9.5, fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
-          // 2. 商戶真實資訊卡
+          // 2. 地圖動態搜尋入口卡片
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -134,117 +131,112 @@ class LocalMerchantCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text(
-                        merchant["name"]!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: titleColor,
-                        ),
-                      ),
+                    Text(
+                      "📍 尋找 [$cleanStation] 周邊釣具行",
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: titleColor),
                     ),
-                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isEInk ? Colors.black.withValues(alpha: 0.08) : badgeColor.withValues(alpha: 0.1),
+                        color: isEInk ? Colors.black12 : badgeColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        merchant["distance"]!,
-                        style: TextStyle(fontSize: 10.5, color: badgeColor, fontWeight: FontWeight.w800),
+                        "即時地圖",
+                        style: TextStyle(fontSize: 10, color: badgeColor, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.inventory_2_outlined, size: 13, color: isEInk ? Colors.black87 : (isLight ? Colors.blueGrey : AppColors.textSecondary)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        merchant["commonBait"]!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11.5, color: isEInk ? Colors.black87 : (isLight ? Colors.blueGrey.shade800 : AppColors.textSecondary), fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                Text(
+                  "出海作釣缺南極蝦磚、活白蝦或鉛線？一鍵開啟地圖即時搜尋附近營業中的釣具餌料行與導航路線。",
+                  style: TextStyle(fontSize: 11.5, color: subtitleColor, height: 1.4),
                 ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    Icon(Icons.directions_boat_filled_rounded, size: 13, color: isEInk ? Colors.black87 : (isLight ? Colors.blueGrey : AppColors.textSecondary)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        merchant["boatAdvisory"]!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11.5, color: isEInk ? Colors.black87 : (isLight ? Colors.blueGrey.shade800 : AppColors.textSecondary)),
-                      ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan),
+                      foregroundColor: isEInk ? Colors.white : (isClassic ? Colors.white : AppColors.abyssBlack),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // 3. 通訊與導航按鈕
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 9),
-                          backgroundColor: isEInk ? Colors.white : (isLight ? Colors.white : Colors.white.withValues(alpha: 0.05)),
-                          side: BorderSide(color: isEInk ? Colors.black : (isLight ? Colors.grey.shade300 : AppColors.glassBorder), width: isEInk ? 1.5 : 0.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: Icon(Icons.phone_in_talk_rounded, size: 14, color: badgeColor),
-                        label: Text(
-                          "電洽確認活餌與港況",
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: badgeColor),
-                        ),
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          _showCallConfirmDialog(context, merchant["name"]!, merchant["phone"]!, isLight, isEInk);
-                        },
-                      ),
+                    icon: const Icon(Icons.near_me_rounded, size: 16),
+                    label: const Text(
+                      "在地圖上搜尋周邊釣具與餌料行", 
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
                     ),
-                    const SizedBox(width: 10),
-                    InkWell(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        _launchMap(context, merchant["name"]!);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: isEInk ? Colors.black : badgeColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isEInk ? Colors.black : badgeColor.withValues(alpha: 0.3), width: isEInk ? 1.5 : 0.5),
-                        ),
-                        child: Icon(Icons.navigation_rounded, size: 16, color: isEInk ? Colors.white : badgeColor),
-                      ),
-                    ),
-                  ],
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _launchMapSearch(context, "$cleanStation 釣具 餌料");
+                    },
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          // 4. 海事安全宣導告示
-          Text(
-            "⚠️ 海事安全提醒：各港口活餌與出港管制受當日即時海象限制。登礁出海作業前，請依規定穿戴救生衣與防滑釘鞋，並向港區海巡安檢所落實報關。",
-            style: TextStyle(
-              fontSize: 10, 
-              color: subtitleColor, 
-              height: 1.4,
+          // 3. 官方海事緊急救難聯絡網 (海巡 118)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isEInk ? Colors.white : emergencyColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isEInk ? Colors.black : emergencyColor.withValues(alpha: 0.35),
+                width: isEInk ? 1.5 : 0.8,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isEInk ? Colors.black12 : emergencyColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emergency_rounded, color: emergencyColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            "海巡署 118 海上緊急報案專線",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900, 
+                              fontSize: 12.5, 
+                              color: isEInk ? Colors.black : (isClassic ? Colors.red.shade900 : Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "突發湧浪困礁、落水意外或海難事故，請立即撥打",
+                        style: TextStyle(fontSize: 10.5, color: isEInk ? Colors.black54 : (isClassic ? Colors.red.shade700 : Colors.white70)),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: emergencyColor, width: 1.0),
+                    foregroundColor: emergencyColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => _showEmergencyCallDialog(context, isClassic, isEInk),
+                  child: const Text("撥打 118", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+                ),
+              ],
             ),
           ),
         ],
@@ -252,132 +244,50 @@ class LocalMerchantCard extends StatelessWidget {
     );
   }
 
-  Map<String, String> _getMerchantInfo(String reg, String name) {
-    if (reg.contains("北")) {
-      return {
-        "name": "東北角海釣補給驛站 (碧砂/龍洞端)",
-        "distance": "距測站約 2.5 km",
-        "commonBait": "常備餌料：活白蝦、青磺蝦、生鮮南極蝦磚",
-        "boatAdvisory": "船班諮詢：近海夜釣與渡礁船班需提前確認海況",
-        "phone": "0224690000",
-      };
-    } else if (reg.contains("西")) {
-      return {
-        "name": "台中港區專業海釣餌料行",
-        "distance": "距港區約 1.8 km",
-        "commonBait": "常備餌料：跳蟲、紅蟲、活沙蝦、紅蟳",
-        "boatAdvisory": "釣點交流：提供港區最新水色與風浪情報諮詢",
-        "phone": "0426560000",
-      };
-    } else if (reg.contains("南")) {
-      return {
-        "name": "興達港/蚵仔寮船釣聯絡處",
-        "distance": "距港口約 1.2 km",
-        "commonBait": "常備餌料：現撈小卷、活巴朗、大活蝦",
-        "boatAdvisory": "船班諮詢：近海鐵板船班開航需以當日風浪為準",
-        "phone": "076980000",
-      };
-    } else if (reg.contains("東")) {
-      return {
-        "name": "花蓮港/成功磯釣補給基地",
-        "distance": "距下竿點約 3.0 km",
-        "commonBait": "常備餌料：冷凍白毛誘餌磚、特選南極蝦",
-        "boatAdvisory": "外礁渡礁：東海岸長湧時嚴禁渡礁，請先電洽",
-        "phone": "038320000",
-      };
-    } else {
-      return {
-        "name": "澎湖外海海釣快艇聯絡處",
-        "distance": "距碼頭約 800 m",
-        "commonBait": "常備餌料：活丁香、特級海蟲、小卷",
-        "boatAdvisory": "船班預約：七美/望安海釣快艇行程需事先預定",
-        "phone": "069270000",
-      };
-    }
-  }
-
-  void _showCallConfirmDialog(BuildContext context, String merchantName, String tel, bool isLight, bool isEInk) {
-    final Color dialogBg = isEInk ? Colors.white : (isLight ? Colors.white : AppColors.abyssCard);
-    final Color titleColor = isEInk ? Colors.black : (isLight ? AppColors.classicText : AppColors.textPrimary);
-    final Color contentColor = isEInk ? Colors.black87 : (isLight ? Colors.blueGrey.shade700 : AppColors.textSecondary);
-    final Color borderColor = isEInk ? Colors.black : (isLight ? Colors.grey.shade300 : AppColors.glassBorder);
-
+  void _showEmergencyCallDialog(BuildContext context, bool isClassic, bool isEInk) {
+    HapticFeedback.heavyImpact();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: dialogBg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: borderColor, width: isEInk ? 1.5 : 0.5),
-        ),
-        title: Row(
+        backgroundColor: isEInk ? Colors.white : (isClassic ? Colors.white : AppColors.abyssCard),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
           children: [
-            Icon(Icons.phone_in_talk_rounded, color: isEInk ? Colors.black : AppColors.pelagicCyan, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              "通話確認", 
-              style: TextStyle(color: titleColor, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            Icon(Icons.warning_amber_rounded, color: AppColors.hazardCoral, size: 24),
+            SizedBox(width: 8),
+            Text("海巡署緊急救援通報", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           ],
         ),
-        content: Text(
-          "是否立即致電【$merchantName】？\n電話：$tel",
-          style: TextStyle(color: contentColor, fontSize: 13, height: 1.4),
+        content: const Text(
+          "即將撥打海洋委員會海巡署【118】免付費緊急救援服務專線。\n\n如遇人員落海、礁石受困或緊急海難，請保持冷靜向值班人員報出當前測站地名與地標方位。",
+          style: TextStyle(fontSize: 13, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text("取消", style: TextStyle(color: isEInk ? Colors.black54 : AppColors.textTertiary)),
+            child: const Text("取消"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: isEInk ? Colors.black : AppColors.pelagicCyan,
-              foregroundColor: isEInk ? Colors.white : AppColors.abyssBlack,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: AppColors.hazardCoral,
+              foregroundColor: Colors.white,
             ),
             onPressed: () async {
               Navigator.pop(ctx);
-              final Uri url = Uri.parse("tel:$tel");
-              try {
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                } else {
-                  await Clipboard.setData(ClipboardData(text: tel));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("已為您複製電話 [$tel]！(此設備無通話模組，可使用其他手機撥打)"),
-                        backgroundColor: const Color(0xFF0077B6),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              } catch (_) {
-                await Clipboard.setData(ClipboardData(text: tel));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("已複製電話 [$tel] 至剪貼簿"),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
+              final Uri url = Uri.parse("tel:118");
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
               }
             },
-            child: const Text("確認撥號", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text("確認撥打 118", style: TextStyle(fontWeight: FontWeight.w900)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _launchMap(BuildContext context, String query) async {
-    final Uri googleMapUrl = Uri.https('www.google.com', '/maps/search/', {
-      'api': '1',
-      'query': query,
-    });
-
+  Future<void> _launchMapSearch(BuildContext context, String query) async {
+    final Uri googleMapUrl = Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query});
     try {
       if (await canLaunchUrl(googleMapUrl)) {
         await launchUrl(googleMapUrl, mode: LaunchMode.externalApplication);
@@ -390,10 +300,7 @@ class LocalMerchantCard extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("地圖開啟異常: $e"),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text("地圖開啟異常: $e"), behavior: SnackBarBehavior.floating),
         );
       }
     }

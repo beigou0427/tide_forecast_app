@@ -16,12 +16,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/custom_card.dart';
 import '../../../core/services/review_service.dart';
 import '../../premium/services/premium_service.dart';
+// 🌟 編譯黑洞修復：補齊路由與常數依賴
+import '../../premium/presentation/premium_page.dart';
+import '../../../core/utils/constants.dart';
 
 /// 🌟 Alex Hormozi ($100M Leads) 病毒裂變與新鄉重夫防呆日誌引擎
 /// 100% 實機防禦版：
-/// 1. 實裝 Dismissible 二次防呆確認彈窗，徹底杜絕海上顛簸誤滑秒刪珍貴大物！
-/// 2. 深度適配 E-Ink 烈日抗反光黑白主題，消滅強光下的彩色灰色泥濘。
-/// 3. iPadOS UIPopover 幾何錨點安全防護，全設備分享零崩潰。
+/// 1. 【增長駭客】全螢幕傳奇大物認證彈窗 (Trophy Unlocked Modal)，極大化病毒分享率！
+/// 2. 【信任防衛與轉單】免費雲端容量滿載警報！阻止沉默資料遺失，轉化為 PRO 訂閱印鈔機！
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
 
@@ -410,6 +412,10 @@ class CatchLogPage extends ConsumerWidget {
       identityHeader = "⭐【老船長 VIP 專業航海家 · 五星大物戰報】";
     }
 
+    final match = RegExp(r'[\(（]([A-Za-z0-9]+)[\)）]').firstMatch(item.stationName);
+    final String sid = match != null ? match.group(1)! : "C6AH2";
+    final String deepLink = "https://beigou0427.github.io/tide_forecast_app/?sid=$sid";
+
     final String shareText = """$identityHeader
 🐟 戰利品：${item.species}
 📍 釣點標本：${item.stationName}
@@ -418,7 +424,7 @@ class CatchLogPage extends ConsumerWidget {
 
 ⚡ 官方認證：氣象署 85 測站光纖直連 · 滿退 2 分水大咬推算
 📲 免費查看全台 85 站光纖實況雷達：
-👉 https://beigou0427.github.io/tide_forecast_app/
+👉 $deepLink
 """;
 
     try {
@@ -520,6 +526,71 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
+  // 🌟 增長駭客核心：全螢幕傳奇大物認證彈窗
+  void _showTrophyUnlockedDialog(BuildContext context, CatchLogItem item, WidgetRef ref) {
+    final themeMode = ref.read(themeModeProvider);
+    final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
+    final bool isClassic = themeMode == AppThemeMode.classicLight;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isEInk ? Colors.white : (isClassic ? Colors.white : AppColors.abyssCard),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: AppColors.bioGold, width: isEInk ? 2.0 : 1.5),
+        ),
+        title: const Column(
+          children: [
+            Icon(Icons.workspace_premium_rounded, color: AppColors.bioGold, size: 48),
+            SizedBox(height: 12),
+            Text("👑 傳奇大物認證！", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          ],
+        ),
+        content: Text(
+          "恭喜您在【${item.stationName}】擒獲五星級【${item.species}】！\n\n系統已自動為本戰報疊加「氣象署光纖水文數據」與「榮譽鋼印」。這份完美的戰果不該被隱藏，立刻向釣魚群組展示您的航海家實力吧！",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5, 
+            height: 1.5, 
+            color: isEInk ? Colors.black87 : (isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF06C755), 
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 4,
+                  ),
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text("一鍵發布至 LINE 群組", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _shareCatchRecord(item, context, ref);
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("低調收藏", style: TextStyle(color: Colors.grey)),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
   void _showAddDialog(BuildContext context, WidgetRef ref, TideViewData? tideView, bool isClassic, bool isEInk) {
     final speciesCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
@@ -537,6 +608,8 @@ class CatchLogPage extends ConsumerWidget {
     final Color textColor = isEInk ? Colors.black : (isClassic ? AppColors.classicText : AppColors.textPrimary);
     final Color inputBg = isEInk ? Colors.grey.shade100 : (isClassic ? Colors.grey.shade50 : Colors.white.withValues(alpha: 0.05));
     final Color borderColor = isEInk ? Colors.black : (isClassic ? Colors.grey.shade300 : AppColors.glassBorder);
+
+    const quickSpecies = ['黑毛', '白毛', '軟絲', '煙仔虎', '紅甘', '石斑'];
 
     showModalBottomSheet(
       context: context,
@@ -675,6 +748,23 @@ class CatchLogPage extends ConsumerWidget {
                       ),
                     const SizedBox(height: 16),
                     
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: quickSpecies.map((s) => ActionChip(
+                        label: Text(s, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryColor)),
+                        backgroundColor: isEInk ? Colors.black.withValues(alpha: 0.05) : primaryColor.withValues(alpha: 0.1),
+                        side: BorderSide(color: isEInk ? Colors.black : primaryColor.withValues(alpha: 0.3), width: 0.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          speciesCtrl.text = s;
+                          speciesCtrl.selection = TextSelection.fromPosition(TextPosition(offset: speciesCtrl.text.length));
+                        },
+                      )).toList(),
+                    ),
+                    const SizedBox(height: 12),
+
                     TextField(
                       controller: speciesCtrl,
                       style: TextStyle(color: textColor, fontSize: 13.5),
@@ -787,33 +877,36 @@ class CatchLogPage extends ConsumerWidget {
                             imagePath: permanentPath,
                           );
 
-                          ref.read(catchLogProvider.notifier).addLog(item);
+                          // 🌟 PM 核心防線：容量偵測器 (Quota Monitor) 與恐懼行銷轉單漏斗
+                          final bool isPro = ref.read(premiumProvider).isPremium || ref.read(premiumProvider).isFounder;
+                          final int currentCloudPhotos = ref.read(catchLogProvider).where((e) => e.imageUrl != null || e.imagePath != null).length;
+                          final bool isStorageFull = !isPro && currentCloudPhotos >= AppConstants.maxFreeCloudCatchLogs;
 
+                          ref.read(catchLogProvider.notifier).addLog(item);
                           if (ctx.mounted) Navigator.pop(ctx);
 
-                          if (selectedRating >= 5 && context.mounted) {
+                          if (isStorageFull && selectedImage != null && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(Icons.workspace_premium_rounded, color: AppColors.bioGold, size: 20),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        "👑 恭喜登錄五星大物【$species】！已自動疊加官方即時水文！", 
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: const Color(0xFF0C1624),
-                                behavior: SnackBarBehavior.floating,
-                                duration: const Duration(seconds: 4),
+                                content: const Text("⚠️ 免費雲端容量已滿 (5/5)！照片僅存於本機。落海將永久遺失，請升級 PRO 解鎖無限雲端金庫！"),
+                                backgroundColor: AppColors.hazardCoral,
+                                duration: const Duration(seconds: 5),
                                 action: SnackBarAction(
-                                  label: "分享戰報",
-                                  textColor: AppColors.bioGold,
-                                  onPressed: () => _shareCatchRecord(item, context, ref),
+                                  label: "解鎖金庫",
+                                  textColor: Colors.white,
+                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage())),
                                 ),
+                              ),
+                            );
+                          } else if (selectedRating >= 5 && context.mounted) {
+                            _showTrophyUnlockedDialog(context, item, ref);
+                          } else if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("✅ 漁獲日誌已成功保存並疊加水文資料！"),
+                                backgroundColor: Colors.blueGrey,
+                                duration: Duration(seconds: 3),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                           }
