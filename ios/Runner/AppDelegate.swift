@@ -22,4 +22,15 @@ import flutter_local_notifications
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
+
+  // 🌟 3. 核心防線：將 UIScene 生命週期請求導向 SceneDelegate
+  // 徹底消滅 iOS 27 啟動時的 SIGTRAP (EXC_BREAKPOINT) 崩潰！
+  override func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    // 這裡的名稱必須與 Info.plist 中的 UISceneConfigurationName 完全一致
+    return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+  }
 }

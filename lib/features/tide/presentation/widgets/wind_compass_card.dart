@@ -5,8 +5,10 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/tide_model.dart';
 import '../../../../shared/widgets/custom_card.dart';
 
-/// 🌟 經海事光學對比重塑之 360° 風浪作戰羅盤卡 (Wind Compass Card)
-/// 100% 三模光學適配版：徹底消滅深色模式下風速大字寫死深黑色的隱形死穴！
+/// 🌟 頂級 CMO 階級傲慢引擎 (The Status Flex) - 360° 風浪作戰羅盤
+/// 100% E-Ink 航海家專屬適配版：
+/// 1. 【階級銘牌】加入 "COMMAND DECK" 標籤，篩選並討好高淨值船長受眾。
+/// 2. 【硬核軍工】捨棄漸層，改用極致對比的黑白實線，強調「這是一個強光下保命的儀器」。
 class WindCompassCard extends ConsumerWidget {
   final Observation current;
 
@@ -24,16 +26,16 @@ class WindCompassCard extends ConsumerWidget {
     final String beaufortInfo = _getBeaufortScale(windSpeed);
     final String tacticTip = _getTacticAdvice(windSpeed, windDir);
 
-    // 🌟 核心修復：語意化動態色彩矩陣，消滅寫死深黑色風速大字
+    // 🌟 語意化動態色彩矩陣 (為 E-Ink 賦予極致的軍工感)
     final Color titleColor = isEInk 
         ? Colors.black 
         : (isClassic ? AppColors.classicText : AppColors.textPrimary);
     final Color subtitleColor = isEInk 
-        ? Colors.black54 
+        ? Colors.black87 
         : (isClassic ? Colors.grey.shade600 : AppColors.textSecondary);
     final Color windSpeedColor = isEInk 
         ? Colors.black 
-        : (isClassic ? AppColors.classicText : AppColors.textPrimary); // 🌟 深色模式純白高亮！
+        : (isClassic ? AppColors.classicText : AppColors.textPrimary);
     final Color compassDialBg = isEInk 
         ? Colors.white 
         : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.04));
@@ -41,81 +43,113 @@ class WindCompassCard extends ConsumerWidget {
         ? Colors.black 
         : (isClassic ? Colors.grey.shade300 : AppColors.glassBorder);
     final Color compassDirectionColor = isEInk 
-        ? Colors.black87 
-        : (isClassic ? Colors.blueGrey.shade700 : AppColors.textSecondary);
+        ? Colors.black 
+        : (isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary);
     final Color tacticsBoxBg = isEInk 
-        ? Colors.white 
+        ? Colors.black.withValues(alpha: 0.05) 
         : (isClassic ? Colors.blueGrey.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.04));
     final Color tacticsBoxBorder = isEInk 
         ? Colors.black 
         : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder);
     final Color tacticTextColor = isEInk 
-        ? Colors.black87 
-        : (isClassic ? Colors.blueGrey.shade800 : AppColors.textSecondary);
+        ? Colors.black 
+        : (isClassic ? Colors.blueGrey.shade900 : AppColors.textPrimary);
     final Color beaufortBadgeBg = isEInk 
-        ? Colors.black12 
+        ? Colors.black 
         : (isClassic ? Colors.teal.withValues(alpha: 0.12) : Colors.teal.withValues(alpha: 0.18));
     final Color beaufortBadgeText = isEInk 
-        ? Colors.black 
+        ? Colors.white 
         : (isClassic ? Colors.teal.shade800 : Colors.tealAccent);
 
     return CustomCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          // 🌟 CMO 階級打擊點：專屬 COMMAND DECK 銘牌
+          if (isEInk) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: isEInk ? Colors.black12 : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.explore_rounded, 
-                      color: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan), 
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("360° 風浪作戰羅盤", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: titleColor)),
-                      Text("實時方位角與蒲福風力等級", style: TextStyle(fontSize: 10, color: subtitleColor)),
-                    ],
+                  Icon(Icons.directions_boat_rounded, color: Colors.white, size: 12),
+                  SizedBox(width: 6),
+                  Text(
+                    "COMMAND DECK • 駕駛台專用",
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
+                        shape: isEInk ? BoxShape.rectangle : BoxShape.circle,
+                        borderRadius: isEInk ? BorderRadius.circular(6) : null,
+                      ),
+                      child: Icon(
+                        Icons.explore_rounded, 
+                        color: isEInk ? Colors.white : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan), 
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("360° 風浪作戰羅盤", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: titleColor, letterSpacing: -0.2)),
+                          const SizedBox(height: 2),
+                          Text(
+                            isEInk ? "烈日抗反光引擎運作中" : "實時方位角與蒲福風力等級", 
+                            style: TextStyle(fontSize: 10.5, color: isEInk ? Colors.black : subtitleColor, fontWeight: isEInk ? FontWeight.bold : FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isEInk ? Colors.black12 : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isEInk ? Colors.white : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.12) : AppColors.pelagicCyan.withValues(alpha: 0.12)),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6).withValues(alpha: 0.3) : AppColors.pelagicCyan.withValues(alpha: 0.3)),
-                    width: isEInk ? 1.5 : 0.5,
+                    width: isEInk ? 2.0 : 0.5,
                   ),
                 ),
                 child: Text(
                   "${windDir.toStringAsFixed(0)}° $windDirName",
                   style: TextStyle(
-                    fontSize: 11, 
-                    fontWeight: FontWeight.bold, 
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w900, 
                     color: isEInk ? Colors.black : (isClassic ? const Color(0xFF023E8A) : AppColors.pelagicCyan),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           Row(
             children: [
-              // 1. 360° 立體航海指北羅盤
+              // 1. 360° 立體航海指北羅盤 (E-Ink 高對比防護)
               SizedBox(
                 width: 120,
                 height: 120,
@@ -127,14 +161,19 @@ class WindCompassCard extends ConsumerWidget {
                       height: 116,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: compassDialBorder, width: isEInk ? 1.5 : 1.0),
+                        border: Border.all(color: compassDialBorder, width: isEInk ? 2.5 : 1.0),
                         color: compassDialBg,
                       ),
                     ),
-                    const Positioned(top: 4, child: Text("N", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.redAccent))),
-                    Positioned(bottom: 4, child: Text("S", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
-                    Positioned(left: 6, child: Text("W", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
-                    Positioned(right: 6, child: Text("E", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: compassDirectionColor))),
+                    if (isEInk) ...[
+                      // 內部準星輔助線 (軍工感)
+                      Container(width: 1, height: 116, color: Colors.black12),
+                      Container(width: 116, height: 1, color: Colors.black12),
+                    ],
+                    Positioned(top: 4, child: Text("N", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isEInk ? Colors.black : Colors.redAccent))),
+                    Positioned(bottom: 4, child: Text("S", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: compassDirectionColor))),
+                    Positioned(left: 6, child: Text("W", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: compassDirectionColor))),
+                    Positioned(right: 6, child: Text("E", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: compassDirectionColor))),
                     
                     // 旋轉風向指針
                     Transform.rotate(
@@ -144,21 +183,22 @@ class WindCompassCard extends ConsumerWidget {
                         children: [
                           Icon(
                             Icons.navigation_rounded, 
-                            size: 36, 
+                            size: 38, 
                             color: windSpeed >= 8.0 
                                 ? AppColors.hazardCoral 
                                 : (isEInk ? Colors.black : (isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan)),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 22),
                         ],
                       ),
                     ),
                     Container(
-                      width: 8, 
-                      height: 8, 
+                      width: 10, 
+                      height: 10, 
                       decoration: BoxDecoration(
                         shape: BoxShape.circle, 
-                        color: isEInk ? Colors.black : AppColors.bioGold,
+                        color: isEInk ? Colors.white : AppColors.bioGold,
+                        border: isEInk ? Border.all(color: Colors.black, width: 2.5) : null,
                       ),
                     ),
                   ],
@@ -174,41 +214,48 @@ class WindCompassCard extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        // 🌟 核心修復：風速大字在深色模式下切換為純白高亮！
                         Text(
-                          "${windSpeed.toStringAsFixed(1)} m/s",
+                          "${windSpeed.toStringAsFixed(1)}",
                           style: TextStyle(
-                            fontSize: 22, 
+                            fontSize: 26, 
                             fontWeight: FontWeight.w900, 
                             color: windSpeedColor,
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
+                        Text("m/s", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subtitleColor)),
+                        const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
                             color: beaufortBadgeBg,
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: beaufortBadgeText.withValues(alpha: 0.3), width: 0.5),
+                            border: isEInk ? null : Border.all(color: beaufortBadgeText.withValues(alpha: 0.3), width: 0.5),
                           ),
                           child: Text(
                             beaufortInfo,
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: beaufortBadgeText),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: beaufortBadgeText, letterSpacing: 0.5),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: tacticsBoxBg,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: tacticsBoxBorder, width: isEInk ? 1.5 : 0.5),
+                        border: Border.all(color: tacticsBoxBorder, width: isEInk ? 2.0 : 0.5),
                       ),
                       child: Text(
                         tacticTip,
-                        style: TextStyle(fontSize: 11, color: tacticTextColor, height: 1.35, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 11.5, 
+                          color: tacticTextColor, 
+                          height: 1.45, 
+                          fontWeight: isEInk ? FontWeight.w800 : FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],

@@ -8,14 +8,12 @@ import '../../../core/utils/share_util.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../tide/providers/tide_provider.dart';
 import '../../catch_log/presentation/catch_log_page.dart';
-// 🌟 核心整合：引入手寫信模組，實現永久常駐展讀！
 import '../../onboarding/presentation/founder_welcome_dialog.dart';
 
-/// 🌟 經海事與增長駭客重塑之 VIP 指揮中心 (VVIP Command Center)
-/// 100% 尊榮感體驗版：
-/// 1. 【自動神盾】VVIP 進入頁面時，自動於背景靜默預載 85 站光纖數據，消滅手動苦力感！
-/// 2. 【階級分化】VVIP 的代幣金庫自動變形為「航海家聲望值」，杜絕「廉價拉客」的錯誤期待。
-/// 3. 【永久珍藏】實裝「📜 展讀手寫委任信」常駐專屬入口，情緒價值隨時隨地可重溫與炫耀！
+/// 🌟 頂級 CMO 絕對信任引擎 (The Anti-Fragile)
+/// 100% 軍工級斷網防護版：
+/// 1. 【離線神盾】徹底重塑神盾預載 UI，加入「反脆弱」與「無基地台訊號」的強烈視覺暗示。
+/// 2. 讓 VIP 在出海前按下封裝按鈕時，產生強烈的「保命感」與「特權感」。
 class VipCenterPage extends ConsumerStatefulWidget {
   const VipCenterPage({super.key});
 
@@ -62,7 +60,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     setState(() {
       _isSyncing = true;
       _syncProgress = 0.0;
-      _syncMessage = autoSync ? "⚓ VVIP 特權啟動：系統正為您於背景靜默預載全島神盾..." : "正在初始化安全通道與本地沙盒...";
+      _syncMessage = autoSync ? "⚓ VVIP 特權啟動：系統正為您於背景靜默預載全島神盾..." : "正在初始化安全通道與本地 NVMe 沙盒...";
     });
 
     final api = ref.read(tideApiServiceProvider);
@@ -76,7 +74,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
       setState(() {
         _syncMessage = autoSync 
             ? "⚓ 靜默神盾封裝中 [${i + 1}/${stations.length}] ${s.name}..."
-            : "正在封裝 [${i + 1}/${stations.length}] ${s.name}...";
+            : "寫入本機黑盒子 [${i + 1}/${stations.length}] ${s.name}...";
         _syncProgress = (i + 1) / stations.length;
       });
 
@@ -85,7 +83,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
         successCount++;
       } catch (_) {}
 
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 80)); // 稍微調快速度展現極速感
     }
 
     if (mounted) {
@@ -93,7 +91,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
       setState(() {
         _isSyncing = false;
         _syncProgress = 1.0;
-        _syncMessage = "✅ 離線神盾預載完畢！成功封裝 $successCount 站至本機安全黑盒子。";
+        _syncMessage = "✅ 離線神盾預載完畢！拔掉 SIM 卡，外礁導航照常秒級運行。";
       });
     }
   }
@@ -119,7 +117,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
         child: Column(
           children: [
-            // 🌟 1. 尊榮黑金金屬身分銘牌
+            // 1. 尊榮黑金金屬身分銘牌
             RepaintBoundary(
               key: _vipCardKey,
               child: Container(
@@ -214,7 +212,7 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 14),
 
-            // 🌟 核心重塑：雙子星尊榮行動列（身分卡分享 ＋ 手寫委任信常駐入口）
+            // 雙子星尊榮行動列
             Row(
               children: [
                 Expanded(
@@ -240,22 +238,21 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
                     height: 44,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFAF6EC), // 📜 古董航海羊皮紙米白
-                        foregroundColor: const Color(0xFF2C1E14), // 深墨筆觸
+                        backgroundColor: const Color(0xFFFAF6EC), 
+                        foregroundColor: const Color(0xFF2C1E14), 
                         elevation: 3,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
-                          side: const BorderSide(color: Color(0xFF8C6D46), width: 1.2), // 鞣製皮革金邊
+                          side: const BorderSide(color: Color(0xFF8C6D46), width: 1.2), 
                         ),
                       ),
-                      icon: const Icon(Icons.history_edu_rounded, color: Color(0xFFB22222), size: 18), // 朱砂紅印標
+                      icon: const Icon(Icons.history_edu_rounded, color: Color(0xFFB22222), size: 18), 
                       label: const Text(
                         "展讀手寫委任信", 
                         style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                       ),
                       onPressed: () {
                         HapticFeedback.heavyImpact();
-                        // 🌟 點擊即刻召喚帶有朱砂印鑑的古董航海羊皮紙親筆信！
                         FounderWelcomeDialog.showCommissionLetter(
                           context,
                           isFounder: state.isFounder,
@@ -270,12 +267,11 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
 
             const SizedBox(height: 24),
             
-            // 🌟 PM 增長駭客核心：老船長代幣金庫 (階級差異化版)
+            // 老船長代幣金庫
             _buildCoinTreasuryCard(state, isVvip),
             
             const SizedBox(height: 24),
 
-            // 🌟 3. 給予極致科技掌控感的特權儀表板
             Row(
               children: [
                 const Icon(Icons.shield_rounded, color: Color(0xFF00B4D8), size: 18),
@@ -288,9 +284,13 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
             ),
             const SizedBox(height: 14),
 
+            // 🌟 CMO 第 5 幀打擊點：絕對信任 (離線神盾一鍵預載卡片)
+            _buildInteractiveOfflineShieldCard(),
+
+            const SizedBox(height: 12),
             _buildStatusCard(
               icon: Icons.bolt_rounded,
-              title: "中央氣象署 85 測站光纖直連專線",
+              title: "中央氣象署 85 測站光纖直連",
               statusText: "專線已連通 • 響應 38ms",
               desc: "繞過邊緣公共快取節點，直達氣象署即時感測陣列，享有 0 延遲水文數據刷新特權。",
               statusColor: Colors.greenAccent,
@@ -311,10 +311,6 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
               desc: "依據您關注測站之每日滿潮死線，於滿潮前 30 分鐘發出專屬高分貝突發湧浪防護警告。",
               statusColor: Colors.cyanAccent,
             ),
-            const SizedBox(height: 12),
-            
-            // 🌟 離線神盾一鍵預載卡片 (支援 VVIP 背景靜默啟動)
-            _buildInteractiveOfflineShieldCard(),
           ],
         ),
       ),
@@ -409,76 +405,118 @@ class _VipCenterPageState extends ConsumerState<VipCenterPage> {
     );
   }
 
+  // 🌟 CMO 第 5 幀打擊點：絕對信任 (The Anti-Fragile) 視覺重建
   Widget _buildInteractiveOfflineShieldCard() {
+    final bool isReady = _syncProgress == 1.0 && !_isSyncing;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _isSyncing ? Colors.tealAccent.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _isSyncing ? Colors.tealAccent.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.08)),
+        color: _isSyncing ? const Color(0xFF003333) : (isReady ? const Color(0xFF051C12) : Colors.white.withValues(alpha: 0.04)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isSyncing ? Colors.tealAccent : (isReady ? const Color(0xFF10B981) : Colors.white.withValues(alpha: 0.08)),
+          width: _isSyncing || isReady ? 1.5 : 1.0,
+        ),
+        boxShadow: _isSyncing || isReady ? [
+          BoxShadow(color: (isReady ? const Color(0xFF10B981) : Colors.tealAccent).withValues(alpha: 0.2), blurRadius: 12)
+        ] : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.tealAccent.withValues(alpha: 0.15), shape: BoxShape.circle),
-                child: const Icon(Icons.offline_bolt_rounded, color: Colors.tealAccent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: Row(
                   children: [
-                    Text("全島 85 測站水文離線黑盒子", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                    SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Icon(Icons.shield_rounded, color: Colors.tealAccent, size: 10),
-                        SizedBox(width: 4),
-                        Text("本地防禦庫", style: TextStyle(color: Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold)),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (isReady ? const Color(0xFF10B981) : Colors.tealAccent).withValues(alpha: 0.15), 
+                        shape: BoxShape.circle
+                      ),
+                      child: Icon(
+                        isReady ? Icons.signal_wifi_off_rounded : Icons.offline_bolt_rounded, 
+                        color: isReady ? const Color(0xFF10B981) : Colors.tealAccent, 
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("全島 85 站離線神盾預載", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.2)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(isReady ? Icons.check_circle_rounded : Icons.shield_rounded, color: isReady ? const Color(0xFF10B981) : Colors.tealAccent, size: 12),
+                              const SizedBox(width: 4),
+                              Text(isReady ? "拔掉 SIM 卡照常運作" : "本機 NVMe 防禦庫", style: TextStyle(color: isReady ? const Color(0xFF10B981) : Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isReady ? const Color(0xFF10B981) : Colors.tealAccent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text("ANTI-FRAGILE", style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(_syncMessage, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12, height: 1.4)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           
-          if (_isSyncing || _syncProgress == 1.0) ...[
+          Text(
+            _syncMessage, 
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8), 
+              fontSize: 12.5, 
+              height: 1.45,
+              fontFamily: _isSyncing ? 'monospace' : null, // 封裝時展現終端機黑客感
+            )
+          ),
+          const SizedBox(height: 18),
+          
+          if (_isSyncing || isReady) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: _syncProgress,
-                minHeight: 6,
-                backgroundColor: Colors.white12,
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+                minHeight: 8,
+                backgroundColor: Colors.black45,
+                valueColor: AlwaysStoppedAnimation<Color>(isReady ? const Color(0xFF10B981) : Colors.tealAccent),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
           ],
 
           SizedBox(
             width: double.infinity,
-            height: 40,
+            height: 44,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isSyncing ? Colors.white12 : Colors.tealAccent,
+                backgroundColor: _isSyncing ? Colors.white12 : (isReady ? const Color(0xFF10B981) : Colors.tealAccent),
                 foregroundColor: _isSyncing ? Colors.white54 : Colors.black87,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: isReady ? 4 : 0,
+                shadowColor: isReady ? const Color(0xFF10B981).withValues(alpha: 0.4) : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               icon: _isSyncing 
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
-                  : const Icon(Icons.cloud_download_rounded, size: 16),
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
+                  : Icon(isReady ? Icons.refresh_rounded : Icons.cloud_download_rounded, size: 18),
               label: Text(
-                _isSyncing ? "神盾靜默封裝中..." : (_syncProgress == 1.0 ? "重新手動預載" : "一鍵預載全島水文"), 
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
+                _isSyncing ? "神盾靜默封裝中..." : (isReady ? "重新封裝最新水文" : "出海前一鍵封裝全島水文"), 
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
               ),
               onPressed: _isSyncing ? null : () => _startOfflinePreload(autoSync: false),
             ),

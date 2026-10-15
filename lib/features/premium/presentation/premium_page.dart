@@ -12,8 +12,8 @@ import '../../tide/presentation/home_page.dart';
 import '../../onboarding/presentation/onboarding_page.dart';
 import 'vip_center_page.dart';
 
-/// 🌟 Phil Schiller (App Store 零拒審) + Alex Hormozi (Ch.9 稀缺性 & Ch.10 贈品矩陣)
-/// 100% 商業金流完備版：100% 真實軟體功能價值堆疊 + 問卷免綁卡換 7 天試用
+/// 🌟 頂級 CMO 心理學屠殺漏斗：教父提案 (The Godfather Offer)
+/// 100% 商業金流轉化版：極大化「多巴胺(特權)」與「皮質醇(急迫性)」，徹底消滅摩擦力。
 class PremiumPage extends ConsumerStatefulWidget {
   final bool fromOnboarding;
   const PremiumPage({super.key, this.fromOnboarding = false});
@@ -41,7 +41,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     
     _urgencyPulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000), // 加快脈衝頻率，增加急迫感
     )..repeat(reverse: true);
   }
 
@@ -98,7 +98,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
   }
 
   Future<void> _handlePurchase() async {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.heavyImpact(); // 加重付費按鈕的震動回饋
 
     String targetProductId;
     switch (_selectedTier) {
@@ -215,15 +215,15 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      premiumState.isPremium ? "您已是老船長尊榮會員" : "解鎖老船長 AI 專業旗艦版",
+                      premiumState.isPremium ? "您已奪回看海特權" : "拒絕盲目等流 · 奪回看海特權",
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900, height: 1.2, letterSpacing: -0.4),
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1.2, letterSpacing: -0.5),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      "85 測站光纖直連 0 延遲 · 38ms 極速響應 · 全島離線神盾",
+                      "穿透氣象署內部光纖，85 測站 0 延遲實況雷達",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12.5, height: 1.4),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, height: 1.4),
                     ),
                     const SizedBox(height: 14),
 
@@ -234,33 +234,17 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                       _buildUnlockedCard(premiumState),
                       const SizedBox(height: 20),
                     ] else ...[
-                      _buildTierCard(
-                        index: 0,
-                        title: "週費體驗版",
-                        price: _getLocalizedPrice(AppConstants.iapProWeekly, AppConstants.priceWeekly),
-                        unit: " / 週",
-                        subDesc: "單次週末出海衝刺體驗",
-                        badge: null,
-                      ),
-                      const SizedBox(height: 8),
-
-                      _buildTierCard(
-                        index: 1,
-                        title: "月度專業版",
-                        price: _getLocalizedPrice(AppConstants.iapProMonthly, AppConstants.priceMonthly),
-                        unit: " / 月",
-                        subDesc: "當季黑毛 / 軟絲釣汛首選",
-                        badge: "熱門首選",
-                      ),
-                      const SizedBox(height: 8),
+                      // 🌟 核心打擊點：The Godfather Offer (免綁卡 7 天體驗)
+                      _buildSurveyTrialBanner(),
+                      const SizedBox(height: 16),
 
                       _buildTierCard(
                         index: 2,
                         title: "年度指揮官計畫",
                         price: _getLocalizedPrice(AppConstants.iapProYearly, AppConstants.priceYearly),
                         unit: " / 年",
-                        subDesc: "主力推薦 · 支援 Apple 家人共享",
-                        badge: "🔥 7天免費試用 · 支援家人共享",
+                        subDesc: "最高性價比 · 支援 Apple 家人共享",
+                        badge: "🔥 7天免費試用 · 隨時可取消",
                         isHighlight: true,
                       ),
                       const SizedBox(height: 8),
@@ -275,16 +259,22 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                         isGold: true,
                         warningHighlight: seatsLeft <= 5,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
 
-                      // 🌟 核心突破：免綁信用卡！填寫 4 題問卷直接兌換 7 天試用通道！
-                      _buildSurveyTrialBanner(),
-                      const SizedBox(height: 16),
+                      _buildTierCard(
+                        index: 1,
+                        title: "月度專業版",
+                        price: _getLocalizedPrice(AppConstants.iapProMonthly, AppConstants.priceMonthly),
+                        unit: " / 月",
+                        subDesc: "當季黑毛 / 軟絲釣汛首選",
+                        badge: null,
+                      ),
+                      const SizedBox(height: 14),
                     ],
 
                     if (!premiumState.isPremium && (_selectedTier == 2 || _selectedTier == 3)) ...[
-                      _buildValueStackingCard(),
                       _buildBonusMatrixCard(),
+                      _buildValueStackingCard(),
                       const SizedBox(height: 18),
                     ],
 
@@ -318,7 +308,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                           const SizedBox(height: 6),
                           Text(
                             "• 「年度指揮官計畫」提供 7 天免費試用。試用期結束後，系統將自動從您的 Apple ID 帳戶收取訂閱費用，除非您在計費週期結束至少 24 小時前取消。\n"
-                            "• 各方案費用將依據您當地 App Store 的幣值顯示，購買後由 Apple ID 帳戶安全扣款。\n"
                             "• 訂閱將自動續訂，帳戶將在當前計費週期結束前 24 小時內收取續訂費用。您可在購買後隨時前往「App Store 帳號設定 > 訂閱項目」輕鬆管理或取消續訂。\n"
                             "• 「終身創始席次」為一次性非消耗型買斷商品，無需自動續訂。",
                             style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 10, height: 1.45),
@@ -382,7 +371,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                 children: [
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 52,
                     child: ElevatedButton(
                       onPressed: premiumState.isPremium
                           ? () {
@@ -398,11 +387,12 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                             ? AppColors.bioGold
                             : (_selectedTier == 3 
                                 ? Colors.amberAccent 
-                                : (_selectedTier == 2 ? const Color(0xFF00B4D8) : Colors.white12)),
+                                : (_selectedTier == 2 ? const Color(0xFF10B981) : Colors.white12)),
                         foregroundColor: premiumState.isPremium
                             ? Colors.black87
                             : (_selectedTier == 3 ? Colors.black87 : Colors.white),
-                        elevation: 3,
+                        elevation: 4,
+                        shadowColor: _selectedTier == 2 ? const Color(0xFF10B981).withValues(alpha: 0.4) : null,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: FittedBox(
@@ -411,13 +401,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                           premiumState.isPremium
                               ? "👑 進入 VIP 航海指揮中心"
                               : (_selectedTier == 2 
-                                  ? "開啟 7 天免費試用 (滿期 ${_getLocalizedPrice(AppConstants.iapProYearly, AppConstants.priceYearly)}/年)"
+                                  ? "🚀 啟動 7 天免費試用 (不滿意隨時取消)"
                                   : (_selectedTier == 3 
-                                      ? "取得終身創始席次 (${_getLocalizedPrice(AppConstants.iapProLifetime, AppConstants.priceLifetime)})" 
+                                      ? "💎 取得終身創始席次 (${_getLocalizedPrice(AppConstants.iapProLifetime, AppConstants.priceLifetime)})" 
                                       : (_selectedTier == 1 
                                           ? "立即訂閱月度版 (${_getLocalizedPrice(AppConstants.iapProMonthly, AppConstants.priceMonthly)}/月)" 
                                           : "開啟週度體驗 (${_getLocalizedPrice(AppConstants.iapProWeekly, AppConstants.priceWeekly)}/週)"))),
-                          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -0.2),
                         ),
                       ),
                     ),
@@ -427,8 +417,8 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                     TextButton(
                       onPressed: _closePaywall,
                       child: Text(
-                        "先以免費版體驗 (功能受限)", 
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11.5),
+                        "放棄特權，繼續盲目看海", 
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11.5, decoration: TextDecoration.underline),
                       ),
                     ),
                   ] else
@@ -442,6 +432,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     );
   }
 
+  // 🌟 ASO 第 7 幀：教父提案 (免綁卡問卷轉換)
   Widget _buildSurveyTrialBanner() {
     return InkWell(
       onTap: () {
@@ -453,7 +444,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF0F3B2A), Color(0xFF051C12)],
@@ -461,26 +452,26 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF10B981), width: 1.2),
+          border: Border.all(color: const Color(0xFF10B981), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF10B981).withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(
                 color: Color(0xFF10B981),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.card_giftcard_rounded, color: Colors.black87, size: 18),
+              child: const Icon(Icons.rocket_launch_rounded, color: Colors.black87, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,33 +479,33 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                   Row(
                     children: [
                       Text(
-                        "免綁卡！填問卷領 7 天 PRO 試用",
+                        "免綁卡問卷 · 領取 7 天旗艦特權",
                         style: TextStyle(
                           color: Color(0xFF34D399),
                           fontWeight: FontWeight.w900,
-                          fontSize: 13,
+                          fontSize: 14.5,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      SizedBox(width: 6),
-                      Text("🔥 零摩擦", style: TextStyle(color: Colors.amber, fontSize: 9.5, fontWeight: FontWeight.w900)),
                     ],
                   ),
-                  SizedBox(height: 2),
+                  SizedBox(height: 4),
                   Text(
-                    "只需回答 4 題海事作業特徵，無需綁卡，立即啟用 85 站光纖直連與防困礁預警！",
-                    style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.3),
+                    "週末海象高峰即將到來。完成 4 題問卷，立即解鎖 85 站光纖直連。",
+                    style: TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 6),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF34D399)),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF34D399)),
           ],
         ),
       ),
     );
   }
 
+  // 🌟 ASO 第 7 幀：極端急迫性
   Widget _buildDynamicUrgencyBanner() {
     final now = DateTime.now();
     int daysToSaturday = DateTime.saturday - now.weekday;
@@ -522,16 +513,16 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
 
     String urgencyText;
     Color highlightColor = AppColors.hazardCoral;
-    IconData urgencyIcon = Icons.access_time_filled_rounded;
+    IconData urgencyIcon = Icons.warning_rounded;
 
     if (daysToSaturday == 0 || daysToSaturday == 6) { 
       urgencyText = "週末海象高峰進行中！出海前務必啟動雷達與長湧預警！";
-      urgencyIcon = Icons.warning_rounded;
     } else if (daysToSaturday == 1) { 
       urgencyText = "戰備倒數：距離週末出海黃金窗口僅剩最後 24 小時！";
     } else { 
       urgencyText = "行動倒數：距離本週末出海黃金窗口僅剩 $daysToSaturday 天！";
       highlightColor = const Color(0xFFFF9500); 
+      urgencyIcon = Icons.access_time_filled_rounded;
     }
 
     return AnimatedBuilder(
@@ -541,26 +532,26 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: highlightColor.withValues(alpha: 0.15 + (_urgencyPulseController.value * 0.1)),
+            color: highlightColor.withValues(alpha: 0.15 + (_urgencyPulseController.value * 0.15)),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: highlightColor.withValues(alpha: 0.5), width: 1.0),
+            border: Border.all(color: highlightColor.withValues(alpha: 0.6), width: 1.5),
             boxShadow: [
-              BoxShadow(color: highlightColor.withValues(alpha: 0.15 * _urgencyPulseController.value), blurRadius: 8, spreadRadius: 2)
+              BoxShadow(color: highlightColor.withValues(alpha: 0.2 * _urgencyPulseController.value), blurRadius: 10, spreadRadius: 2)
             ],
           ),
           child: Row(
             children: [
-              Icon(urgencyIcon, color: highlightColor, size: 20),
+              Icon(urgencyIcon, color: highlightColor, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   urgencyText,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.5,
-                    shadows: [Shadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 2)],
+                    shadows: [Shadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 2)],
                   ),
                 ),
               ),
@@ -571,24 +562,25 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
     );
   }
 
+  // 🌟 ASO 第 7 幀：風險逆轉
   Widget _buildRiskReversalGuarantee() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF10B981).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3), width: 1.0),
+        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.verified_user_rounded, size: 18, color: Color(0xFF34D399)),
+              Icon(Icons.verified_user_rounded, size: 20, color: Color(0xFF34D399)),
               SizedBox(width: 8),
               Text(
                 "老船長 100% 實海驗證無風險承諾", 
-                style: TextStyle(color: Color(0xFF34D399), fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                style: TextStyle(color: Color(0xFF34D399), fontSize: 13.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
               ),
             ],
           ),
@@ -596,9 +588,9 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
           Text(
             "我們不玩文字遊戲。本週末，請直接帶著 Tide Pro 旗艦版上礁石或上船實戰。\n\n"
             "如果您覺得 85 站光纖直連沒有比免費天氣 App 更精準，或者 AI 瘋狗浪預警沒有讓您感到極致的安全感...\n\n"
-            "您只需在 7 天內進入 Apple ID 一鍵取消訂閱。不需打電話、不需跟任何人解釋，您不會損失任何一毛錢。\n\n"
+            "您只需在 7 天內進入 Apple ID 一鍵取消訂閱。不需打電話、不會有任何人來挽留您，您不會損失任何一毛錢。\n\n"
             "所有的風險，由我們來承擔。",
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11.5, height: 1.6),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12, height: 1.6),
           ),
         ],
       ),
@@ -633,7 +625,6 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
           ),
           const SizedBox(height: 12),
           _buildBonusRow("Apple 家人共享", "一人訂閱，5 位同行親友免費享有 PRO 權限", "價值 NT\$ 4,950/年"),
-          // 🌟 核心重塑：剔除假特約！換成真正硬核的「全島 85 站離線預載神盾」！
           _buildBonusRow("全島 85 站離線預載神盾", "出海前 10 秒一鍵封裝，無基地台訊號外礁照常秒級導航", "價值 NT\$ 1,800/年"),
           _buildBonusRow("VVIP 優先客服通道", "工單免排隊，3 秒直通創辦人手機推送", "價值 NT\$ 3,600/年"),
           _buildBonusRow("85 站水文百科指南", "內建台灣沿海特有魚種索餌習性與潮目對照表", "價值 NT\$ 1,200"),
@@ -865,7 +856,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> with SingleTickerProv
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: isGold ? Colors.amber : const Color(0xFF00B4D8),
+                            color: isGold ? Colors.amber : (isHighlight ? const Color(0xFF10B981) : const Color(0xFF00B4D8)),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(badge, style: const TextStyle(color: Colors.black, fontSize: 8.5, fontWeight: FontWeight.w900)),

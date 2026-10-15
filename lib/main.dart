@@ -155,7 +155,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           final uri = Uri.tryParse(settings.name!);
           if (uri != null) {
             
-            // 🌟 無人巡航 01：首頁黑金即時雷達 (自動切換至全海象模式 + 目標測站)
             if (uri.path.contains('home') || uri.host == 'home') {
               return PageRouteBuilder(
                 opaque: false,
@@ -172,7 +171,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
               );
             }
 
-            // 🌟 無人巡航 02：純潮汐航海儀表 (自動切換至純潮汐模式)
             if (uri.path.contains('pure_tide') || uri.host == 'pure_tide') {
               return PageRouteBuilder(
                 opaque: false,
@@ -189,17 +187,14 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
               );
             }
 
-            // 🌟 無人巡航 03：現場漁獲榮譽日誌
             if (uri.path.contains('catch_log') || uri.host == 'catch_log') {
               return MaterialPageRoute(builder: (_) => const CatchLogPage());
             }
 
-            // 🌟 無人巡航 04：VIP 航海指揮中心
             if (uri.path.contains('vip_center') || uri.host == 'vip_center') {
               return MaterialPageRoute(builder: (_) => const VipCenterPage());
             }
 
-            // 🌟 無人巡航 05：貝伊果屋真情手寫信 (直接彈出手寫信)
             if (uri.path.contains('letter') || uri.host == 'letter') {
               return PageRouteBuilder(
                 opaque: false,
@@ -214,7 +209,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
               );
             }
 
-            // 原生 Deep Link 支援
             if (uri.queryParameters.containsKey('sid')) {
               final sid = uri.queryParameters['sid']!;
               return PageRouteBuilder(
@@ -254,10 +248,11 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
               );
             }
 
+            // 🌟 核心打擊點：第 3 幀【恐懼喚醒 (The Fear Factor)】UI 真實注入！
             if (uri.path.contains('surge') || uri.host == 'alerts') {
               return PageRouteBuilder(
                 opaque: false,
-                barrierColor: AppColors.hazardCoral.withValues(alpha: 0.9),
+                barrierColor: AppColors.hazardCoral.withValues(alpha: 0.95), // 加深血紅壓迫感
                 barrierDismissible: false,
                 transitionDuration: const Duration(milliseconds: 300),
                 pageBuilder: (ctx, animation, _) {
@@ -267,21 +262,54 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
                   });
 
                   return AlertDialog(
-                    backgroundColor: AppColors.abyssBlack,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.white, width: 2)),
-                    title: const Row(
+                    backgroundColor: const Color(0xFF1A0505), // 極致深紅底色
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24), 
+                      side: const BorderSide(color: AppColors.hazardCoral, width: 2.5),
+                    ),
+                    title: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.warning_rounded, color: AppColors.hazardCoral, size: 28),
-                        SizedBox(width: 10),
-                        Text("緊急撤礁警告", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                        Row(
+                          children: [
+                            Icon(Icons.dangerous_rounded, color: AppColors.hazardCoral, size: 32),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "瘋狗浪預警 · 比死神快30分鐘", 
+                                style: TextStyle(color: AppColors.hazardCoral, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          "HALT 警戒: 嚴禁水上作業",
+                          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2),
+                        )
                       ],
                     ),
-                    content: const Text("滿潮水位即將於 30 分鐘內逼近！請立即停止作釣撤離！", style: TextStyle(color: Colors.white, fontSize: 14)),
+                    content: const Text(
+                      "外海深層長湧動能已被 AI 哨兵提前捕捉！\n\n滿潮蓋礁危機即將爆發，這不是演習，為了您與家人的安全，請即刻收竿撤離至安全高地！", 
+                      style: TextStyle(color: Colors.white, fontSize: 14.5, height: 1.6, fontWeight: FontWeight.w600),
+                    ),
+                    actionsAlignment: MainAxisAlignment.center,
                     actions: [
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.hazardCoral, foregroundColor: Colors.white),
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text("確認撤離"),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.hazardCoral, 
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 8,
+                            shadowColor: AppColors.hazardCoral.withValues(alpha: 0.6),
+                          ),
+                          icon: const Icon(Icons.directions_run_rounded, size: 20),
+                          label: const Text("立即撤離保命 (Acknowledge)", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
                       ),
                     ],
                   );

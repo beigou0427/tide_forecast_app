@@ -16,14 +16,12 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/custom_card.dart';
 import '../../../core/services/review_service.dart';
 import '../../premium/services/premium_service.dart';
-// 🌟 編譯黑洞修復：補齊路由與常數依賴
 import '../../premium/presentation/premium_page.dart';
 import '../../../core/utils/constants.dart';
 
-/// 🌟 Alex Hormozi ($100M Leads) 病毒裂變與新鄉重夫防呆日誌引擎
-/// 100% 實機防禦版：
-/// 1. 【增長駭客】全螢幕傳奇大物認證彈窗 (Trophy Unlocked Modal)，極大化病毒分享率！
-/// 2. 【信任防衛與轉單】免費雲端容量滿載警報！阻止沉默資料遺失，轉化為 PRO 訂閱印鈔機！
+/// 🌟 頂級 CMO 社交貨幣與病毒裂變引擎 (The Ego Trap)
+/// 1. 【官方鋼印】為每張戰利品壓上「氣象署實測數據」，讓炫耀具備無可辯駁的權威性。
+/// 2. 【一鍵炫耀】化被動分享為主動出擊，徹底打通 LINE 釣魚群組的 Viral Loop。
 class CatchLogPage extends ConsumerWidget {
   const CatchLogPage({super.key});
 
@@ -258,28 +256,6 @@ class CatchLogPage extends ConsumerWidget {
                       ),
                       Row(
                         children: [
-                          if (isTrophy) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: isEInk ? Colors.black : AppColors.bioGold.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: isEInk ? Colors.black : AppColors.bioGold.withValues(alpha: 0.4), 
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                "👑 大物認證", 
-                                style: TextStyle(
-                                  color: isEInk ? Colors.white : AppColors.bioGold, 
-                                  fontSize: 9, 
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
                           if (item.imageUrl != null) const Icon(Icons.cloud_done_rounded, size: 12, color: Color(0xFF30D158)),
                           const SizedBox(width: 4),
                           Text(timeStr, style: TextStyle(fontSize: 11, color: timeColor)),
@@ -290,26 +266,57 @@ class CatchLogPage extends ConsumerWidget {
                   const SizedBox(height: 10),
                   
                   if (item.imagePath != null || item.imageUrl != null) ...[
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isEInk ? Colors.black : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder), 
-                          width: isEInk ? 1.5 : 0.5,
+                    Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isEInk ? Colors.black : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder), 
+                              width: isEInk ? 1.5 : 0.5,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: item.imagePath != null && File(item.imagePath!).existsSync()
+                                ? Image.file(
+                                    File(item.imagePath!),
+                                    height: 190,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (ctx, err, stack) => _buildCloudImage(item.imageUrl, isClassic, isEInk),
+                                  )
+                                : _buildCloudImage(item.imageUrl, isClassic, isEInk),
+                          ),
                         ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: item.imagePath != null && File(item.imagePath!).existsSync()
-                            ? Image.file(
-                                File(item.imagePath!),
-                                height: 190,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => _buildCloudImage(item.imageUrl, isClassic, isEInk),
-                              )
-                            : _buildCloudImage(item.imageUrl, isClassic, isEInk),
-                      ),
+                        
+                        // 🌟 CMO 核心打擊點：官方實測水文鋼印 (The Authority Stamp)
+                        if (isTrophy)
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.bioGold.withValues(alpha: 0.8), width: 1.2),
+                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 4)],
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.verified_user_rounded, color: AppColors.bioGold, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    "氣象署實測鋼印",
+                                    style: TextStyle(color: AppColors.bioGold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -318,38 +325,48 @@ class CatchLogPage extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(
-                          item.species, 
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: titleColor, letterSpacing: -0.3),
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              item.species, 
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: titleColor, letterSpacing: -0.5),
+                            ),
+                            if (isTrophy) ...[
+                              const SizedBox(width: 8),
+                              // 🌟 CMO 核心打擊點：極度浮誇的階級勳章
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(colors: [Color(0xFFD4AF37), Color(0xFFFFF07C)]),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFB8860B), width: 1.0),
+                                ),
+                                child: const Text(
+                                  "👑 傳奇大物 · 官方認證", 
+                                  style: TextStyle(
+                                    color: Colors.black87, 
+                                    fontSize: 9, 
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       Row(
-                        children: [
-                          Builder(
-                            builder: (shareBtnContext) {
-                              return IconButton(
-                                icon: Icon(Icons.ios_share_rounded, size: 18, color: isEInk ? Colors.black : AppColors.bioGold),
-                                tooltip: "分享賺取老船長代幣",
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                onPressed: () => _shareCatchRecord(item, shareBtnContext, ref),
-                              );
-                            }
+                        children: List.generate(
+                          5,
+                          (starIdx) => Icon(
+                            starIdx < item.rating ? Icons.star_rounded : Icons.star_border_rounded,
+                            size: 16,
+                            color: starIdx < item.rating 
+                                ? (isEInk ? Colors.black : AppColors.bioGold) 
+                                : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
                           ),
-                          const SizedBox(width: 8),
-                          Row(
-                            children: List.generate(
-                              5,
-                              (starIdx) => Icon(
-                                starIdx < item.rating ? Icons.star_rounded : Icons.star_border_rounded,
-                                size: 16,
-                                color: starIdx < item.rating 
-                                    ? (isEInk ? Colors.black : AppColors.bioGold) 
-                                    : (isClassic ? Colors.grey.shade300 : AppColors.textTertiary),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -361,6 +378,8 @@ class CatchLogPage extends ConsumerWidget {
                     ),
                   ],
                   const SizedBox(height: 14),
+                  
+                  // 🌟 水文矩陣徽章 (Hardcore Data Matrix)
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
@@ -369,6 +388,27 @@ class CatchLogPage extends ConsumerWidget {
                       if (item.waveHeight != null) _buildMetricBadge("浪高", "${item.waveHeight} m", isEInk ? Colors.black : Colors.indigoAccent, isEInk),
                       if (item.seaTemperature != null) _buildMetricBadge("水溫", "${item.seaTemperature} ℃", isEInk ? Colors.black : const Color(0xFFFF9500), isEInk),
                     ],
+                  ),
+
+                  // 🌟 CMO 核心打擊點：一鍵炫耀戰績 (強烈動詞 CTA)
+                  const SizedBox(height: 16),
+                  Builder(
+                    builder: (shareBtnContext) {
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: isEInk ? Colors.black : AppColors.bioGold, width: 1.0),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            foregroundColor: isEInk ? Colors.black : AppColors.bioGold,
+                          ),
+                          icon: const Icon(Icons.campaign_rounded, size: 16),
+                          label: const Text("一鍵發布戰報至 LINE 群組", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                          onPressed: () => _shareCatchRecord(item, shareBtnContext, ref),
+                        ),
+                      );
+                    }
                   ),
                 ],
               ),
@@ -460,7 +500,7 @@ class CatchLogPage extends ConsumerWidget {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "🎉 戰報分享成功！已發放 10 枚老船長代幣作為聯盟推廣獎勵！", 
+                        "🎉 戰報發布成功！已發放 10 枚老船長代幣作為聯盟推廣獎勵！", 
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     ),
@@ -526,7 +566,6 @@ class CatchLogPage extends ConsumerWidget {
     );
   }
 
-  // 🌟 增長駭客核心：全螢幕傳奇大物認證彈窗
   void _showTrophyUnlockedDialog(BuildContext context, CatchLogItem item, WidgetRef ref) {
     final themeMode = ref.read(themeModeProvider);
     final bool isEInk = themeMode == AppThemeMode.eInkHighContrast;
@@ -877,7 +916,6 @@ class CatchLogPage extends ConsumerWidget {
                             imagePath: permanentPath,
                           );
 
-                          // 🌟 PM 核心防線：容量偵測器 (Quota Monitor) 與恐懼行銷轉單漏斗
                           final bool isPro = ref.read(premiumProvider).isPremium || ref.read(premiumProvider).isFounder;
                           final int currentCloudPhotos = ref.read(catchLogProvider).where((e) => e.imageUrl != null || e.imagePath != null).length;
                           final bool isStorageFull = !isPro && currentCloudPhotos >= AppConstants.maxFreeCloudCatchLogs;

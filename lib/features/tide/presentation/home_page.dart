@@ -300,13 +300,10 @@ class _HomePageState extends ConsumerState<HomePage> {
       themeIcon = Icons.contrast_rounded;
     }
 
-    // 🌟 盲點一：引擎點火！將遙測與評價引擎對接潮汐視圖的生命週期
     ref.listen<AsyncValue<TideViewData>>(tideViewDataProvider, (previous, next) {
       if (next.hasValue && next.value != null && !next.isRefreshing) {
         final stationName = next.value!.stationData.info.stationName;
-        // 點火 1：全漏斗遙測，餵養 Firebase 演算法
         AnalyticsService.logStationView(currentId, stationName);
-        // 點火 2：喚醒被遺忘的 ASO 五星增長引擎！
         ReviewService.checkAndTriggerReview();
       }
     });
@@ -342,7 +339,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         label: Text("切換就近測站 ($shortName)", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
       );
     } else {
-      // 🌟 盲點二修復：把被藏在衣櫃裡的「印鈔機」搬到首頁黃金右下角！
       smartFab = FloatingActionButton.extended(
         onPressed: () {
           HapticFeedback.lightImpact();
@@ -557,10 +553,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ],
 
                       if (!isPureTide) ...[
+                        // 🌟 核心打擊點：第 2 幀【貪婪觸發】戰術索餌雷達！
                         BiteRadarSection(
                           station: station,
                           selectedDate: selectedDate,
                           isClassic: isClassicUI,
+                          isEInk: isEInk,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -957,16 +955,19 @@ class AstroHindcastCard extends StatelessWidget {
   }
 }
 
+/// 🌟 第 2 幀【貪婪觸發】(The Greed Trigger) 核心視覺落地
 class BiteRadarSection extends StatelessWidget {
   final TideStationData station;
   final DateTime selectedDate;
   final bool isClassic;
+  final bool isEInk;
 
   const BiteRadarSection({
     super.key,
     required this.station,
     required this.selectedDate,
     required this.isClassic,
+    required this.isEInk,
   });
 
   @override
@@ -977,99 +978,175 @@ class BiteRadarSection extends StatelessWidget {
     );
 
     final Color primaryColor = isClassic ? const Color(0xFF0077B6) : AppColors.pelagicCyan;
-    final Color textColor = isClassic ? AppColors.classicText : AppColors.textPrimary;
+    final Color textColor = isEInk ? Colors.black : (isClassic ? AppColors.classicText : AppColors.textPrimary);
+    final Color cardBg = isEInk ? Colors.white : (isClassic ? Colors.white : AppColors.abyssCard);
+    final Color borderColor = isEInk ? Colors.black : (isClassic ? Colors.grey.shade200 : AppColors.glassBorder);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isClassic ? Colors.white : AppColors.abyssCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isClassic ? Colors.grey.shade200 : AppColors.glassBorder,
-          width: 0.5,
-        ),
-      ),
+    return CustomCard(
+      backgroundColor: cardBg,
+      borderColor: borderColor,
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 攻擊性主標題
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Icon(Icons.radar_rounded, color: primaryColor, size: 20),
+                  Icon(Icons.radar_rounded, color: primaryColor, size: 22),
                   const SizedBox(width: 8),
                   Text(
-                    "指標魚種索餌活性雷達",
+                    "M4 戰術索餌雷達 · 精算爆咬時機",
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 14,
+                      fontSize: 14.5,
                       color: textColor,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  biteResult.biteLevel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: primaryColor,
-                  ),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            "黃金起流窗口：${biteResult.primaryWindow}",
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.bioGold,
+          const SizedBox(height: 16),
+
+          // 2. 獨立的高亮戰術面板 (貪婪觸發器)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: isEInk ? null : LinearGradient(
+                colors: [AppColors.bioGold.withValues(alpha: 0.2), const Color(0xFF4A1010).withValues(alpha: 0.6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              color: isEInk ? Colors.black.withValues(alpha: 0.05) : null,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isEInk ? Colors.black : AppColors.bioGold.withValues(alpha: 0.5),
+                width: isEInk ? 1.5 : 1.0,
+              ),
+              boxShadow: isEInk ? null : [
+                BoxShadow(color: AppColors.bioGold.withValues(alpha: 0.15), blurRadius: 12, spreadRadius: 1),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text("🔥", style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Text(
+                      "滿退 2 分起流 · 黃金爆咬窗口",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: isEInk ? Colors.black : AppColors.bioGold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isEInk ? Colors.black : AppColors.hazardCoral,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text("ACTIVE", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  biteResult.primaryWindow,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: isEInk ? Colors.black : Colors.white,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 16),
+
+          // 3. 系統推演洞察摘要
           Text(
             biteResult.oceanTriggerSummary,
             style: TextStyle(
-              fontSize: 11.5,
-              color: isClassic ? Colors.grey.shade600 : AppColors.textSecondary,
-              height: 1.4,
+              fontSize: 12,
+              color: isEInk ? Colors.black87 : (isClassic ? Colors.grey.shade700 : AppColors.textSecondary),
+              height: 1.45,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
+
+          // 4. 指標魚種進度條武裝化 (視覺多巴胺)
           ...biteResult.speciesIndices.map((sp) {
+            final double progress = sp.biteProbability / 100.0;
+            final bool isHighBite = sp.biteProbability >= 75;
+            final Color barColor = isEInk ? Colors.black : (isHighBite ? const Color(0xFF10B981) : primaryColor);
+            
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              padding: const EdgeInsets.only(bottom: 14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    sp.speciesName,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
-                  ),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "${sp.statusBadge} (${sp.biteProbability}%)",
+                        sp.speciesName,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: sp.biteProbability >= 75 ? const Color(0xFF30D158) : primaryColor,
+                          color: textColor,
                         ),
                       ),
+                      Row(
+                        children: [
+                          Text(
+                            sp.statusBadge,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isEInk ? Colors.black54 : (isHighBite ? const Color(0xFF34D399) : AppColors.textTertiary),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "${sp.biteProbability}%",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: barColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: isEInk ? Colors.black12 : (isClassic ? Colors.grey.shade200 : Colors.white12),
+                      valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "戰術提示: ${sp.tacticalTip}",
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: isEInk ? Colors.black54 : (isClassic ? Colors.grey.shade500 : AppColors.textTertiary),
+                    ),
                   ),
                 ],
               ),
